@@ -1,40 +1,16 @@
-from flask import Flask, render_template, request, redirect, jsonify
-import sqlite3
+
+from flask import Blueprint, render_template, request, redirect, jsonify
+from flask_login import login_user, login_required, logout_user
+from werkzeug.security import generate_password_hash, check_password_hash
 import datetime
 
-# 🔐 Login system
-from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user
-from werkzeug.security import generate_password_hash, check_password_hash
+from .models import get_db_connection
+from .__init__ import User
 
-app = Flask(__name__)
-app.secret_key = "secret123"
-
-# ---------------- LOGIN SETUP ----------------
-login_manager = LoginManager()
-login_manager.init_app(app)
-login_manager.login_view = 'login'
-
-
-# ---------------- USER CLASS ----------------
-class User(UserMixin):
-    def __init__(self, id):
-        self.id = id
-
-
-@login_manager.user_loader
-def load_user(user_id):
-    return User(user_id)
-
-
-# ---------------- DATABASE ----------------
-def get_db_connection():
-    conn = sqlite3.connect('data.db')
-    conn.row_factory = sqlite3.Row
-    return conn
-
+main = Blueprint('main', __name__)
 
 # ---------------- REGISTER ----------------
-@app.route('/register', methods=['GET', 'POST'])
+@main.route('/register', methods=['GET', 'POST'])
 def register():
     if request.method == 'POST':
         username = request.form.get('username')
@@ -53,12 +29,9 @@ def register():
                 (username, hashed_password)
             )
             conn.commit()
-        except sqlite3.IntegrityError:
+        except Exception:
             conn.close()
             return "Username already exists ❌"
-        except Exception as e:
-            conn.close()
-            return f"Error: {str(e)}"
 
         conn.close()
         return redirect('/login')
@@ -67,7 +40,7 @@ def register():
 
 
 # ---------------- LOGIN ----------------
-@app.route('/login', methods=['GET', 'POST'])
+@main.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
         username = request.form.get('username')
@@ -90,7 +63,7 @@ def login():
 
 
 # ---------------- LOGOUT ----------------
-@app.route('/logout')
+@main.route('/logout')
 @login_required
 def logout():
     logout_user()
@@ -98,7 +71,7 @@ def logout():
 
 
 # ---------------- HOME ----------------
-@app.route('/')
+@main.route('/')
 @login_required
 def home():
     conn = get_db_connection()
@@ -125,7 +98,7 @@ def home():
 
 
 # ---------------- INPUT ----------------
-@app.route('/input', methods=['GET', 'POST'])
+@main.route('/input', methods=['GET', 'POST'])
 @login_required
 def input_page():
     if request.method == 'POST':
@@ -156,7 +129,7 @@ def input_page():
 
 
 # ---------------- DELETE ----------------
-@app.route('/delete/<int:id>')
+@main.route('/delete/<int:id>')
 @login_required
 def delete(id):
     conn = get_db_connection()
@@ -168,7 +141,7 @@ def delete(id):
 
 
 # ---------------- API ----------------
-@app.route('/api/data')
+@main.route('/api/data')
 @login_required
 def api_data():
     filter_type = request.args.get('filter', 'all')
@@ -209,8 +182,3 @@ def api_data():
         "bod": [r["bod"] for r in rows_list],
         "tss": [r["tss"] for r in rows_list]
     })
-
-
-# ---------------- RUN ----------------
-if __name__ == '__main__':
-    app.run(debug=True)
