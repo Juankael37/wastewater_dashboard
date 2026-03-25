@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Wastewater Dashboard</title>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <!-- Bootstrap -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+
+    <!-- Icons -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css">
+
+    <style>
+        body {
+            background-color: #f5f7fa;
+            transition: 0.3s;
+        }
+
+        body.dark {
+            background-color: #121212;
+            color: white;
+        }
+
+        body.dark .card {
+            background-color: #1e1e1e;
+            color: white;
+        }
+
+        .card {
+            border-radius: 12px;
+        }
+
+        .kpi {
+            font-size: 24px;
+            font-weight: bold;
+        }
+
+        .danger { color: red; font-weight: bold; }
+        .safe { color: green; font-weight: bold; }
+    </style>
+</head>
+
+<body>
+
+<div class="container py-4">
+
+    <!-- HEADER -->
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h3><i class="bi bi-droplet-half"></i> Wastewater Dashboard</h3>
+
+        <div class="d-flex gap-2">
+            <!-- Filter -->
+            <select id="filter" class="form-select">
+                <option value="all">All</option>
+                <option value="today">Today</option>
+                <option value="7days">Last 7 Days</option>
+            </select>
+
+            <!-- Dark Mode -->
+            <button class="btn btn-dark" onclick="toggleDark()">
+                <i class="bi bi-moon"></i>
+            </button>
+
+            <a href="/export" class="btn btn-primary">
+                <i class="bi bi-download"></i>
+            </a>
+        </div>
+    </div>
+
+    <!-- ALERT BANNER -->
+    <div id="alertBox"></div>
+
+    <!-- KPI -->
+    <div class="row g-3 mb-4">
+        <div class="col-md-3"><div class="card p-3 text-center"><h6>pH</h6><div id="phVal" class="kpi">-</div></div></div>
+        <div class="col-md-3"><div class="card p-3 text-center"><h6>COD</h6><div id="codVal" class="kpi">-</div></div></div>
+        <div class="col-md-3"><div class="card p-3 text-center"><h6>BOD</h6><div id="bodVal" class="kpi">-</div></div></div>
+        <div class="col-md-3"><div class="card p-3 text-center"><h6>TSS</h6><div id="tssVal" class="kpi">-</div></div></div>
+    </div>
+
+    <!-- TABLE -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <table class="table table-striped text-center">
+                <thead class="table-dark">
+                    <tr>
+                        <th>Time</th><th>pH</th><th>COD</th><th>BOD</th><th>TSS</th><th>Status</th>
+                    </tr>
+                </thead>
+                <tbody id="tableBody"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- CHARTS -->
+    <div class="row g-3">
+        <div class="col-md-6"><div class="card p-3"><canvas id="phChart"></canvas></div></div>
+        <div class="col-md-6"><div class="card p-3"><canvas id="codChart"></canvas></div></div>
+        <div class="col-md-6"><div class="card p-3"><canvas id="bodChart"></canvas></div></div>
+        <div class="col-md-6"><div class="card p-3"><canvas id="tssChart"></canvas></div></div>
+    </div>
+
+</div>
+
+<script>
+let charts = {};
+
+function toggleDark() {
+    document.body.classList.toggle("dark");
+}
+
+// FETCH DATA (you need this route in Flask)
+async function loadData() {
+    const filter = document.getElementById("filter").value;
+    const res = await fetch(`/api/data?filter=${filter}`);
+    const data = await res.json();
+
+    updateUI(data);
+}
+
+function updateUI(data) {
+    const rows = data.rows;
+
+    if (!rows.length) return;
+
+    // Latest values
+    let last = rows[rows.length - 1];
+    phVal.innerText = last.ph;
+    codVal.innerText = last.cod;
+    bodVal.innerText = last.bod;
+    tssVal.innerText = last.tss;
+
+    // ALERT
+    let alertHTML = "";
+    if (last.ph < 6 || last.ph > 9 || last.cod > 250 || last.bod > 50 || last.tss > 100) {
+        alertHTML = `<div class="alert alert-danger">⚠ Critical Water Quality Detected!</div>`;
+    }
+    document.getElementById("alertBox").innerHTML = alertHTML;
+
+    // TABLE
+    let html = "";
+    rows.forEach(r => {
+        let status = (r.ph < 6 || r.ph > 9 || r.cod > 250 || r.bod > 50 || r.tss > 100)
+            ? `<span class="badge bg-danger">Critical</span>`
+            : `<span class="badge bg-success">Normal</span>`;
+
+        html += `
+        <tr>
+            <td>${r.timestamp.slice(11,19)}</td>
+            <td>${r.ph}</td>
+            <td>${r.cod}</td>
+            <td>${r.bod}</td>
+            <td>${r.tss}</td>
+            <td>${status}</td>
+        </tr>`;
+    });
+    tableBody.innerHTML = html;
+
+    updateCharts(data);
+}
+
+function createChart(id, label, data, color) {
+    if (charts[id]) charts[id].destroy();
+
+    charts[id] = new Chart(document.getElementById(id), {
+        type: 'line',
+        data: {
+            labels: data.timestamps,
+            datasets: [{
+                label: label,
+                data: data.values,
+                borderColor: color,
+                tension: 0.3
+            }]
+        }
+    });
+}
+
+function updateCharts(data) {
+    createChart("phChart", "pH", {timestamps: data.timestamps, values: data.ph}, "blue");
+    createChart("codChart", "COD", {timestamps: data.timestamps, values: data.cod}, "red");
+    createChart("bodChart", "BOD", {timestamps: data.timestamps, values: data.bod}, "green");
+    createChart("tssChart", "TSS", {timestamps: data.timestamps, values: data.tss}, "orange");
+}
+
+// AUTO REFRESH (AJAX)
+setInterval(loadData, 5000);
+
+// INIT
+loadData();
+</script>
+
+</body>
+</html>
