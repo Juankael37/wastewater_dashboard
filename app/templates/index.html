@@ -79,6 +79,7 @@ async function loadData() {
 }
 
 function updateUI(data) {
+    const std = data.standards;
     const rows = data.rows;
     if (!rows.length) return;
 
@@ -90,16 +91,26 @@ function updateUI(data) {
     tssVal.innerText = last.tss;
 
     let alertHTML = "";
-    if (last.ph < 6 || last.ph > 9 || last.cod > 250 || last.bod > 50 || last.tss > 100) {
+    if (
+    last.ph < std.ph.min || last.ph > std.ph.max ||
+    last.cod > std.cod.max ||
+    last.bod > std.bod.max ||
+    last.tss > std.tss.max
+) {
         alertHTML = `<div class="bg-red-500 p-3 rounded">⚠ Critical Water Quality Detected!</div>`;
     }
     document.getElementById("alertBox").innerHTML = alertHTML;
 
     let html = "";
     rows.forEach(r => {
-        let status = (r.ph < 6 || r.ph > 9 || r.cod > 250 || r.bod > 50 || r.tss > 100)
-            ? `<span class="text-red-400 font-bold">Critical</span>`
-            : `<span class="text-green-400 font-bold">Normal</span>`;
+        let status = (
+    r.ph < std.ph.min || r.ph > std.ph.max ||
+    r.cod > std.cod.max ||
+    r.bod > std.bod.max ||
+    r.tss > std.tss.max
+)
+? `<span class="text-red-400 font-bold">Critical</span>`
+: `<span class="text-green-400 font-bold">Normal</span>`;
 
         html += `
         <tr class="border-b border-slate-700">

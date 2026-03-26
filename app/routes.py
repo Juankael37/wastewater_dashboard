@@ -199,13 +199,28 @@ def api_data():
             "timestamp": r["timestamp"]
         })
 
+    # --- GET STANDARDS ---
+    conn = get_db_connection()
+    std_rows = conn.execute("SELECT * FROM standards").fetchall()
+    conn.close()
+
+    standards = {}
+    for s in std_rows:
+        standards[s["parameter"]] = {
+    "class_a_min": float(s["class_a_min"]),
+    "class_a_max": float(s["class_a_max"]),
+    "class_b_min": float(s["class_b_min"]),
+    "class_b_max": float(s["class_b_max"])
+}
+
     return jsonify({
         "rows": rows_list,
         "timestamps": [r["timestamp"][11:19] for r in rows_list],
         "ph": [r["ph"] for r in rows_list],
         "cod": [r["cod"] for r in rows_list],
         "bod": [r["bod"] for r in rows_list],
-        "tss": [r["tss"] for r in rows_list]
+        "tss": [r["tss"] for r in rows_list],
+        "standards": standards
     })
 
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph
