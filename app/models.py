@@ -15,7 +15,9 @@ def get_db_connection():
         class_a_min REAL,
         class_a_max REAL,
         class_b_min REAL,
-        class_b_max REAL
+        class_b_max REAL,
+        class_c_min REAL,
+        class_c_max REAL
     )
     """)
     conn.commit()

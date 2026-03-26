@@ -1,15 +1,90 @@
-
-from flask import Blueprint, render_template, request, redirect, jsonify
+from flask import Blueprint, render_template, request, redirect, jsonify, send_file
 from flask_login import login_user, login_required, logout_user
 from werkzeug.security import generate_password_hash, check_password_hash
 import datetime
+import io
 
 from .models import get_db_connection
 from .__init__ import User
 
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph
+from reportlab.lib import colors
+from reportlab.lib.pagesizes import letter
+from reportlab.lib.styles import getSampleStyleSheet
+
 main = Blueprint('main', __name__)
 
-# ---------------- REGISTER ----------------
+# ================= ALERT LOGIC =================
+def get_status(value, min_val, max_val):
+    if value < min_val or value > max_val:
+        return "CRITICAL"
+
+    margin = (max_val - min_val) * 0.1
+
+    if value < (min_val + margin) or value > (max_val - margin):
+        return "WARNING"
+
+    return "SAFE"
+
+
+# ================= SMART ALERT ENGINE =================
+def create_alert(parameter, value, status):
+    conn = get_db_connection()
+
+    existing = conn.execute("""
+        SELECT * FROM alerts
+        WHERE parameter = ? AND state = 'ACTIVE'
+        ORDER BY timestamp DESC LIMIT 1
+    """, (parameter,)).fetchone()
+
+    now = datetime.datetime.now()
+
+    if existing:
+        last_time = datetime.datetime.strptime(existing["timestamp"], "%Y-%m-%d %H:%M:%S")
+
+        # ⏱ 10 MIN COOLDOWN
+        if (now - last_time).total_seconds() < 600:
+            conn.close()
+            return
+
+        # 🚫 SAME STATUS → SKIP
+        if existing["status"] == status:
+            conn.close()
+            return
+
+    # ✅ CREATE ALERT
+    conn.execute("""
+        INSERT INTO alerts (parameter, value, status, state, timestamp)
+        VALUES (?, ?, ?, 'ACTIVE', ?)
+    """, (
+        parameter,
+        value,
+        status,
+        now.strftime("%Y-%m-%d %H:%M:%S")
+    ))
+
+    conn.commit()
+    conn.close()
+
+
+def resolve_alert(parameter):
+    conn = get_db_connection()
+
+    conn.execute("""
+        UPDATE alerts
+        SET state = 'RESOLVED',
+            resolved_at = ?
+        WHERE parameter = ? AND state = 'ACTIVE'
+    """, (
+        datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        parameter
+    ))
+
+    conn.commit()
+    conn.close()
+
+
+# ================= REGISTER =================
 @main.route('/register', methods=['GET', 'POST'])
 def register():
     if request.method == 'POST':
@@ -22,7 +97,6 @@ def register():
         hashed_password = generate_password_hash(password)
 
         conn = get_db_connection()
-
         try:
             conn.execute(
                 "INSERT INTO users (username, password) VALUES (?, ?)",
@@ -39,9 +113,11 @@ def register():
     return render_template('register.html')
 
 
-# ---------------- LOGIN ----------------
+# ================= LOGIN =================
 @main.route('/login', methods=['GET', 'POST'])
 def login():
+    error = None
+
     if request.method == 'POST':
         username = request.form.get('username')
         password = request.form.get('password')
@@ -57,12 +133,12 @@ def login():
             login_user(User(user["id"]))
             return redirect('/')
         else:
-            return "Invalid login ❌"
+            error = "Invalid username or password"
 
-    return render_template('login.html')
+    return render_template('login.html', error=error)
 
 
-# ---------------- LOGOUT ----------------
+# ================= LOGOUT =================
 @main.route('/logout')
 @login_required
 def logout():
@@ -70,67 +146,22 @@ def logout():
     return redirect('/login')
 
 
-# ---------------- HOME ----------------
+# ================= HOME =================
 @main.route('/')
 @login_required
 def home():
-    conn = get_db_connection()
-    rows = conn.execute("SELECT * FROM data ORDER BY timestamp").fetchall()
-    conn.close()
-
-    timestamps = [row["timestamp"] for row in rows]
-    ph_values = [row["ph"] for row in rows]
-    cod_values = [row["cod"] for row in rows]
-    bod_values = [row["bod"] for row in rows]
-    tss_values = [row["tss"] for row in rows]
-    ids = [row["id"] for row in rows]
-
-    return render_template(
-        'index.html',
-        rows=rows,
-        timestamps=timestamps,
-        ph_values=ph_values,
-        cod_values=cod_values,
-        bod_values=bod_values,
-        tss_values=tss_values,
-        ids=ids
-    )
-
-# ---------------- REPORTS ----------------
-@main.route('/reports')
-@login_required
-def reports():
-    conn = get_db_connection()
-
-    rows = conn.execute(
-        "SELECT * FROM data ORDER BY timestamp DESC"
-    ).fetchall()
-
-    conn.close()
-
-    data = [
-        {
-            "id": r["id"],
-            "ph": float(r["ph"]),
-            "cod": float(r["cod"]),
-            "bod": float(r["bod"]),
-            "tss": float(r["tss"]),
-            "timestamp": r["timestamp"]
-        } for r in rows
-    ]
-
-    return render_template("reports.html", data=data)
+    return render_template('index.html')
 
 
-# ---------------- INPUT ----------------
+# ================= INPUT =================
 @main.route('/input', methods=['GET', 'POST'])
 @login_required
 def input_page():
     if request.method == 'POST':
-        ph = request.form.get('ph')
-        cod = request.form.get('cod')
-        bod = request.form.get('bod')
-        tss = request.form.get('tss')
+        ph = float(request.form.get('ph'))
+        cod = float(request.form.get('cod'))
+        bod = float(request.form.get('bod'))
+        tss = float(request.form.get('tss'))
 
         conn = get_db_connection()
 
@@ -138,38 +169,53 @@ def input_page():
             INSERT INTO data (ph, cod, bod, tss, timestamp)
             VALUES (?, ?, ?, ?, ?)
         """, (
-            float(ph),
-            float(cod),
-            float(bod),
-            float(tss),
+            ph, cod, bod, tss,
             datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         ))
 
         conn.commit()
         conn.close()
 
+        # 🔥 SMART ALERT CHECK
+        conn = get_db_connection()
+        std_rows = conn.execute("SELECT * FROM standards").fetchall()
+        conn.close()
+
+        standards = {s["parameter"]: s for s in std_rows}
+
+        values = {
+            "ph": ph,
+            "cod": cod,
+            "bod": bod,
+            "tss": tss
+        }
+
+        for param, value in values.items():
+            s = standards.get(param)
+            if not s:
+                continue
+
+            min_val = s["class_c_min"]
+            max_val = s["class_c_max"]
+
+            status = get_status(value, min_val, max_val)
+
+            if status == "SAFE":
+                resolve_alert(param)
+            else:
+                create_alert(param, value, status)
+
         return redirect('/')
 
     return render_template('input.html')
 
 
-# ---------------- DELETE ----------------
-@main.route('/delete/<int:id>')
-@login_required
-def delete(id):
-    conn = get_db_connection()
-    conn.execute("DELETE FROM data WHERE id = ?", (id,))
-    conn.commit()
-    conn.close()
-
-    return redirect('/')
-
-
-# ---------------- API ----------------
+# ================= API =================
 @main.route('/api/data')
 @login_required
 def api_data():
     filter_type = request.args.get('filter', 'all')
+    selected_class = request.args.get('class', 'C')
 
     conn = get_db_connection()
 
@@ -186,34 +232,40 @@ def api_data():
             "SELECT * FROM data ORDER BY timestamp"
         ).fetchall()
 
-    conn.close()
-
-    rows_list = []
-    for r in rows:
-        rows_list.append({
-            "id": r["id"],
-            "ph": float(r["ph"]),
-            "cod": float(r["cod"]),
-            "bod": float(r["bod"]),
-            "tss": float(r["tss"]),
-            "timestamp": r["timestamp"]
-        })
-
-    # --- GET STANDARDS ---
-    conn = get_db_connection()
     std_rows = conn.execute("SELECT * FROM standards").fetchall()
     conn.close()
 
+    rows_list = [{
+        "id": r["id"],
+        "ph": float(r["ph"]),
+        "cod": float(r["cod"]),
+        "bod": float(r["bod"]),
+        "tss": float(r["tss"]),
+        "timestamp": r["timestamp"]
+    } for r in rows]
+
     standards = {}
+
     for s in std_rows:
-        standards[s["parameter"]] = {
-    "class_a_min": float(s["class_a_min"]),
-    "class_a_max": float(s["class_a_max"]),
-    "class_b_min": float(s["class_b_min"]),
-    "class_b_max": float(s["class_b_max"])
-}
+        param = s["parameter"]
+
+        if selected_class == "A":
+            min_val = float(s["class_a_min"])
+            max_val = float(s["class_a_max"])
+        elif selected_class == "B":
+            min_val = float(s["class_b_min"])
+            max_val = float(s["class_b_max"])
+        else:
+            min_val = float(s["class_c_min"])
+            max_val = float(s["class_c_max"])
+
+        standards[param] = {
+            "min": min_val,
+            "max": max_val
+        }
 
     return jsonify({
+        "selected_class": selected_class,
         "rows": rows_list,
         "timestamps": [r["timestamp"][11:19] for r in rows_list],
         "ph": [r["ph"] for r in rows_list],
@@ -223,61 +275,26 @@ def api_data():
         "standards": standards
     })
 
-from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph
-from reportlab.lib import colors
-from reportlab.lib.pagesizes import letter
-from reportlab.lib.styles import getSampleStyleSheet
-from flask import send_file
-import io
 
-
-@main.route('/export/pdf')
+# ================= ALERTS PAGE =================
+@main.route('/alerts')
 @login_required
-def export_pdf():
+def alerts():
     conn = get_db_connection()
-    rows = conn.execute("SELECT * FROM data ORDER BY timestamp DESC").fetchall()
+
+    rows = conn.execute("""
+        SELECT * FROM alerts ORDER BY timestamp DESC
+    """).fetchall()
+
     conn.close()
 
-    buffer = io.BytesIO()
-    doc = SimpleDocTemplate(buffer, pagesize=letter)
+    alerts_data = [{
+        "parameter": r["parameter"],
+        "value": r["value"],
+        "status": r["status"],
+        "state": r["state"],
+        "timestamp": r["timestamp"],
+        "resolved_at": r["resolved_at"]
+    } for r in rows]
 
-    styles = getSampleStyleSheet()
-    elements = []
-
-    # Title
-    elements.append(Paragraph("Wastewater Monitoring Report", styles['Title']))
-
-    # Table Data
-    data = [["Time", "pH", "COD", "BOD", "TSS"]]
-
-    for r in rows:
-        data.append([
-            r["timestamp"],
-            r["ph"],
-            r["cod"],
-            r["bod"],
-            r["tss"]
-        ])
-
-    # Table
-    table = Table(data)
-
-    table.setStyle(TableStyle([
-        ('BACKGROUND', (0,0), (-1,0), colors.grey),
-        ('TEXTCOLOR',(0,0),(-1,0),colors.white),
-        ('GRID', (0,0), (-1,-1), 1, colors.black),
-        ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold')
-    ]))
-
-    elements.append(table)
-
-    doc.build(elements)
-
-    buffer.seek(0)
-
-    return send_file(
-        buffer,
-        as_attachment=True,
-        download_name="wastewater_report.pdf",
-        mimetype='application/pdf'
-    )
+    return render_template("alerts.html", alerts=alerts_data)

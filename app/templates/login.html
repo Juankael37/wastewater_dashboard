@@ -1,19 +1,70 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Login</title>
+    <meta charset="UTF-8">
+    <title>Login | Wastewater System</title>
+
+    <!-- Tailwind -->
+    <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body style="text-align:center; margin-top:100px;">
 
-    <h2>Login</h2>
+{% if error %}
+<div class="bg-red-500 text-white p-3 rounded mb-4 text-sm text-center">
+    {{ error }}
+</div>
+{% endif %}
 
-    <form method="POST">
-        <input name="username" placeholder="Username"><br><br>
-        <input name="password" type="password" placeholder="Password"><br><br>
-        <button type="submit">Login</button>
-    </form>
-    
-<p>No account? <a href="/register">Register</a></p>
+<body class="bg-slate-900 flex items-center justify-center h-screen">
+
+    <!-- CARD -->
+    <div class="bg-slate-800 p-8 rounded-2xl shadow-lg w-full max-w-md">
+
+        <!-- TITLE -->
+        <h2 class="text-3xl font-bold text-center text-white mb-6">
+            Wastewater System
+        </h2>
+
+        <p class="text-gray-400 text-center mb-6">
+            Login to your dashboard
+        </p>
+
+        <!-- FORM -->
+        <form method="POST" class="space-y-4">
+
+            <!-- USERNAME -->
+            <div>
+                <label class="text-gray-400 text-sm">Username</label>
+                <input type="text" name="username" required
+                    class="w-full mt-1 p-3 rounded bg-slate-700 text-white
+                           focus:outline-none focus:ring-2 focus:ring-teal-400">
+            </div>
+
+            <!-- PASSWORD -->
+            <div>
+                <label class="text-gray-400 text-sm">Password</label>
+                <input type="password" name="password" required
+                    class="w-full mt-1 p-3 rounded bg-slate-700 text-white
+                           focus:outline-none focus:ring-2 focus:ring-teal-400">
+            </div>
+
+            <!-- BUTTON -->
+            <button type="submit"
+                class="w-full bg-teal-500 py-3 rounded font-semibold
+                       hover:bg-teal-600 transition">
+                Login
+            </button>
+
+        </form>
+
+        <!-- FOOTER -->
+        <p class="text-gray-400 text-center mt-6 text-sm">
+            No account?
+            <a href="/register" class="text-teal-400 hover:underline">
+                Register
+            </a>
+        </p>
+
+    </div>
 
 </body>
 </html>
