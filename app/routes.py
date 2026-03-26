@@ -96,6 +96,31 @@ def home():
         ids=ids
     )
 
+# ---------------- REPORTS ----------------
+@main.route('/reports')
+@login_required
+def reports():
+    conn = get_db_connection()
+
+    rows = conn.execute(
+        "SELECT * FROM data ORDER BY timestamp DESC"
+    ).fetchall()
+
+    conn.close()
+
+    data = [
+        {
+            "id": r["id"],
+            "ph": float(r["ph"]),
+            "cod": float(r["cod"]),
+            "bod": float(r["bod"]),
+            "tss": float(r["tss"]),
+            "timestamp": r["timestamp"]
+        } for r in rows
+    ]
+
+    return render_template("reports.html", data=data)
+
 
 # ---------------- INPUT ----------------
 @main.route('/input', methods=['GET', 'POST'])
@@ -182,3 +207,62 @@ def api_data():
         "bod": [r["bod"] for r in rows_list],
         "tss": [r["tss"] for r in rows_list]
     })
+
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph
+from reportlab.lib import colors
+from reportlab.lib.pagesizes import letter
+from reportlab.lib.styles import getSampleStyleSheet
+from flask import send_file
+import io
+
+
+@main.route('/export/pdf')
+@login_required
+def export_pdf():
+    conn = get_db_connection()
+    rows = conn.execute("SELECT * FROM data ORDER BY timestamp DESC").fetchall()
+    conn.close()
+
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=letter)
+
+    styles = getSampleStyleSheet()
+    elements = []
+
+    # Title
+    elements.append(Paragraph("Wastewater Monitoring Report", styles['Title']))
+
+    # Table Data
+    data = [["Time", "pH", "COD", "BOD", "TSS"]]
+
+    for r in rows:
+        data.append([
+            r["timestamp"],
+            r["ph"],
+            r["cod"],
+            r["bod"],
+            r["tss"]
+        ])
+
+    # Table
+    table = Table(data)
+
+    table.setStyle(TableStyle([
+        ('BACKGROUND', (0,0), (-1,0), colors.grey),
+        ('TEXTCOLOR',(0,0),(-1,0),colors.white),
+        ('GRID', (0,0), (-1,-1), 1, colors.black),
+        ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold')
+    ]))
+
+    elements.append(table)
+
+    doc.build(elements)
+
+    buffer.seek(0)
+
+    return send_file(
+        buffer,
+        as_attachment=True,
+        download_name="wastewater_report.pdf",
+        mimetype='application/pdf'
+    )
