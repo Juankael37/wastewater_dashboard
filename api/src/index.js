@@ -19,9 +19,9 @@ app.use('*', cors({
   credentials: true,
 }))
 
-// Supabase client
-const supabaseUrl = 'https://your-project.supabase.co'
-const supabaseKey = 'your-anon-key'
+// Supabase client - use environment variables
+const supabaseUrl = process.env.SUPABASE_URL || 'https://your-project.supabase.co'
+const supabaseKey = process.env.SUPABASE_ANON_KEY || 'your-anon-key'
 
 const supabase = createClient(supabaseUrl, supabaseKey, {
   auth: {
