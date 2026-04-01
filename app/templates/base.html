@@ -1,8 +1,14 @@
-
 <!DOCTYPE html>
 <html>
 <head>
     <title>Wastewater Dashboard</title>
+
+    <!-- Tailwind Dark Mode Config -->
+    <script>
+        tailwind.config = {
+            darkMode: 'class'
+        }
+    </script>
 
     <!-- Tailwind -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -14,40 +20,51 @@
     <script src="https://unpkg.com/lucide@latest"></script>
 </head>
 
-<body class="bg-slate-900 text-white">
+<body class="bg-white text-black dark:bg-slate-900 dark:text-white transition">
 
 <div class="flex">
 
     <!-- SIDEBAR -->
-    <aside class="w-64 bg-slate-800 min-h-screen p-6 flex flex-col">
+    <aside class="w-64 bg-gray-100 dark:bg-slate-800 min-h-screen p-6 flex flex-col shadow-lg">
 
         <!-- Logo -->
-        <h1 class="text-2xl font-bold text-teal-400 mb-8">AquaDash</h1>
+        <h1 class="text-2xl font-bold text-teal-500 mb-10">
+            AquaDash
+        </h1>
 
         <!-- Navigation -->
-        <nav class="space-y-2">
+        <nav class="space-y-2 text-sm">
 
-            <a href="/alerts" class="hover:text-red-400">Alerts</a>
-
+            <!-- Dashboard -->
             <a href="/"
-               class="flex items-center gap-2 px-3 py-2 rounded-lg transition
-               {{ 'bg-slate-700 text-teal-400' if request.path == '/' else 'text-gray-300 hover:bg-slate-700 hover:text-teal-400' }}">
+               class="flex items-center gap-3 px-4 py-2 rounded-lg transition
+               {{ 'bg-gray-200 dark:bg-slate-700 text-teal-500' if request.path == '/' else 'text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-slate-700 hover:text-teal-500' }}">
                 <i data-lucide="layout-dashboard"></i>
                 Dashboard
             </a>
 
+            <!-- Reports -->
             <a href="/reports"
-               class="flex items-center gap-2 px-3 py-2 rounded-lg transition
-               {{ 'bg-slate-700 text-teal-400' if request.path == '/reports' else 'text-gray-300 hover:bg-slate-700 hover:text-teal-400' }}">
+               class="flex items-center gap-3 px-4 py-2 rounded-lg transition
+               {{ 'bg-gray-200 dark:bg-slate-700 text-teal-500' if request.path.startswith('/reports') else 'text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-slate-700 hover:text-teal-500' }}">
                 <i data-lucide="bar-chart-3"></i>
                 Reports
             </a>
 
+            <!-- Input -->
             <a href="/input"
-               class="flex items-center gap-2 px-3 py-2 rounded-lg transition
-               {{ 'bg-slate-700 text-teal-400' if request.path == '/input' else 'text-gray-300 hover:bg-slate-700 hover:text-teal-400' }}">
+               class="flex items-center gap-3 px-4 py-2 rounded-lg transition
+               {{ 'bg-gray-200 dark:bg-slate-700 text-teal-500' if request.path == '/input' else 'text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-slate-700 hover:text-teal-500' }}">
                 <i data-lucide="plus-circle"></i>
                 Input Data
+            </a>
+
+            <!-- Alerts -->
+            <a href="/alerts"
+               class="flex items-center gap-3 px-4 py-2 rounded-lg transition
+               {{ 'bg-red-500 text-white' if request.path.startswith('/alerts') else 'text-gray-600 dark:text-gray-300 hover:bg-red-500 hover:text-white' }}">
+                <i data-lucide="alert-triangle"></i>
+                Alerts
             </a>
 
         </nav>
@@ -57,7 +74,7 @@
 
         <!-- Logout -->
         <a href="/logout"
-           class="flex items-center gap-2 px-3 py-2 rounded-lg text-gray-300 hover:bg-red-500 hover:text-white transition">
+           class="flex items-center gap-3 px-4 py-2 rounded-lg text-gray-600 dark:text-gray-300 hover:bg-red-600 hover:text-white transition">
             <i data-lucide="log-out"></i>
             Logout
         </a>
@@ -68,14 +85,31 @@
     <div class="flex-1 flex flex-col">
 
         <!-- TOP BAR -->
-        <header class="bg-slate-800 px-6 py-4 flex justify-between items-center border-b border-slate-700">
+        <header class="bg-gray-100 dark:bg-slate-800 px-6 py-4 flex justify-between items-center border-b border-gray-300 dark:border-slate-700 sticky top-0 z-10">
 
             <h2 class="text-lg font-semibold">
                 Wastewater Monitoring System
             </h2>
 
-            <div class="text-sm text-gray-400">
-                Logged in
+            <div class="flex items-center gap-4">
+
+                <!-- 🌗 Theme Toggle -->
+                <button onclick="toggleTheme()"
+                    class="bg-gray-200 dark:bg-slate-700 px-3 py-2 rounded-lg text-sm hover:opacity-80 transition">
+                    🌗
+                </button>
+
+                <!-- Export -->
+                <a href="/export/pdf"
+                   class="bg-teal-500 hover:bg-teal-600 px-4 py-2 rounded-lg text-sm font-semibold text-white transition">
+                    Export PDF
+                </a>
+
+                <!-- User -->
+                <div class="text-sm text-gray-500 dark:text-gray-400">
+                    Logged in
+                </div>
+
             </div>
 
         </header>
@@ -89,9 +123,13 @@
 
 </div>
 
-<!-- Activate Icons -->
+<!-- Scripts -->
 <script>
     lucide.createIcons();
+
+    function toggleTheme() {
+        document.documentElement.classList.toggle("dark");
+    }
 </script>
 
 </body>

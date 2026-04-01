@@ -2,57 +2,42 @@
 
 {% block content %}
 
-<!-- HEADER -->
 <div class="flex justify-between items-center mb-6">
     <h2 class="text-3xl font-semibold">Dashboard Overview</h2>
 
     <div class="flex gap-2">
-
-        <!-- ✅ DEFAULT = CLASS C -->
-        <select id="classSelect" class="bg-slate-800 p-2 rounded">
-            <option value="A">Class A</option>
-            <option value="B">Class B</option>
-            <option value="C" selected>Class C</option>
-        </select>
-
         <select id="filter" class="bg-slate-800 p-2 rounded">
             <option value="all">All</option>
             <option value="today">Today</option>
             <option value="7days">Last 7 Days</option>
         </select>
 
-        <a href="/export" class="bg-teal-500 px-4 py-2 rounded hover:bg-teal-600">
+        <a href="/export/pdf" class="bg-teal-500 px-4 py-2 rounded hover:bg-teal-600">
             Export
         </a>
     </div>
 </div>
 
-<!-- ALERT -->
 <div id="alertBox" class="mb-4"></div>
 
-<!-- KPI CARDS -->
+<!-- KPI -->
 <div class="grid grid-cols-4 gap-6 mb-8">
-
     <div class="bg-slate-800 p-6 rounded-xl text-center">
         <p class="text-gray-400">pH</p>
         <h3 id="phVal" class="text-2xl font-bold text-teal-400">-</h3>
     </div>
-
     <div class="bg-slate-800 p-6 rounded-xl text-center">
         <p class="text-gray-400">COD</p>
         <h3 id="codVal" class="text-2xl font-bold text-red-400">-</h3>
     </div>
-
     <div class="bg-slate-800 p-6 rounded-xl text-center">
         <p class="text-gray-400">BOD</p>
         <h3 id="bodVal" class="text-2xl font-bold text-green-400">-</h3>
     </div>
-
     <div class="bg-slate-800 p-6 rounded-xl text-center">
         <p class="text-gray-400">TSS</p>
         <h3 id="tssVal" class="text-2xl font-bold text-orange-400">-</h3>
     </div>
-
 </div>
 
 <!-- TABLE -->
@@ -60,7 +45,7 @@
     <table class="w-full text-center">
         <thead class="text-gray-400 border-b border-slate-700">
             <tr>
-                <th>Time</th><th>pH</th><th>COD</th><th>BOD</th><th>TSS</th><th>Status</th>
+                <th>Time</th><th>pH</th><th>COD</th><th>BOD</th><th>TSS</th>
             </tr>
         </thead>
         <tbody id="tableBody"></tbody>
@@ -75,140 +60,83 @@
     <div class="bg-slate-800 p-4 rounded-xl"><canvas id="tssChart"></canvas></div>
 </div>
 
-<!-- SCRIPT -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
 <script>
 let charts = {};
 
 async function loadData() {
-    const filter = document.getElementById("filter").value;
-    const selectedClass = document.getElementById("classSelect").value || "C";
-
-    const res = await fetch(`/api/data?filter=${filter}&class=${selectedClass}`);
+    const res = await fetch('/api/data');
     const data = await res.json();
 
     updateUI(data);
 }
 
-function getStatus(value, min, max) {
-    if (value < min || value > max) return "CRITICAL";
-
-    const margin = (max - min) * 0.1;
-
-    if (value < (min + margin) || value > (max - margin)) {
-        return "WARNING";
-    }
-
-    return "SAFE";
-}
-
-// ✅ TEXT-ONLY COLOR FUNCTION
-function getCellClass(status) {
-    if (status === "CRITICAL") return "text-red-400 font-bold";
-    if (status === "WARNING") return "text-yellow-400 font-bold";
-    return "";
-}
-
 function updateUI(data) {
-    const std = data.standards;
-    const rows = data.rows;
-    if (!rows.length) return;
+    if (!data.labels.length) return;
 
-    let last = rows[rows.length - 1];
+    let lastIndex = data.labels.length - 1;
 
-    phVal.innerText = last.ph;
-    codVal.innerText = last.cod;
-    bodVal.innerText = last.bod;
-    tssVal.innerText = last.tss;
+    // KPI
+    phVal.innerText = data.ph[lastIndex];
+    codVal.innerText = data.cod[lastIndex];
+    bodVal.innerText = data.bod[lastIndex];
+    tssVal.innerText = data.tss[lastIndex];
 
     // ALERT
     let alertHTML = "";
-    let critical = false;
-
-    ["ph", "cod", "bod", "tss"].forEach(param => {
-        let status = getStatus(last[param], std[param].min, std[param].max);
-        if (status === "CRITICAL") critical = true;
-    });
-
-    if (critical) {
-        alertHTML = `<div class="bg-red-500 p-3 rounded">⚠ CRITICAL: Water quality exceeds ${data.selected_class} standards!</div>`;
+    if (
+        data.ph[lastIndex] > 9 || data.ph[lastIndex] < 6 ||
+        data.cod[lastIndex] > 100 ||
+        data.bod[lastIndex] > 50 ||
+        data.tss[lastIndex] > 100
+    ) {
+        alertHTML = `<div class="bg-red-500 p-3 rounded">⚠ Critical Water Quality Detected!</div>`;
     }
-
     document.getElementById("alertBox").innerHTML = alertHTML;
 
     // TABLE
     let html = "";
-
-    rows.forEach(r => {
-
-        let paramStatus = {};
-        ["ph", "cod", "bod", "tss"].forEach(param => {
-            paramStatus[param] = getStatus(r[param], std[param].min, std[param].max);
-        });
-
-        let finalStatus = "SAFE";
-        if (Object.values(paramStatus).includes("CRITICAL")) finalStatus = "CRITICAL";
-        else if (Object.values(paramStatus).includes("WARNING")) finalStatus = "WARNING";
-
-        let statusColor =
-            finalStatus === "CRITICAL" ? "text-red-400" :
-            finalStatus === "WARNING" ? "text-yellow-400" :
-            "text-green-400";
-
+    for (let i = 0; i < data.labels.length; i++) {
         html += `
         <tr class="border-b border-slate-700">
-            <td>${r.timestamp.slice(11,19)}</td>
-
-            <td class="${getCellClass(paramStatus.ph)}">${r.ph}</td>
-            <td class="${getCellClass(paramStatus.cod)}">${r.cod}</td>
-            <td class="${getCellClass(paramStatus.bod)}">${r.bod}</td>
-            <td class="${getCellClass(paramStatus.tss)}">${r.tss}</td>
-
-            <td class="${statusColor} font-bold">${finalStatus}</td>
+            <td>${data.labels[i].slice(11,19)}</td>
+            <td>${data.ph[i]}</td>
+            <td>${data.cod[i]}</td>
+            <td>${data.bod[i]}</td>
+            <td>${data.tss[i]}</td>
         </tr>`;
-    });
-
+    }
     tableBody.innerHTML = html;
 
     updateCharts(data);
 }
 
-function createChart(id, label, data, color) {
+function createChart(id, label, values, color) {
     if (charts[id]) charts[id].destroy();
 
     charts[id] = new Chart(document.getElementById(id), {
         type: 'line',
         data: {
-            labels: data.timestamps,
+            labels: values.timestamps,
             datasets: [{
                 label: label,
-                data: data.values,
+                data: values.data,
                 borderColor: color,
                 tension: 0.4
             }]
-        },
-        options: {
-            plugins: {
-                legend: { labels: { color: "white" } }
-            },
-            scales: {
-                x: { ticks: { color: "white" } },
-                y: { ticks: { color: "white" } }
-            }
         }
     });
 }
 
 function updateCharts(data) {
-    createChart("phChart", "pH", {timestamps: data.timestamps, values: data.ph}, "#2dd4bf");
-    createChart("codChart", "COD", {timestamps: data.timestamps, values: data.cod}, "#f87171");
-    createChart("bodChart", "BOD", {timestamps: data.timestamps, values: data.bod}, "#4ade80");
-    createChart("tssChart", "TSS", {timestamps: data.timestamps, values: data.tss}, "#fb923c");
+    createChart("phChart", "pH", {timestamps: data.labels, data: data.ph}, "#2dd4bf");
+    createChart("codChart", "COD", {timestamps: data.labels, data: data.cod}, "#f87171");
+    createChart("bodChart", "BOD", {timestamps: data.labels, data: data.bod}, "#4ade80");
+    createChart("tssChart", "TSS", {timestamps: data.labels, data: data.tss}, "#fb923c");
 }
 
-// reload on change
-document.getElementById("filter").addEventListener("change", loadData);
-document.getElementById("classSelect").addEventListener("change", loadData);
-
+// AUTO REFRESH
 setInterval(loadData, 5000);
 loadData();
 </script>

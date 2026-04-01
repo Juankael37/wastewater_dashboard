@@ -16,6 +16,11 @@ def load_user(user_id):
     return User(user_id)
 
 
+# ---------------- DATABASE CONNECTION HELPER ----------------
+def get_connection():
+    conn = sqlite3.connect('data.db')
+    conn.row_factory = sqlite3.Row  # 🔥 IMPORTANT FIX
+    return conn
 
 
 # ---------------- DATABASE INIT ----------------
@@ -23,18 +28,43 @@ def init_db():
     conn = sqlite3.connect('data.db')
     c = conn.cursor()
 
-    # ALERTS TABLE
+    # ---------------- DATA TABLE (🔥 CRITICAL FIX) ----------------
+    c.execute('''
+    CREATE TABLE IF NOT EXISTS data (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        ph REAL,
+        cod REAL,
+        bod REAL,
+        tss REAL,
+        timestamp TEXT
+    )
+    ''')
+
+    # ---------------- ALERTS TABLE ----------------
     c.execute('''
     CREATE TABLE IF NOT EXISTS alerts (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         parameter TEXT,
         value REAL,
         status TEXT,
-        timestamp TEXT
+        state TEXT DEFAULT 'ACTIVE',
+        timestamp TEXT,
+        resolved_at TEXT
     )
-''')
+    ''')
 
-    # USERS TABLE
+    # MIGRATION SAFETY
+    try:
+        c.execute("ALTER TABLE alerts ADD COLUMN state TEXT DEFAULT 'ACTIVE'")
+    except:
+        pass
+
+    try:
+        c.execute("ALTER TABLE alerts ADD COLUMN resolved_at TEXT")
+    except:
+        pass
+
+    # ---------------- USERS TABLE ----------------
     c.execute('''
         CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -43,7 +73,7 @@ def init_db():
         )
     ''')
 
-    # STANDARDS TABLE
+    # ---------------- STANDARDS TABLE ----------------
     c.execute('''
         CREATE TABLE IF NOT EXISTS standards (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -72,7 +102,7 @@ def create_admin():
             ("admin", generate_password_hash("admin123"))
         )
     except:
-        pass  # user already exists
+        pass  # already exists
 
     conn.commit()
     conn.close()
@@ -83,15 +113,16 @@ def create_app():
     app = Flask(__name__)
     app.secret_key = "secret123"
 
-    # 🔥 ADD THESE
+    # INIT DB
     init_db()
     create_admin()
 
+    # LOGIN SETUP
     login_manager.init_app(app)
     login_manager.login_view = 'main.login'
 
+    # REGISTER ROUTES
     from .routes import main
     app.register_blueprint(main)
-
 
     return app

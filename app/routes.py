@@ -1,8 +1,9 @@
-from flask import Blueprint, render_template, request, redirect, jsonify, send_file
+from flask import Blueprint, render_template, request, redirect, jsonify, send_file, abort
 from flask_login import login_user, login_required, logout_user
 from werkzeug.security import generate_password_hash, check_password_hash
 import datetime
 import io
+import os
 
 from .models import get_db_connection
 from .__init__ import User
@@ -14,8 +15,44 @@ from reportlab.lib.styles import getSampleStyleSheet
 
 main = Blueprint('main', __name__)
 
+# ================= API FOR DASHBOARD =================
+@main.route('/api/data')
+@login_required
+def api_data():
+    conn = get_db_connection()
+    rows = conn.execute("""
+        SELECT timestamp, ph, cod, bod, tss
+        FROM data
+        ORDER BY timestamp ASC
+    """).fetchall()
+    conn.close()
+
+    data = {
+        "labels": [r["timestamp"] for r in rows],
+        "ph": [r["ph"] for r in rows],
+        "cod": [r["cod"] for r in rows],
+        "bod": [r["bod"] for r in rows],
+        "tss": [r["tss"] for r in rows],
+    }
+
+    return jsonify(data)
+
+
 # ================= ALERT LOGIC =================
-def get_status(value, min_val, max_val):
+def get_status(parameter, value):
+    conn = get_db_connection()
+    standard = conn.execute(
+        "SELECT class_a_min, class_a_max FROM standards WHERE parameter = ?",
+        (parameter,)
+    ).fetchone()
+    conn.close()
+
+    if not standard:
+        return "SAFE"  # Fallback if no standard is found
+
+    min_val = standard["class_a_min"]
+    max_val = standard["class_a_max"]
+
     if value < min_val or value > max_val:
         return "CRITICAL"
 
@@ -42,17 +79,14 @@ def create_alert(parameter, value, status):
     if existing:
         last_time = datetime.datetime.strptime(existing["timestamp"], "%Y-%m-%d %H:%M:%S")
 
-        # ⏱ 10 MIN COOLDOWN
         if (now - last_time).total_seconds() < 600:
             conn.close()
             return
 
-        # 🚫 SAME STATUS → SKIP
         if existing["status"] == status:
             conn.close()
             return
 
-    # ✅ CREATE ALERT
     conn.execute("""
         INSERT INTO alerts (parameter, value, status, state, timestamp)
         VALUES (?, ?, ?, 'ACTIVE', ?)
@@ -84,7 +118,7 @@ def resolve_alert(parameter):
     conn.close()
 
 
-# ================= REGISTER =================
+# ================= AUTH =================
 @main.route('/register', methods=['GET', 'POST'])
 def register():
     if request.method == 'POST':
@@ -103,7 +137,7 @@ def register():
                 (username, hashed_password)
             )
             conn.commit()
-        except Exception:
+        except:
             conn.close()
             return "Username already exists ❌"
 
@@ -113,7 +147,6 @@ def register():
     return render_template('register.html')
 
 
-# ================= LOGIN =================
 @main.route('/login', methods=['GET', 'POST'])
 def login():
     error = None
@@ -138,7 +171,6 @@ def login():
     return render_template('login.html', error=error)
 
 
-# ================= LOGOUT =================
 @main.route('/logout')
 @login_required
 def logout():
@@ -164,7 +196,6 @@ def input_page():
         tss = float(request.form.get('tss'))
 
         conn = get_db_connection()
-
         conn.execute("""
             INSERT INTO data (ph, cod, bod, tss, timestamp)
             VALUES (?, ?, ?, ?, ?)
@@ -172,129 +203,170 @@ def input_page():
             ph, cod, bod, tss,
             datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         ))
-
         conn.commit()
         conn.close()
-
-        # 🔥 SMART ALERT CHECK
-        conn = get_db_connection()
-        std_rows = conn.execute("SELECT * FROM standards").fetchall()
-        conn.close()
-
-        standards = {s["parameter"]: s for s in std_rows}
-
-        values = {
-            "ph": ph,
-            "cod": cod,
-            "bod": bod,
-            "tss": tss
-        }
-
-        for param, value in values.items():
-            s = standards.get(param)
-            if not s:
-                continue
-
-            min_val = s["class_c_min"]
-            max_val = s["class_c_max"]
-
-            status = get_status(value, min_val, max_val)
-
-            if status == "SAFE":
-                resolve_alert(param)
-            else:
-                create_alert(param, value, status)
 
         return redirect('/')
 
     return render_template('input.html')
 
 
-# ================= API =================
-@main.route('/api/data')
+# ================= REPORTS =================
+@main.route('/reports')
 @login_required
-def api_data():
-    filter_type = request.args.get('filter', 'all')
-    selected_class = request.args.get('class', 'C')
-
+def reports():
     conn = get_db_connection()
-
-    if filter_type == "today":
-        rows = conn.execute(
-            "SELECT * FROM data WHERE DATE(timestamp)=DATE('now') ORDER BY timestamp"
-        ).fetchall()
-    elif filter_type == "7days":
-        rows = conn.execute(
-            "SELECT * FROM data WHERE timestamp >= datetime('now','-7 days') ORDER BY timestamp"
-        ).fetchall()
-    else:
-        rows = conn.execute(
-            "SELECT * FROM data ORDER BY timestamp"
-        ).fetchall()
-
-    std_rows = conn.execute("SELECT * FROM standards").fetchall()
+    
+    # Get total readings
+    total_readings = conn.execute("SELECT COUNT(*) as count FROM data").fetchone()["count"]
+    
+    # Get active alerts
+    active_alerts = conn.execute("SELECT COUNT(*) as count FROM alerts WHERE state = 'ACTIVE'").fetchone()["count"]
+    
+    # Get standards data
+    standards = conn.execute("SELECT * FROM standards ORDER BY parameter").fetchall()
+    
+    # Get recent data (last 10 readings)
+    recent_data = conn.execute("""
+        SELECT timestamp, ph, cod, bod, tss
+        FROM data
+        ORDER BY timestamp DESC
+        LIMIT 10
+    """).fetchall()
+    
+    # Calculate compliance rate (simplified)
+    all_data = conn.execute("SELECT ph, cod, bod, tss FROM data").fetchall()
+    safe_count = 0
+    for row in all_data:
+        if (get_status('ph', row['ph']) == 'SAFE' and
+            get_status('cod', row['cod']) == 'SAFE' and
+            get_status('bod', row['bod']) == 'SAFE' and
+            get_status('tss', row['tss']) == 'SAFE'):
+            safe_count += 1
+    
+    compliance_rate = round((safe_count / len(all_data) * 100), 2) if all_data else 100
+    
+    # Get last 7 days count
+    last_7_days = conn.execute("""
+        SELECT COUNT(*) as count FROM data
+        WHERE timestamp >= datetime('now', '-7 days')
+    """).fetchone()["count"]
+    
     conn.close()
-
-    rows_list = [{
-        "id": r["id"],
-        "ph": float(r["ph"]),
-        "cod": float(r["cod"]),
-        "bod": float(r["bod"]),
-        "tss": float(r["tss"]),
-        "timestamp": r["timestamp"]
-    } for r in rows]
-
-    standards = {}
-
-    for s in std_rows:
-        param = s["parameter"]
-
-        if selected_class == "A":
-            min_val = float(s["class_a_min"])
-            max_val = float(s["class_a_max"])
-        elif selected_class == "B":
-            min_val = float(s["class_b_min"])
-            max_val = float(s["class_b_max"])
-        else:
-            min_val = float(s["class_c_min"])
-            max_val = float(s["class_c_max"])
-
-        standards[param] = {
-            "min": min_val,
-            "max": max_val
-        }
-
-    return jsonify({
-        "selected_class": selected_class,
-        "rows": rows_list,
-        "timestamps": [r["timestamp"][11:19] for r in rows_list],
-        "ph": [r["ph"] for r in rows_list],
-        "cod": [r["cod"] for r in rows_list],
-        "bod": [r["bod"] for r in rows_list],
-        "tss": [r["tss"] for r in rows_list],
-        "standards": standards
-    })
+    
+    return render_template('reports_content.html',
+                         total_readings=total_readings,
+                         active_alerts=active_alerts,
+                         standards=standards,
+                         recent_data=recent_data,
+                         compliance_rate=compliance_rate,
+                         last_7_days=last_7_days,
+                         get_status=get_status)
 
 
-# ================= ALERTS PAGE =================
+# ================= ALERTS =================
 @main.route('/alerts')
 @login_required
-def alerts():
+def alerts_page():
     conn = get_db_connection()
-
-    rows = conn.execute("""
-        SELECT * FROM alerts ORDER BY timestamp DESC
+    
+    # Get all alerts
+    alerts = conn.execute("""
+        SELECT * FROM alerts
+        ORDER BY timestamp DESC
     """).fetchall()
-
+    
     conn.close()
+    
+    return render_template('alerts.html', alerts=alerts)
 
-    alerts_data = [{
-        "parameter": r["parameter"],
-        "value": r["value"],
-        "status": r["status"],
-        "state": r["state"],
-        "timestamp": r["timestamp"],
-        "resolved_at": r["resolved_at"]
-    } for r in rows]
 
-    return render_template("alerts.html", alerts=alerts_data)
+# ================= PDF EXPORT =================
+@main.route('/export/pdf')
+@login_required
+def export_pdf():
+    conn = get_db_connection()
+    
+    # Get data for PDF
+    standards = conn.execute("SELECT * FROM standards ORDER BY parameter").fetchall()
+    recent_data = conn.execute("""
+        SELECT timestamp, ph, cod, bod, tss
+        FROM data
+        ORDER BY timestamp DESC
+        LIMIT 20
+    """).fetchall()
+    
+    conn.close()
+    
+    # Create PDF
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=letter)
+    elements = []
+    
+    styles = getSampleStyleSheet()
+    
+    # Title
+    elements.append(Paragraph("Wastewater Monitoring Report", styles['Title']))
+    elements.append(Paragraph(f"Generated: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", styles['Normal']))
+    elements.append(Paragraph(" ", styles['Normal']))  # Spacer
+    
+    # Standards Table
+    elements.append(Paragraph("Water Quality Standards", styles['Heading2']))
+    
+    standards_data = [['Parameter', 'Class A Min', 'Class A Max', 'Class B Min', 'Class B Max', 'Class C Min', 'Class C Max']]
+    for std in standards:
+        standards_data.append([
+            std['parameter'],
+            str(std['class_a_min']),
+            str(std['class_a_max']),
+            str(std['class_b_min']),
+            str(std['class_b_max']),
+            str(std['class_c_min']),
+            str(std['class_c_max'])
+        ])
+    
+    standards_table = Table(standards_data)
+    standards_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, 0), 10),
+        ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+        ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+        ('GRID', (0, 0), (-1, -1), 1, colors.black)
+    ]))
+    elements.append(standards_table)
+    elements.append(Paragraph(" ", styles['Normal']))  # Spacer
+    
+    # Recent Data Table
+    elements.append(Paragraph("Recent Measurements", styles['Heading2']))
+    
+    data_table = [['Timestamp', 'pH', 'COD', 'BOD', 'TSS']]
+    for row in recent_data:
+        data_table.append([
+            row['timestamp'],
+            str(row['ph']),
+            str(row['cod']),
+            str(row['bod']),
+            str(row['tss'])
+        ])
+    
+    data_table_obj = Table(data_table)
+    data_table_obj.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, 0), 10),
+        ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+        ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+        ('GRID', (0, 0), (-1, -1), 1, colors.black)
+    ]))
+    elements.append(data_table_obj)
+    
+    # Build PDF
+    doc.build(elements)
+    
+    buffer.seek(0)
+    return send_file(buffer, as_attachment=True, download_name='wastewater_report.pdf', mimetype='application/pdf')

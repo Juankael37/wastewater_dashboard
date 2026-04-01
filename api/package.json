@@ -1,0 +1,25 @@
+{
+  "name": "wastewater-api",
+  "version": "1.0.0",
+  "description": "Cloudflare Workers API for Wastewater Monitoring System",
+  "main": "src/index.js",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "hono": "^4.0.0",
+    "@supabase/supabase-js": "^2.39.0",
+    "zod": "^3.22.0"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20231121.0",
+    "wrangler": "^3.0.0",
+    "vitest": "^1.0.0",
+    "typescript": "^5.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

@@ -1,40 +1,120 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Wastewater Dashboard</title>
 
-{% extends "base.html" %}
+    <!-- Tailwind -->
+    <script src="https://cdn.tailwindcss.com"></script>
 
-{% block content %}
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
-<h2 class="text-3xl font-semibold mb-6">Reports</h2>
+    <!-- Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+</head>
 
-<div class="bg-slate-800 p-6 rounded-xl">
+<body class="bg-slate-900 text-white">
 
-    <a href="/export/pdf"
-   class="bg-teal-500 px-4 py-2 rounded hover:bg-teal-600 mb-4 inline-block">
-    Download PDF
-</a>
+<div class="flex">
 
-    <table class="w-full text-center">
-        <thead class="text-gray-400 border-b border-slate-700">
-            <tr>
-                <th>Time</th>
-                <th>pH</th>
-                <th>COD</th>
-                <th>BOD</th>
-                <th>TSS</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for row in data %}
-            <tr class="border-b border-slate-700">
-                <td>{{ row.timestamp }}</td>
-                <td>{{ row.ph }}</td>
-                <td>{{ row.cod }}</td>
-                <td>{{ row.bod }}</td>
-                <td>{{ row.tss }}</td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
+    <!-- SIDEBAR -->
+    <aside class="w-64 bg-slate-800 min-h-screen p-6 flex flex-col shadow-lg">
+
+        <!-- Logo -->
+        <h1 class="text-2xl font-bold text-teal-400 mb-10 tracking-wide">
+            AquaDash
+        </h1>
+
+        <!-- Navigation -->
+        <nav class="space-y-2 text-sm">
+
+            <!-- Dashboard -->
+            <a href="/"
+               class="flex items-center gap-3 px-4 py-2 rounded-lg transition
+               {{ 'bg-slate-700 text-teal-400 shadow' if request.path == '/' else 'text-gray-300 hover:bg-slate-700 hover:text-teal-400' }}">
+                <i data-lucide="layout-dashboard"></i>
+                Dashboard
+            </a>
+
+            <!-- Reports -->
+            <a href="/reports"
+               class="flex items-center gap-3 px-4 py-2 rounded-lg transition
+               {{ 'bg-slate-700 text-teal-400 shadow' if request.path.startswith('/reports') else 'text-gray-300 hover:bg-slate-700 hover:text-teal-400' }}">
+                <i data-lucide="bar-chart-3"></i>
+                Reports
+            </a>
+
+            <!-- Input -->
+            <a href="/input"
+               class="flex items-center gap-3 px-4 py-2 rounded-lg transition
+               {{ 'bg-slate-700 text-teal-400 shadow' if request.path == '/input' else 'text-gray-300 hover:bg-slate-700 hover:text-teal-400' }}">
+                <i data-lucide="plus-circle"></i>
+                Input Data
+            </a>
+
+            <!-- Alerts -->
+            <a href="/alerts"
+               class="flex items-center gap-3 px-4 py-2 rounded-lg transition
+               {{ 'bg-red-500 text-white shadow' if request.path.startswith('/alerts') else 'text-gray-300 hover:bg-red-500 hover:text-white' }}">
+                <i data-lucide="alert-triangle"></i>
+                Alerts
+            </a>
+
+        </nav>
+
+        <!-- Spacer -->
+        <div class="flex-grow"></div>
+
+        <!-- Logout -->
+        <a href="/logout"
+           class="flex items-center gap-3 px-4 py-2 rounded-lg text-gray-300 hover:bg-red-600 hover:text-white transition">
+            <i data-lucide="log-out"></i>
+            Logout
+        </a>
+
+    </aside>
+
+    <!-- MAIN CONTENT -->
+    <div class="flex-1 flex flex-col">
+
+        <!-- TOP BAR -->
+        <header class="bg-slate-800 px-6 py-4 flex justify-between items-center border-b border-slate-700 sticky top-0 z-10">
+
+            <h2 class="text-lg font-semibold tracking-wide">
+                Wastewater Monitoring System
+            </h2>
+
+            <!-- Right Side -->
+            <div class="flex items-center gap-4">
+
+                <!-- Export Button -->
+                <a href="/export/pdf"
+                   class="bg-teal-500 hover:bg-teal-600 px-4 py-2 rounded-lg text-sm font-semibold transition">
+                    Export PDF
+                </a>
+
+                <!-- User Info -->
+                <div class="text-sm text-gray-400">
+                    Logged in
+                </div>
+
+            </div>
+
+        </header>
+
+        <!-- PAGE CONTENT -->
+        <main class="flex-1 p-8">
+            {% block content %}{% endblock %}
+        </main>
+
+    </div>
 
 </div>
 
-{% endblock %}
+<!-- Activate Icons -->
+<script>
+    lucide.createIcons();
+</script>
+
+</body>
+</html>
