@@ -3,24 +3,89 @@ Refactored routes for the Wastewater Monitoring System.
 This version uses the new service layer and follows separation of concerns.
 """
 
-from flask import Blueprint, render_template, request, jsonify, send_file, abort
-from flask_login import login_required, current_user
+from flask import Blueprint, render_template, request, jsonify, send_file, abort, redirect
+from flask_login import login_required, current_user, login_user, logout_user
+from werkzeug.security import generate_password_hash, check_password_hash
 import datetime
 import io
 
 from app.models import Parameter, Measurement, Alert, Report
 from app.services import (
-    ValidationService, 
-    AlertService, 
-    ReportService, 
+    ValidationService,
+    AlertService,
+    ReportService,
     DataImportService
 )
+from app.__init__ import User, get_connection
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.styles import getSampleStyleSheet
 
 main = Blueprint('main', __name__)
+
+
+# ================= AUTHENTICATION ROUTES =================
+@main.route('/login', methods=['GET', 'POST'])
+def login():
+    """Handle user login."""
+    error = None
+    
+    if request.method == 'POST':
+        username = request.form.get('username')
+        password = request.form.get('password')
+        
+        conn = get_connection()
+        user = conn.execute(
+            "SELECT * FROM users WHERE username = ?",
+            (username,)
+        ).fetchone()
+        conn.close()
+        
+        if user and check_password_hash(user["password"], password):
+            login_user(User(user["id"]))
+            return redirect('/')
+        else:
+            error = "Invalid username or password"
+    
+    return render_template('login.html', error=error)
+
+
+@main.route('/register', methods=['GET', 'POST'])
+def register():
+    """Handle user registration."""
+    if request.method == 'POST':
+        username = request.form.get('username')
+        password = request.form.get('password')
+        
+        if not username or not password:
+            return "Username and password required ❌"
+        
+        hashed_password = generate_password_hash(password)
+        
+        conn = get_connection()
+        try:
+            conn.execute(
+                "INSERT INTO users (username, password) VALUES (?, ?)",
+                (username, hashed_password)
+            )
+            conn.commit()
+        except:
+            conn.close()
+            return "Username already exists ❌"
+        
+        conn.close()
+        return redirect('/login')
+    
+    return render_template('register.html')
+
+
+@main.route('/logout')
+@login_required
+def logout():
+    """Handle user logout."""
+    logout_user()
+    return redirect('/login')
 
 
 # ================= DASHBOARD & VIEW ROUTES =================
@@ -45,11 +110,84 @@ def input_page():
     return render_template('input.html')
 
 
+# ================= ALERT LOGIC =================
+def get_status(parameter, value):
+    """Determine status (SAFE, WARNING, CRITICAL) for a parameter value."""
+    conn = get_connection()
+    standard = conn.execute(
+        "SELECT class_a_min, class_a_max FROM standards WHERE parameter = ?",
+        (parameter,)
+    ).fetchone()
+    conn.close()
+
+    if not standard:
+        return "SAFE"  # Fallback if no standard is found
+
+    min_val = standard["class_a_min"]
+    max_val = standard["class_a_max"]
+
+    if value < min_val or value > max_val:
+        return "CRITICAL"
+
+    margin = (max_val - min_val) * 0.1
+
+    if value < (min_val + margin) or value > (max_val - margin):
+        return "WARNING"
+
+    return "SAFE"
+
+
 @main.route('/reports')
 @login_required
 def reports_page():
-    """Render the reports page."""
-    return render_template('reports.html')
+    """Render the reports page with data."""
+    conn = get_connection()
+    
+    # Get total readings
+    total_readings = conn.execute("SELECT COUNT(*) as count FROM data").fetchone()["count"]
+    
+    # Get active alerts
+    active_alerts = conn.execute("SELECT COUNT(*) as count FROM alerts WHERE state = 'ACTIVE'").fetchone()["count"]
+    
+    # Get standards data
+    standards = conn.execute("SELECT * FROM standards ORDER BY parameter").fetchall()
+    
+    # Get recent data (last 10 readings)
+    recent_data = conn.execute("""
+        SELECT timestamp, ph, cod, bod, tss
+        FROM data
+        ORDER BY timestamp DESC
+        LIMIT 10
+    """).fetchall()
+    
+    # Calculate compliance rate (simplified)
+    all_data = conn.execute("SELECT ph, cod, bod, tss FROM data").fetchall()
+    safe_count = 0
+    for row in all_data:
+        if (get_status('ph', row['ph']) == 'SAFE' and
+            get_status('cod', row['cod']) == 'SAFE' and
+            get_status('bod', row['bod']) == 'SAFE' and
+            get_status('tss', row['tss']) == 'SAFE'):
+            safe_count += 1
+    
+    compliance_rate = round((safe_count / len(all_data) * 100), 2) if all_data else 100
+    
+    # Get last 7 days count
+    last_7_days = conn.execute("""
+        SELECT COUNT(*) as count FROM data
+        WHERE timestamp >= datetime('now', '-7 days')
+    """).fetchone()["count"]
+    
+    conn.close()
+    
+    return render_template('reports_content.html',
+                         total_readings=total_readings,
+                         active_alerts=active_alerts,
+                         standards=standards,
+                         recent_data=recent_data,
+                         compliance_rate=compliance_rate,
+                         last_7_days=last_7_days,
+                         get_status=get_status)
 
 
 @main.route('/alerts')
@@ -337,6 +475,14 @@ def api_generate_pdf():
         
     except Exception as e:
         return jsonify({"error": f"Failed to generate PDF: {str(e)}"}), 500
+
+
+# ================= LEGACY COMPATIBILITY ROUTES =================
+@main.route('/export/pdf')
+@login_required
+def legacy_export_pdf():
+    """Legacy PDF export endpoint for compatibility with existing templates."""
+    return redirect('/api/reports/pdf')
 
 
 # ================= ERROR HANDLERS =================
