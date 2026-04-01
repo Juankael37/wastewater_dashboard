@@ -54,16 +54,28 @@ async function apiRequest<T>(
 ): Promise<T> {
   const url = `${API_BASE_URL}${endpoint}`;
   
+  // Determine if we should include Content-Type header
+  // Don't include it for FormData (browser will set it automatically)
+  const isFormData = options.body instanceof FormData;
+  
   const defaultOptions: RequestInit = {
-    headers: {
-      'Content-Type': 'application/json',
-      ...options.headers,
-    },
+    headers: isFormData
+      ? { ...options.headers } // No Content-Type for FormData
+      : {
+          'Content-Type': 'application/json',
+          ...options.headers,
+        },
     credentials: 'include', // Include cookies for Flask session
   };
 
   try {
     const response = await fetch(url, { ...defaultOptions, ...options });
+    
+    // Special handling for login endpoint - 302 is success
+    if (endpoint === '/login' && response.status === 302) {
+      // Login successful, return empty object
+      return {} as T;
+    }
     
     if (!response.ok) {
       const errorText = await response.text();
@@ -117,8 +129,11 @@ export const authApi = {
   
   checkAuth: async (): Promise<{ authenticated: boolean; username?: string }> => {
     try {
-      const response = await apiRequest<any>('/api/data');
-      return { authenticated: true, username: response.user?.username };
+      // Try to access a protected endpoint
+      await apiRequest<any>('/api/data');
+      // If successful, we're authenticated
+      // For now, return a default username since /api/data doesn't return user info
+      return { authenticated: true, username: 'admin' };
     } catch (error) {
       return { authenticated: false };
     }
