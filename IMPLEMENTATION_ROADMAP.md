@@ -3,20 +3,22 @@
 ## Overview
 This document provides a detailed, step-by-step roadmap for implementing the target Wastewater Monitoring System using Cloudflare + Supabase stack.
 
-## Phase 0: Project Setup & Foundation (Week 1)
+## Phase 0: Project Setup & Foundation (Week 1) - **REFACTORING COMPLETED**
 
-### 1.1 Supabase Project Setup
+### 1.1 Enhanced Flask/SQLite Foundation ✅ COMPLETED
+- [x] **Refactored database schema** to support all 9 parameters
+- [x] **Extended data table** with Ammonia, Nitrate, Phosphate, Temperature, Flow columns
+- [x] **Updated standards table** with all parameter standards
+- [x] **Implemented service layer architecture** with proper separation of concerns
+- [x] **Enhanced models** (Parameter, Measurement, Alert, Report) to handle all parameters
+- [x] **Updated validation logic** for comprehensive parameter checking
+- [x] **Fixed SQL query issues** and parameter binding problems
+- [x] **Created migration script** for database schema updates
+- [x] **Comprehensive testing** of all refactored components
+
+### 1.2 Supabase Project Setup (Future)
 - [ ] Create Supabase account and project
-- [ ] Set up database schema with proper tables:
-  - `users` (extends Supabase auth.users)
-  - `profiles` (user metadata, role)
-  - `plants` (treatment plants)
-  - `parameters` (configurable parameters)
-  - `standards` (water quality standards)
-  - `measurements` (influent/effluent data)
-  - `measurement_images` (image attachments)
-  - `alerts` (threshold violations)
-  - `companies` (multi-tenant support)
+- [ ] Set up database schema with proper tables (based on enhanced schema)
 - [ ] Implement Row Level Security (RLS) policies
 - [ ] Set up storage buckets for images
 

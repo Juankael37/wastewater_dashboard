@@ -113,7 +113,8 @@ def create_app():
     app = Flask(__name__)
     app.secret_key = "secret123"
 
-    # INIT DB
+    # INIT DB - Use the new models initialization
+    from .models import init_db
     init_db()
     create_admin()
 
@@ -121,8 +122,13 @@ def create_app():
     login_manager.init_app(app)
     login_manager.login_view = 'main.login'
 
-    # REGISTER ROUTES
-    from .routes import main
+    # REGISTER ROUTES - Use refactored routes
+    try:
+        from .routes_refactored import main
+    except ImportError:
+        # Fall back to original routes if refactored version not available
+        from .routes import main
+    
     app.register_blueprint(main)
 
     return app
