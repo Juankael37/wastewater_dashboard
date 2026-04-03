@@ -100,7 +100,7 @@ class ValidationService:
                     total_checks += 1
                     standard = next((s for s in standards if s["parameter"] == param), None)
                     if standard:
-                        if standard["class_c_min"] <= value <= standard["class_c_max"]:
+                        if standard["min_limit"] <= value <= standard["max_limit"]:
                             compliance_count += 1
         
         return (compliance_count / total_checks * 100) if total_checks > 0 else 100.0

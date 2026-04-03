@@ -47,30 +47,29 @@
 
     <!-- Standards Table -->
     <div class="bg-slate-800 p-6 rounded-xl">
-        <h3 class="text-xl font-semibold mb-4">Water Quality Standards</h3>
+        <h3 class="text-xl font-semibold mb-4">Water Quality Standards (Class C)</h3>
         <div class="overflow-x-auto">
             <table class="w-full text-sm">
                 <thead class="text-gray-400 border-b border-slate-700">
                     <tr>
                         <th class="py-3 px-4 text-left">Parameter</th>
-                        <th class="py-3 px-4 text-left">Class A Min</th>
-                        <th class="py-3 px-4 text-left">Class A Max</th>
-                        <th class="py-3 px-4 text-left">Class B Min</th>
-                        <th class="py-3 px-4 text-left">Class B Max</th>
-                        <th class="py-3 px-4 text-left">Class C Min</th>
-                        <th class="py-3 px-4 text-left">Class C Max</th>
+                        <th class="py-3 px-4 text-left">Min Limit</th>
+                        <th class="py-3 px-4 text-left">Max Limit</th>
+                        <th class="py-3 px-4 text-left">Unit</th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for standard in standards %}
                     <tr class="border-b border-slate-700 hover:bg-slate-700">
                         <td class="py-3 px-4">{{ standard.parameter }}</td>
-                        <td class="py-3 px-4">{{ standard.class_a_min }}</td>
-                        <td class="py-3 px-4">{{ standard.class_a_max }}</td>
-                        <td class="py-3 px-4">{{ standard.class_b_min }}</td>
-                        <td class="py-3 px-4">{{ standard.class_b_max }}</td>
-                        <td class="py-3 px-4">{{ standard.class_c_min }}</td>
-                        <td class="py-3 px-4">{{ standard.class_c_max }}</td>
+                        <td class="py-3 px-4">{{ standard.min_limit }}</td>
+                        <td class="py-3 px-4">{{ standard.max_limit }}</td>
+                        <td class="py-3 px-4">
+                            {% if standard.parameter == 'ph' %}-
+                            {% elif standard.parameter == 'temperature' %}°C
+                            {% elif standard.parameter == 'flow' %}m³/day
+                            {% else %}mg/L{% endif %}
+                        </td>
                     </tr>
                     {% endfor %}
                 </tbody>

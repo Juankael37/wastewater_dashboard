@@ -70,10 +70,10 @@ def migrate_database():
                     c.execute("""
                         INSERT INTO standards (
                             parameter,
-                            class_a_min, class_a_max,
-                            class_b_min, class_b_max,
-                            class_c_min, class_c_max
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                            min_limit, max_limit,
+                            min_limit, max_limit,
+                            min_limit, max_limit
+                        ) VALUES (?, ?, ?)
                     """, param_data)
                     print(f"  [OK] Added parameter '{param_name}'")
                 except Exception as e:

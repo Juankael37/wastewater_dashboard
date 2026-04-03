@@ -1,6 +1,6 @@
 """
 Database models for the Wastewater Monitoring System.
-This module provides data models and database operations.
+Simplified for Class C standards only.
 """
 
 import sqlite3
@@ -20,17 +20,13 @@ def init_db():
     conn = get_db_connection()
     c = conn.cursor()
 
-    # Create standards table
+    # Create standards table (simplified for Class C only)
     c.execute("""
     CREATE TABLE IF NOT EXISTS standards (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         parameter TEXT UNIQUE,
-        class_a_min REAL,
-        class_a_max REAL,
-        class_b_min REAL,
-        class_b_max REAL,
-        class_c_min REAL,
-        class_c_max REAL
+        min_limit REAL,
+        max_limit REAL
     )
     """)
 
@@ -71,196 +67,213 @@ def init_db():
     # Insert default standards if table is empty
     existing = c.execute("SELECT COUNT(*) as count FROM standards").fetchone()["count"]
     if existing == 0:
+        # Class C standards only
         c.executemany("""
-        INSERT INTO standards (
-            parameter,
-            class_a_min, class_a_max,
-            class_b_min, class_b_max,
-            class_c_min, class_c_max
-        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO standards (parameter, min_limit, max_limit) VALUES (?, ?, ?)
         """, [
-            ('ph', 6.0, 9.0, 6.0, 9.0, 6.0, 9.5),
-            ('cod', 0, 60, 0, 60, 0, 100),
-            ('bod', 0, 20, 0, 30, 0, 50),
-            ('tss', 0, 70, 0, 85, 0, 100),
-            ('ammonia', 0, 0.3, 0, 0.5, 0, 0.5),
-            ('nitrate', 0, 10, 0, 12, 0, 14),
-            ('phosphate', 0, 0.5, 0, 0.8, 0, 1.0),
-            ('temperature', 20, 30, 15, 35, 10, 40),
-            ('flow', 0, 1000, 0, 2000, 0, 5000)
+            ('ammonia', 0.0, 0.5),
+            ('bod', 0.0, 50.0),
+            ('cod', 0.0, 100.0),
+            ('flow', 0.0, 5000.0),
+            ('nitrate', 0.0, 14.0),
+            ('ph', 6.0, 9.5),
+            ('phosphate', 0.0, 1.0),
+            ('temperature', 10.0, 40.0),
+            ('tss', 0.0, 100.0)
         ])
 
     conn.commit()
     conn.close()
 
 
-class BaseModel:
-    """Base model class with common database operations."""
+# Simple helper functions for database operations
+def execute_query(query, params=()):
+    """Execute a query and return results."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute(query, params)
     
-    @staticmethod
-    def execute_query(query: str, params: tuple = (), fetch_one: bool = False):
-        """Execute a SQL query and return results."""
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute(query, params)
-        
-        if fetch_one:
-            result = cursor.fetchone()
-        else:
-            result = cursor.fetchall()
-        
-        conn.commit()
+    if query.strip().upper().startswith('SELECT'):
+        results = cursor.fetchall()
         conn.close()
-        
-        if result and fetch_one:
-            return dict(result)
-        elif result:
-            return [dict(row) for row in result]
-        return None
+        return results
+    else:
+        conn.commit()
+        last_id = cursor.lastrowid
+        conn.close()
+        return last_id
 
 
-class Parameter(BaseModel):
+def fetch_one(query, params=()):
+    """Fetch a single row from the database."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute(query, params)
+    result = cursor.fetchone()
+    conn.close()
+    return result
+
+
+# Parameter model
+class Parameter:
     """Model for water quality parameters."""
     
     @staticmethod
     def get_all() -> List[Dict]:
-        """Get all parameters from the database."""
-        return BaseModel.execute_query("SELECT * FROM standards ORDER BY parameter")
+        """Get all parameters with their standards."""
+        return execute_query("SELECT * FROM standards ORDER BY parameter")
     
     @staticmethod
     def get_by_name(parameter_name: str) -> Optional[Dict]:
-        """Get a parameter by its name."""
-        result = BaseModel.execute_query(
-            "SELECT * FROM standards WHERE parameter = ?",
-            (parameter_name,),
-            fetch_one=True
-        )
-        return result
+        """Get a parameter by name."""
+        return fetch_one("SELECT * FROM standards WHERE parameter = ?", (parameter_name,))
     
     @staticmethod
-    def update(parameter_name: str, class_c_min: float, class_c_max: float) -> bool:
+    def update(parameter_name: str, min_limit: float, max_limit: float) -> bool:
         """Update parameter standards."""
         try:
-            BaseModel.execute_query(
-                """UPDATE standards 
-                   SET class_c_min = ?, class_c_max = ? 
-                   WHERE parameter = ?""",
-                (class_c_min, class_c_max, parameter_name)
+            execute_query(
+                "UPDATE standards SET min_limit = ?, max_limit = ? WHERE parameter = ?",
+                (min_limit, max_limit, parameter_name)
             )
             return True
-        except Exception:
+        except Exception as e:
+            print(f"Error updating standards: {e}")
             return False
 
 
-class Measurement(BaseModel):
-    """Model for wastewater measurements."""
+# Measurement model
+class Measurement:
+    """Model for water quality measurements."""
     
     @staticmethod
-    def create(
-        timestamp: str,
-        ph: float = None,
-        cod: float = None,
-        bod: float = None,
-        tss: float = None,
-        ammonia: float = None,
-        nitrate: float = None,
-        phosphate: float = None,
-        temperature: float = None,
-        flow: float = None,
-        measurement_type: str = 'effluent',
-        plant_id: int = 1,
-        operator_id: int = None,
-        notes: str = None
-    ) -> int:
-        """Create a new measurement record with all parameters."""
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute(
-            """INSERT INTO data (
-                timestamp, ph, cod, bod, tss, ammonia, nitrate, phosphate,
-                temperature, flow, type, plant_id, operator_id, notes
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            (
-                timestamp, ph, cod, bod, tss, ammonia, nitrate, phosphate,
-                temperature, flow, measurement_type, plant_id, operator_id, notes
-            )
+    def create(data: Dict) -> int:
+        """Create a new measurement."""
+        query = """
+        INSERT INTO data (
+            timestamp, ph, cod, bod, tss, ammonia, nitrate, phosphate, 
+            temperature, flow, type, plant_id, operator_id, notes
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """
+        
+        params = (
+            data.get('timestamp', datetime.now().isoformat()),
+            data.get('ph'),
+            data.get('cod'),
+            data.get('bod'),
+            data.get('tss'),
+            data.get('ammonia'),
+            data.get('nitrate'),
+            data.get('phosphate'),
+            data.get('temperature'),
+            data.get('flow'),
+            data.get('type', 'effluent'),
+            data.get('plant_id', 1),
+            data.get('operator_id'),
+            data.get('notes', '')
         )
-        measurement_id = cursor.lastrowid
-        conn.commit()
-        conn.close()
-        return measurement_id
+        
+        return execute_query(query, params)
     
     @staticmethod
-    def get_all(limit: int = 100) -> List[Dict]:
-        """Get all measurements with optional limit."""
-        return BaseModel.execute_query(
+    def get_recent(limit: int = 100) -> List[Dict]:
+        """Get recent measurements."""
+        return execute_query(
             "SELECT * FROM data ORDER BY timestamp DESC LIMIT ?",
             (limit,)
         )
     
     @staticmethod
-    def get_recent(days: int = 7) -> List[Dict]:
-        """Get recent measurements for the last N days."""
-        # SQLite doesn't support parameters inside date() function
-        # So we need to use string formatting for the days parameter
-        return BaseModel.execute_query(
-            f"""SELECT * FROM data
-               WHERE date(timestamp) >= date('now', '-{days} days')
-               ORDER BY timestamp DESC"""
+    def get_by_date_range(start_date: str, end_date: str) -> List[Dict]:
+        """Get measurements within a date range."""
+        return execute_query(
+            "SELECT * FROM data WHERE date(timestamp) BETWEEN ? AND ? ORDER BY timestamp",
+            (start_date, end_date)
         )
     
     @staticmethod
-    def get_for_chart() -> Dict[str, List]:
-        """Get data formatted for charts."""
-        rows = BaseModel.execute_query(
-            "SELECT timestamp, ph, cod, bod, tss, ammonia, nitrate, phosphate, temperature, flow FROM data ORDER BY timestamp ASC"
-        )
+    def get_for_chart() -> Dict[str, Any]:
+        """Get chart data for dashboard visualization."""
+        # Get last 7 days of data for charting
+        conn = get_db_connection()
+        cursor = conn.cursor()
         
-        if not rows:
-            return {
-                "labels": [],
-                "ph": [], "cod": [], "bod": [], "tss": [],
-                "ammonia": [], "nitrate": [], "phosphate": [],
-                "temperature": [], "flow": []
-            }
+        # Get data for the last 7 days
+        cursor.execute("""
+            SELECT
+                date(timestamp) as date,
+                AVG(ph) as avg_ph,
+                AVG(cod) as avg_cod,
+                AVG(bod) as avg_bod,
+                AVG(tss) as avg_tss,
+                AVG(ammonia) as avg_ammonia,
+                AVG(nitrate) as avg_nitrate,
+                AVG(phosphate) as avg_phosphate,
+                AVG(temperature) as avg_temperature,
+                AVG(flow) as avg_flow
+            FROM data
+            WHERE date(timestamp) >= date('now', '-7 days')
+            GROUP BY date(timestamp)
+            ORDER BY date(timestamp)
+        """)
+        
+        rows = cursor.fetchall()
+        conn.close()
+        
+        # Format data for chart.js
+        dates = []
+        data = {
+            'ph': [], 'cod': [], 'bod': [], 'tss': [],
+            'ammonia': [], 'nitrate': [], 'phosphate': [],
+            'temperature': [], 'flow': []
+        }
+        
+        for row in rows:
+            dates.append(row['date'])
+            data['ph'].append(row['avg_ph'] if row['avg_ph'] is not None else 0)
+            data['cod'].append(row['avg_cod'] if row['avg_cod'] is not None else 0)
+            data['bod'].append(row['avg_bod'] if row['avg_bod'] is not None else 0)
+            data['tss'].append(row['avg_tss'] if row['avg_tss'] is not None else 0)
+            data['ammonia'].append(row['avg_ammonia'] if row['avg_ammonia'] is not None else 0)
+            data['nitrate'].append(row['avg_nitrate'] if row['avg_nitrate'] is not None else 0)
+            data['phosphate'].append(row['avg_phosphate'] if row['avg_phosphate'] is not None else 0)
+            data['temperature'].append(row['avg_temperature'] if row['avg_temperature'] is not None else 0)
+            data['flow'].append(row['avg_flow'] if row['avg_flow'] is not None else 0)
         
         return {
-            "labels": [r["timestamp"] for r in rows],
-            "ph": [r["ph"] for r in rows],
-            "cod": [r["cod"] for r in rows],
-            "bod": [r["bod"] for r in rows],
-            "tss": [r["tss"] for r in rows],
-            "ammonia": [r["ammonia"] for r in rows],
-            "nitrate": [r["nitrate"] for r in rows],
-            "phosphate": [r["phosphate"] for r in rows],
-            "temperature": [r["temperature"] for r in rows],
-            "flow": [r["flow"] for r in rows],
+            'dates': dates,
+            'data': data,
+            'standards': {
+                'ph': {'min': 6.0, 'max': 9.5},
+                'cod': {'max': 100.0},
+                'bod': {'max': 50.0},
+                'tss': {'max': 100.0},
+                'ammonia': {'max': 0.5},
+                'nitrate': {'max': 14.0},
+                'phosphate': {'max': 1.0},
+                'temperature': {'min': 10.0, 'max': 40.0},
+                'flow': {'max': 5000.0}
+            }
         }
 
 
-class Alert(BaseModel):
-    """Model for system alerts."""
+# Alert model
+class Alert:
+    """Model for alerts."""
     
     @staticmethod
-    def create(parameter: str, value: float, status: str, state: str = "ACTIVE") -> int:
+    def create(parameter: str, value: float, status: str) -> int:
         """Create a new alert."""
-        timestamp = datetime.now().isoformat()
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute(
+        return execute_query(
             """INSERT INTO alerts (parameter, value, status, state, timestamp) 
-               VALUES (?, ?, ?, ?, ?)""",
-            (parameter, value, status, state, timestamp)
+               VALUES (?, ?, ?, 'ACTIVE', ?)""",
+            (parameter, value, status, datetime.now().isoformat())
         )
-        alert_id = cursor.lastrowid
-        conn.commit()
-        conn.close()
-        return alert_id
     
     @staticmethod
     def get_active() -> List[Dict]:
         """Get all active alerts."""
-        return BaseModel.execute_query(
+        return execute_query(
             "SELECT * FROM alerts WHERE state = 'ACTIVE' ORDER BY timestamp DESC"
         )
     
@@ -269,7 +282,7 @@ class Alert(BaseModel):
         """Resolve an alert by ID."""
         resolved_at = datetime.now().isoformat()
         try:
-            BaseModel.execute_query(
+            execute_query(
                 "UPDATE alerts SET state = 'RESOLVED', resolved_at = ? WHERE id = ?",
                 (resolved_at, alert_id)
             )
@@ -278,15 +291,16 @@ class Alert(BaseModel):
             return False
 
 
-class Report(BaseModel):
+# Report model
+class Report:
     """Model for generating reports."""
     
     @staticmethod
     def get_summary(start_date: str, end_date: str) -> Dict[str, Any]:
         """Get summary statistics for a date range."""
         # Get measurements in date range
-        rows = BaseModel.execute_query(
-            """SELECT * FROM data
+        rows = execute_query(
+            """SELECT * FROM data 
                WHERE date(timestamp) BETWEEN ? AND ?
                ORDER BY timestamp""",
             (start_date, end_date)
@@ -300,42 +314,53 @@ class Report(BaseModel):
                 "alerts": 0
             }
         
-        # Calculate statistics for all parameters
-        all_params = ["ph", "cod", "bod", "tss", "ammonia", "nitrate", "phosphate", "temperature", "flow"]
-        stats = {}
+        # Get standards for compliance checking
+        standards = {row['parameter']: row for row in Parameter.get_all()}
         
-        for param in all_params:
-            values = [r[param] for r in rows if r[param] is not None]
-            if values:
-                stats[param] = {
-                    "count": len(values),
-                    "avg": sum(values) / len(values),
-                    "min": min(values),
-                    "max": max(values)
-                }
-            else:
-                stats[param] = {"count": 0, "avg": 0, "min": 0, "max": 0}
-        
-        # Get standards for compliance calculation
-        standards = Parameter.get_all()
-        compliance_count = 0
-        total_checks = 0
+        # Calculate statistics
+        total_measurements = len(rows)
+        compliant_count = 0
+        parameter_stats = {}
         
         for row in rows:
-            for param in all_params:
-                if row[param] is not None:
-                    total_checks += 1
-                    # Check against Class C standards
-                    standard = next((s for s in standards if s["parameter"] == param), None)
+            row_compliant = True
+            
+            for param in ['ph', 'cod', 'bod', 'tss', 'ammonia', 'nitrate', 'phosphate', 'temperature', 'flow']:
+                value = row.get(param)
+                if value is not None:
+                    standard = standards.get(param)
                     if standard:
-                        if standard["class_c_min"] <= row[param] <= standard["class_c_max"]:
-                            compliance_count += 1
+                        min_limit = standard['min_limit']
+                        max_limit = standard['max_limit']
+                        
+                        if min_limit <= value <= max_limit:
+                            # Count as compliant for this parameter
+                            if param not in parameter_stats:
+                                parameter_stats[param] = {'compliant': 0, 'total': 0}
+                            parameter_stats[param]['compliant'] += 1
+                        else:
+                            row_compliant = False
+                        
+                        if param not in parameter_stats:
+                            parameter_stats[param] = {'compliant': 0, 'total': 0}
+                        parameter_stats[param]['total'] += 1
+            
+            if row_compliant:
+                compliant_count += 1
         
-        compliance_rate = (compliance_count / total_checks * 100) if total_checks > 0 else 0
+        # Calculate compliance rates
+        compliance_rate = (compliant_count / total_measurements * 100) if total_measurements > 0 else 0
+        
+        # Get active alerts count
+        active_alerts = len(Alert.get_active())
         
         return {
-            "count": len(rows),
-            "parameters": stats,
+            "count": total_measurements,
+            "parameters": parameter_stats,
             "compliance_rate": round(compliance_rate, 2),
-            "alerts": len(Alert.get_active())
+            "alerts": active_alerts
         }
+
+
+# Initialize database when module is imported
+init_db()

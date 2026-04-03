@@ -2,7 +2,24 @@
  * API Service for connecting to Flask backend
  */
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+// Determine API base URL based on current host
+const getApiBaseUrl = () => {
+  // Use environment variable if set
+  if (import.meta.env.VITE_API_URL) {
+    return import.meta.env.VITE_API_URL;
+  }
+  
+  // If accessing from localhost, use localhost for backend
+  if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+    return 'http://localhost:5000';
+  }
+  
+  // If accessing from network IP (like 192.168.1.4), use the same IP for backend
+  // Replace with your computer's actual IP if different
+  return `http://${window.location.hostname}:5000`;
+};
+
+const API_BASE_URL = getApiBaseUrl();
 
 // Types
 export interface Measurement {

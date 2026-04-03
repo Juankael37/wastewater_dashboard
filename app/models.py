@@ -17,12 +17,8 @@ def init_db():
     CREATE TABLE IF NOT EXISTS standards (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         parameter TEXT UNIQUE,
-        class_a_min REAL,
-        class_a_max REAL,
-        class_b_min REAL,
-        class_b_max REAL,
-        class_c_min REAL,
-        class_c_max REAL
+        min_limit REAL,
+        max_limit REAL
     )
     """)
 
@@ -55,18 +51,19 @@ def init_db():
     existing = c.execute("SELECT COUNT(*) as count FROM standards").fetchone()["count"]
 
     if existing == 0:
+        # Class C standards only
         c.executemany("""
-        INSERT INTO standards (
-            parameter,
-            class_a_min, class_a_max,
-            class_b_min, class_b_max,
-            class_c_min, class_c_max
-        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO standards (parameter, min_limit, max_limit) VALUES (?, ?, ?)
         """, [
-            ('ph', 6.0, 9.0, 6.0, 9.0, 6.0, 9.5),
-            ('cod', 0, 60, 0, 60, 0, 100),
-            ('bod', 0, 20, 0, 30, 0, 50),
-            ('tss', 0, 70, 0, 85, 0, 100)
+            ('ammonia', 0.0, 0.5),
+            ('bod', 0.0, 50.0),
+            ('cod', 0.0, 100.0),
+            ('flow', 0.0, 5000.0),
+            ('nitrate', 0.0, 14.0),
+            ('ph', 6.0, 9.5),
+            ('phosphate', 0.0, 1.0),
+            ('temperature', 10.0, 40.0),
+            ('tss', 0.0, 100.0)
         ])
 
     conn.commit()

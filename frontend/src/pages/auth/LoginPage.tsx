@@ -1,10 +1,10 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
-import { AlertCircle, Mail, Lock } from 'lucide-react'
+import { AlertCircle, User, Lock } from 'lucide-react'
 
 const LoginPage = () => {
-  const [email, setEmail] = useState('')
+  const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [isLoading, setIsLoading] = useState(false)
@@ -18,7 +18,7 @@ const LoginPage = () => {
     setIsLoading(true)
 
     try {
-      await signIn(email, password)
+      await signIn(username, password)
       navigate('/dashboard')
     } catch (err: any) {
       setError(err.message || 'Failed to sign in')
@@ -73,20 +73,20 @@ const LoginPage = () => {
 
           <div className="space-y-4">
             <div>
-              <label htmlFor="email" className="label">
-                <Mail className="inline-block w-4 h-4 mr-2" />
-                Email address
+              <label htmlFor="username" className="label">
+                <User className="inline-block w-4 h-4 mr-2" />
+                Username or Email
               </label>
               <input
-                id="email"
-                name="email"
-                type="email"
-                autoComplete="email"
+                id="username"
+                name="username"
+                type="text"
+                autoComplete="username"
                 required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
                 className="input"
-                placeholder="operator@example.com"
+                placeholder="admin or operator@example.com"
               />
             </div>
 

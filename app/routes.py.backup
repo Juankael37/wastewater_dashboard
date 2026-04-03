@@ -42,7 +42,7 @@ def api_data():
 def get_status(parameter, value):
     conn = get_db_connection()
     standard = conn.execute(
-        "SELECT min_limit, max_limit FROM standards WHERE parameter = ?",
+        "SELECT class_a_min, class_a_max FROM standards WHERE parameter = ?",
         (parameter,)
     ).fetchone()
     conn.close()
@@ -50,8 +50,8 @@ def get_status(parameter, value):
     if not standard:
         return "SAFE"  # Fallback if no standard is found
 
-    min_val = standard["min_limit"]
-    max_val = standard["max_limit"]
+    min_val = standard["class_a_min"]
+    max_val = standard["class_a_max"]
 
     if value < min_val or value > max_val:
         return "CRITICAL"
@@ -90,9 +90,125 @@ def create_alert(parameter, value, status):
     conn.execute("""
         INSERT INTO alerts (parameter, value, status, state, timestamp)
         VALUES (?, ?, ?, 'ACTIVE', ?)
-        """, (parameter, value, status, datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
+    """, (
+        parameter,
+        value,
+        status,
+        now.strftime("%Y-%m-%d %H:%M:%S")
+    ))
+
     conn.commit()
     conn.close()
+
+
+def resolve_alert(parameter):
+    conn = get_db_connection()
+
+    conn.execute("""
+        UPDATE alerts
+        SET state = 'RESOLVED',
+            resolved_at = ?
+        WHERE parameter = ? AND state = 'ACTIVE'
+    """, (
+        datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        parameter
+    ))
+
+    conn.commit()
+    conn.close()
+
+
+# ================= AUTH =================
+@main.route('/register', methods=['GET', 'POST'])
+def register():
+    if request.method == 'POST':
+        username = request.form.get('username')
+        password = request.form.get('password')
+
+        if not username or not password:
+            return "Username and password required ❌"
+
+        hashed_password = generate_password_hash(password)
+
+        conn = get_db_connection()
+        try:
+            conn.execute(
+                "INSERT INTO users (username, password) VALUES (?, ?)",
+                (username, hashed_password)
+            )
+            conn.commit()
+        except:
+            conn.close()
+            return "Username already exists ❌"
+
+        conn.close()
+        return redirect('/login')
+
+    return render_template('register.html')
+
+
+@main.route('/login', methods=['GET', 'POST'])
+def login():
+    error = None
+
+    if request.method == 'POST':
+        username = request.form.get('username')
+        password = request.form.get('password')
+
+        conn = get_db_connection()
+        user = conn.execute(
+            "SELECT * FROM users WHERE username = ?",
+            (username,)
+        ).fetchone()
+        conn.close()
+
+        if user and check_password_hash(user["password"], password):
+            login_user(User(user["id"]))
+            return redirect('/')
+        else:
+            error = "Invalid username or password"
+
+    return render_template('login.html', error=error)
+
+
+@main.route('/logout')
+@login_required
+def logout():
+    logout_user()
+    return redirect('/login')
+
+
+# ================= HOME =================
+@main.route('/')
+@login_required
+def home():
+    return render_template('index.html')
+
+
+# ================= INPUT =================
+@main.route('/input', methods=['GET', 'POST'])
+@login_required
+def input_page():
+    if request.method == 'POST':
+        ph = float(request.form.get('ph'))
+        cod = float(request.form.get('cod'))
+        bod = float(request.form.get('bod'))
+        tss = float(request.form.get('tss'))
+
+        conn = get_db_connection()
+        conn.execute("""
+            INSERT INTO data (ph, cod, bod, tss, timestamp)
+            VALUES (?, ?, ?, ?, ?)
+        """, (
+            ph, cod, bod, tss,
+            datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        ))
+        conn.commit()
+        conn.close()
+
+        return redirect('/')
+
+    return render_template('input.html')
 
 
 # ================= REPORTS =================
@@ -197,16 +313,16 @@ def export_pdf():
     # Standards Table
     elements.append(Paragraph("Water Quality Standards", styles['Heading2']))
     
-    standards_data = [['Parameter', 'Class C Min', 'Class C Max', 'Class C Min', 'Class C Max', 'Class C Min', 'Class C Max']]
+    standards_data = [['Parameter', 'Class A Min', 'Class A Max', 'Class B Min', 'Class B Max', 'Class C Min', 'Class C Max']]
     for std in standards:
         standards_data.append([
             std['parameter'],
-            str(std['min_limit']),
-            str(std['max_limit']),
-            str(std['min_limit']),
-            str(std['max_limit']),
-            str(std['min_limit']),
-            str(std['max_limit'])
+            str(std['class_a_min']),
+            str(std['class_a_max']),
+            str(std['class_b_min']),
+            str(std['class_b_max']),
+            str(std['class_c_min']),
+            str(std['class_c_max'])
         ])
     
     standards_table = Table(standards_data)

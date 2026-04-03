@@ -44,10 +44,19 @@ def login():
         
         if user and check_password_hash(user["password"], password):
             login_user(User(user["id"]))
+            # Check if this is an API request (from React frontend)
+            if request.headers.get('Content-Type', '').startswith('multipart/form-data') or \
+               request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                return jsonify({'success': True, 'message': 'Login successful', 'username': username})
             return redirect('/')
         else:
             error = "Invalid username or password"
+            # Check if this is an API request
+            if request.headers.get('Content-Type', '').startswith('multipart/form-data') or \
+               request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                return jsonify({'success': False, 'error': error}), 401
     
+    # If GET request or regular form submission with error
     return render_template('login.html', error=error)
 
 
@@ -103,19 +112,12 @@ def dashboard():
     return render_template('index.html')
 
 
-@main.route('/input')
-@login_required
-def input_page():
-    """Render the data input page."""
-    return render_template('input.html')
-
-
 # ================= ALERT LOGIC =================
 def get_status(parameter, value):
     """Determine status (SAFE, WARNING, CRITICAL) for a parameter value."""
     conn = get_connection()
     standard = conn.execute(
-        "SELECT class_a_min, class_a_max FROM standards WHERE parameter = ?",
+        "SELECT min_limit, max_limit FROM standards WHERE parameter = ?",
         (parameter,)
     ).fetchone()
     conn.close()
@@ -123,8 +125,8 @@ def get_status(parameter, value):
     if not standard:
         return "SAFE"  # Fallback if no standard is found
 
-    min_val = standard["class_a_min"]
-    max_val = standard["class_a_max"]
+    min_val = standard["min_limit"]
+    max_val = standard["max_limit"]
 
     if value < min_val or value > max_val:
         return "CRITICAL"
@@ -311,13 +313,13 @@ def api_update_parameter(parameter_name):
     """Update parameter standards."""
     data = request.json
     
-    if 'class_c_min' not in data or 'class_c_max' not in data:
-        return jsonify({"error": "Missing class_c_min or class_c_max"}), 400
+    if 'min_limit' not in data or 'max_limit' not in data:
+        return jsonify({"error": "Missing min_limit or max_limit"}), 400
     
     success = Parameter.update(
         parameter_name,
-        float(data['class_c_min']),
-        float(data['class_c_max'])
+        float(data['min_limit']),
+        float(data['max_limit'])
     )
     
     if success:

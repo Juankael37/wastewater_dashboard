@@ -1,10 +1,9 @@
 import React from 'react'
 import { NavLink } from 'react-router-dom'
-import { 
-  Home, 
-  ClipboardList, 
-  BarChart3, 
-  AlertTriangle, 
+import {
+  Home,
+  BarChart3,
+  AlertTriangle,
   Settings,
   LogOut
 } from 'lucide-react'
@@ -15,7 +14,6 @@ const Navigation: React.FC = () => {
   
   const navItems = [
     { path: '/dashboard', icon: Home, label: 'Dashboard' },
-    { path: '/input', icon: ClipboardList, label: 'Input Data' },
     { path: '/reports', icon: BarChart3, label: 'Reports' },
     { path: '/alerts', icon: AlertTriangle, label: 'Alerts' },
     { path: '/settings', icon: Settings, label: 'Settings' },

@@ -1,5 +1,6 @@
 from flask import Flask
 from flask_login import LoginManager, UserMixin
+from flask_cors import CORS
 import sqlite3
 from werkzeug.security import generate_password_hash
 
@@ -78,12 +79,12 @@ def init_db():
         CREATE TABLE IF NOT EXISTS standards (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             parameter TEXT,
-            class_a_min REAL,
-            class_a_max REAL,
-            class_b_min REAL,
-            class_b_max REAL,
-            class_c_min REAL,
-            class_c_max REAL
+            min_limit REAL,
+            max_limit REAL,
+            min_limit REAL,
+            max_limit REAL,
+            min_limit REAL,
+            max_limit REAL
         )
     ''')
 
@@ -112,6 +113,9 @@ def create_admin():
 def create_app():
     app = Flask(__name__)
     app.secret_key = "secret123"
+    
+    # Enable CORS for all routes - allow all origins for development
+    CORS(app, supports_credentials=True, origins="*")
 
     # INIT DB - Use the new models initialization
     from .models import init_db
