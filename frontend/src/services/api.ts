@@ -46,11 +46,9 @@ export interface Alert {
 
 export interface Parameter {
   id: number;
-  name: string;
-  unit: string;
-  min_value: number | null;
-  max_value: number | null;
-  validation_rules: string | null;
+  parameter: string;
+  min_limit: number;
+  max_limit: number;
 }
 
 export interface DashboardData {
@@ -258,10 +256,23 @@ export const parametersApi = {
     return apiRequest<Parameter[]>('/api/parameters');
   },
   
+  create: async (parameter: string, min_limit: number, max_limit: number): Promise<Parameter> => {
+    return apiRequest<Parameter>('/api/parameters', {
+      method: 'POST',
+      body: JSON.stringify({ parameter, min_limit, max_limit }),
+    });
+  },
+  
   update: async (parameterName: string, data: Partial<Parameter>): Promise<Parameter> => {
     return apiRequest<Parameter>(`/api/parameters/${parameterName}`, {
       method: 'PUT',
       body: JSON.stringify(data),
+    });
+  },
+  
+  delete: async (parameterName: string): Promise<{success: boolean}> => {
+    return apiRequest(`/api/parameters/${parameterName}`, {
+      method: 'DELETE',
     });
   },
 };
@@ -368,7 +379,7 @@ export const checkBackendHealth = async (): Promise<boolean> => {
 export interface User {
   id: number;
   username: string;
-  role: string;
+  role: 'admin' | 'operator' | 'client';
 }
 
 export const usersApi = {
@@ -376,10 +387,10 @@ export const usersApi = {
     return apiRequest<User[]>('/api/users');
   },
   
-  create: async (username: string, password: string): Promise<{success: boolean; id: number; username: string}> => {
+  create: async (username: string, password: string, role: string): Promise<{success: boolean; id: number; username: string; role: string}> => {
     return apiRequest('/api/users', {
       method: 'POST',
-      body: JSON.stringify({ username, password }),
+      body: JSON.stringify({ username, password, role }),
     });
   },
   

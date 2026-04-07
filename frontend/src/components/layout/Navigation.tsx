@@ -13,12 +13,11 @@ import { useAuth } from '../../contexts/AuthContext'
 const Navigation: React.FC = () => {
   const { signOut } = useAuth()
   
+  // Settings and Reports moved to AquaDash (Flask backend)
   const navItems = [
     { path: '/dashboard', icon: Home, label: 'Dashboard' },
     { path: '/input', icon: PlusCircle, label: 'Input Data' },
-    { path: '/reports', icon: BarChart3, label: 'Reports' },
     { path: '/alerts', icon: AlertTriangle, label: 'Alerts' },
-    { path: '/settings', icon: Settings, label: 'Settings' },
   ]
 
   return (

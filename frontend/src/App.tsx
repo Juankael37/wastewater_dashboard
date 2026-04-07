@@ -3,6 +3,7 @@ import { Toaster } from 'react-hot-toast'
 import { AuthProvider } from './contexts/AuthContext'
 import { OfflineProvider } from './contexts/OfflineContext'
 import ProtectedRoute from './components/auth/ProtectedRoute'
+import AdminRoute from './components/auth/AdminRoute'
 import Layout from './components/layout/Layout'
 
 // Pages
@@ -55,6 +56,12 @@ function App() {
               <Route path="/input" element={<InputPage />} />
               <Route path="/reports" element={<ReportsPage />} />
               <Route path="/alerts" element={<AlertsPage />} />
+            </Route>
+          </Route>
+          
+          {/* Admin-only routes */}
+          <Route element={<AdminRoute />}>
+            <Route element={<Layout />}>
               <Route path="/settings" element={<SettingsPage />} />
             </Route>
           </Route>

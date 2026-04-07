@@ -153,6 +153,15 @@ def dashboard():
     return render_template('index.html')
 
 
+@main.route('/settings')
+@login_required
+def settings_page():
+    """Render the settings page (admin only)."""
+    if current_user.id != 1 and current_user.id != '1':
+        return redirect('/')
+    return render_template('settings.html')
+
+
 # ================= ALERT LOGIC =================
 def get_status(parameter, value):
     """Determine status (SAFE, WARNING, CRITICAL) for a parameter value."""
@@ -426,6 +435,58 @@ def api_update_parameter(parameter_name):
         return jsonify({"error": "Parameter not found"}), 404
 
 
+@main.route('/api/parameters', methods=['POST'])
+@login_required
+def api_create_parameter():
+    """Create a new parameter."""
+    data = request.json
+    
+    if not data.get('parameter') or data.get('min_limit') is None or data.get('max_limit') is None:
+        return jsonify({"error": "Parameter name, min_limit, and max_limit are required"}), 400
+    
+    parameter_name = data['parameter'].lower().strip()
+    min_limit = float(data['min_limit'])
+    max_limit = float(data['max_limit'])
+    
+    conn = get_connection()
+    try:
+        conn.execute(
+            "INSERT INTO standards (parameter, min_limit, max_limit) VALUES (?, ?, ?)",
+            (parameter_name, min_limit, max_limit)
+        )
+        conn.commit()
+        param_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+        return jsonify({
+            "success": True,
+            "id": param_id,
+            "parameter": parameter_name,
+            "min_limit": min_limit,
+            "max_limit": max_limit
+        }), 201
+    except Exception as e:
+        return jsonify({"error": f"Parameter already exists: {str(e)}"}), 400
+    finally:
+        conn.close()
+
+
+@main.route('/api/parameters/<parameter_name>', methods=['DELETE'])
+@login_required
+def api_delete_parameter(parameter_name):
+    """Delete a parameter."""
+    # Prevent deleting core parameters
+    core_params = ['ph', 'cod', 'bod', 'tss', 'ammonia', 'nitrate', 'phosphate', 'temperature', 'flow']
+    if parameter_name.lower() in core_params:
+        return jsonify({"error": "Cannot delete core parameters"}), 400
+    
+    conn = get_connection()
+    try:
+        conn.execute("DELETE FROM standards WHERE parameter = ?", (parameter_name,))
+        conn.commit()
+        return jsonify({"success": True})
+    finally:
+        conn.close()
+
+
 @main.route('/api/reports/daily')
 @login_required
 def api_daily_report():
@@ -499,68 +560,409 @@ def api_import_data():
 @main.route('/api/data/export')
 @login_required
 def api_export_data():
-    """Export data as CSV."""
-    csv_data = DataImportService.export_to_csv()
+    """Export data as CSV with date range support."""
+    import matplotlib
+    matplotlib.use('Agg')
+    import matplotlib.pyplot as plt
+    from reportlab.lib.units import inch
+    from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Image as RLImage
+    from reportlab.lib.styles import getSampleStyleSheet
+    from reportlab.lib import colors
     
-    # Create file response
-    output = io.BytesIO()
-    output.write(csv_data.encode('utf-8'))
-    output.seek(0)
+    # Get date range from query params
+    end_date = datetime.datetime.now()
+    start_date = end_date - datetime.timedelta(days=7)
     
-    return send_file(
-        output,
-        mimetype='text/csv',
-        as_attachment=True,
-        download_name=f'wastewater_data_{datetime.datetime.now().strftime("%Y%m%d")}.csv'
-    )
+    if request.args.get('start'):
+        try:
+            start_date = datetime.datetime.strptime(request.args.get('start'), '%Y-%m-%d')
+        except:
+            pass
+    if request.args.get('end'):
+        try:
+            end_date = datetime.datetime.strptime(request.args.get('end'), '%Y-%m-%d')
+        except:
+            pass
+    
+    start_str = start_date.strftime('%Y-%m-%d')
+    end_str = end_date.strftime('%Y-%m-%d')
+    
+    # Get measurements in date range
+    measurements = Measurement.get_by_date_range(start_str, end_str)
+    standards = Parameter.get_all()
+    standards_dict = {s['parameter']: s for s in standards}
+    
+    # Check if user wants PDF with graphs or CSV
+    format_type = request.args.get('format', 'csv')
+    
+    if format_type == 'pdf':
+        # Generate professional PDF report with graphs
+        buffer = io.BytesIO()
+        doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=0.5*inch, leftMargin=0.5*inch)
+        elements = []
+        styles = getSampleStyleSheet()
+        
+        # Title
+        elements.append(Paragraph("Wastewater Treatment Report", styles['Title']))
+        elements.append(Paragraph(f"Period: {start_str} to {end_str}", styles['Normal']))
+        elements.append(Paragraph(f"Generated: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", styles['Normal']))
+        elements.append(Paragraph(" ", styles['Normal']))
+        
+        # Summary
+        total = len(measurements)
+        compliant = 0
+        for m in measurements:
+            is_compliant = True
+            for param in ['ph', 'cod', 'bod', 'tss', 'ammonia', 'nitrate', 'phosphate', 'temperature', 'flow']:
+                val = m.get(param)
+                if val is not None and param in standards_dict:
+                    std = standards_dict[param]
+                    if val < float(std['min_limit']) or val > float(std['max_limit']):
+                        is_compliant = False
+                        break
+            if is_compliant:
+                compliant += 1
+        
+        compliance_rate = (compliant / total * 100) if total > 0 else 0
+        
+        elements.append(Paragraph("Summary", styles['Heading2']))
+        summary_data = [
+            ['Metric', 'Value'],
+            ['Total Measurements', str(total)],
+            ['Compliant Measurements', str(compliant)],
+            ['Compliance Rate', f"{compliance_rate:.1f}%"]
+        ]
+        summary_table = Table(summary_data, colWidths=[2.5*inch, 2*inch])
+        summary_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, 0), 10),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
+            ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+            ('GRID', (0, 0), (-1, -1), 1, colors.black)
+        ]))
+        elements.append(summary_table)
+        elements.append(Paragraph(" ", styles['Normal']))
+        
+        # Generate graphs for each parameter
+        elements.append(Paragraph("Weekly Parameter Trends", styles['Heading2']))
+        
+        params = [
+            ('ph', 'pH', '#3b82f6'),
+            ('cod', 'COD (mg/L)', '#ef4444'),
+            ('bod', 'BOD (mg/L)', '#f97316'),
+            ('tss', 'TSS (mg/L)', '#8b5cf6'),
+            ('ammonia', 'Ammonia (mg/L)', '#06b6d4'),
+            ('nitrate', 'Nitrate (mg/L)', '#10b981'),
+            ('phosphate', 'Phosphate (mg/L)', '#84cc16'),
+            ('temperature', 'Temperature (°C)', '#f43f5e'),
+            ('flow', 'Flow (m³/h)', '#6366f1')
+        ]
+        
+        for param_key, param_name, color in params:
+            dates = []
+            values = []
+            for m in measurements:
+                val = m.get(param_key)
+                if val is not None:
+                    dates.append(m.get('timestamp', '')[:10])
+                    values.append(float(val))
+            
+            if values:
+                fig, ax = plt.subplots(figsize=(6, 3))
+                ax.plot(range(len(values)), values, color=color, marker='o', markersize=4, linewidth=2)
+                ax.set_title(param_name, fontsize=10, fontweight='bold')
+                ax.set_ylabel(param_name, fontsize=8)
+                ax.set_xlabel('Date', fontsize=8)
+                ax.set_xticks(range(len(dates)))
+                ax.set_xticklabels(dates, rotation=45, ha='right', fontsize=6)
+                ax.tick_params(axis='y', labelsize=7)
+                ax.grid(True, alpha=0.3)
+                
+                if param_key in standards_dict:
+                    std = standards_dict[param_key]
+                    ax.axhline(y=float(std['max_limit']), color='red', linestyle='--', linewidth=1, label=f'Max: {std["max_limit"]}')
+                    if float(std['min_limit']) > 0:
+                        ax.axhline(y=float(std['min_limit']), color='orange', linestyle='--', linewidth=1, label=f'Min: {std["min_limit"]}')
+                    ax.legend(fontsize=6)
+                
+                plt.tight_layout()
+                img_buffer = io.BytesIO()
+                fig.savefig(img_buffer, format='png', dpi=100, bbox_inches='tight')
+                img_buffer.seek(0)
+                plt.close(fig)
+                elements.append(RLImage(img_buffer, width=6*inch, height=2.5*inch))
+                elements.append(Paragraph(" ", styles['Normal']))
+        
+        # Data Table
+        elements.append(Paragraph("Measurement Data", styles['Heading2']))
+        if measurements:
+            headers = ['Date', 'pH', 'COD', 'BOD', 'TSS', 'NH3', 'NO3', 'PO4', 'Temp', 'Flow']
+            data = [headers]
+            for m in measurements:
+                data.append([
+                    str(m.get('timestamp', ''))[:10],
+                    f"{m.get('ph', '-') or '-'}",
+                    f"{m.get('cod', '-') or '-'}",
+                    f"{m.get('bod', '-') or '-'}",
+                    f"{m.get('tss', '-') or '-'}",
+                    f"{m.get('ammonia', '-') or '-'}",
+                    f"{m.get('nitrate', '-') or '-'}",
+                    f"{m.get('phosphate', '-') or '-'}",
+                    f"{m.get('temperature', '-') or '-'}",
+                    f"{m.get('flow', '-') or '-'}"
+                ])
+            col_widths = [0.7*inch] + [0.5*inch] * 9
+            table = Table(data, colWidths=col_widths)
+            table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('FONTSIZE', (0, 0), (-1, 0), 7),
+                ('BOTTOMPADDING', (0, 0), (-1, 0), 4),
+                ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+                ('GRID', (0, 0), (-1, -1), 0.5, colors.black),
+                ('FONTSIZE', (0, 1), (-1, -1), 6)
+            ]))
+            elements.append(table)
+        
+        doc.build(elements)
+        buffer.seek(0)
+        
+        return send_file(
+            buffer,
+            mimetype='application/pdf',
+            as_attachment=True,
+            download_name=f'wastewater_report_{start_str}_to_{end_str}.pdf'
+        )
+    else:
+        # Export as CSV
+        now_str = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        csv_lines = ["Wastewater Treatment Plant - Measurement Data"]
+        csv_lines.append("Report Period: " + start_str + " to " + end_str)
+        csv_lines.append("Generated: " + now_str)
+        csv_lines.append("")
+        csv_lines.append("timestamp,ph,cod,bod,tss,ammonia,nitrate,phosphate,temperature,flow")
+        
+        for m in measurements:
+            csv_lines.append(
+                f"{m.get('timestamp', '') or ''},"
+                f"{m.get('ph', '') or ''},"
+                f"{m.get('cod', '') or ''},"
+                f"{m.get('bod', '') or ''},"
+                f"{m.get('tss', '') or ''},"
+                f"{m.get('ammonia', '') or ''},"
+                f"{m.get('nitrate', '') or ''},"
+                f"{m.get('phosphate', '') or ''},"
+                f"{m.get('temperature', '') or ''},"
+                f"{m.get('flow', '') or ''}"
+            )
+        
+        csv_data = "\n".join(csv_lines)
+        output = io.BytesIO()
+        output.write(csv_data.encode('utf-8'))
+        output.seek(0)
+        
+        return send_file(
+            output,
+            mimetype='text/csv',
+            as_attachment=True,
+            download_name=f'wastewater_data_{start_str}_to_{end_str}.csv'
+        )
 
 
 # ================= PDF REPORT GENERATION =================
 @main.route('/api/reports/pdf')
 @login_required
 def api_generate_pdf():
-    """Generate PDF report."""
+    """Generate PDF report with all 9 parameters, graphs, and images."""
     try:
-        # Get report data
-        start_date = request.args.get('start', datetime.datetime.now().strftime('%Y-%m-01'))
-        end_date = request.args.get('end', datetime.datetime.now().strftime('%Y-%m-%d'))
+        import matplotlib
+        matplotlib.use('Agg')  # Non-interactive backend
+        import matplotlib.pyplot as plt
+        from reportlab.lib.units import inch
+        from reportlab.platypus import Image as RLImage
         
-        summary = Report.get_summary(start_date, end_date)
+        # Get date range from query params or default to last 7 days
+        end_date = datetime.datetime.now()
+        start_date = end_date - datetime.timedelta(days=7)
+        
+        if request.args.get('start'):
+            try:
+                start_date = datetime.datetime.strptime(request.args.get('start'), '%Y-%m-%d')
+            except:
+                pass
+        if request.args.get('end'):
+            try:
+                end_date = datetime.datetime.strptime(request.args.get('end'), '%Y-%m-%d')
+            except:
+                pass
+        
+        start_str = start_date.strftime('%Y-%m-%d')
+        end_str = end_date.strftime('%Y-%m-%d')
+        
+        summary = Report.get_summary(start_str, end_str)
+        measurements = Measurement.get_by_date_range(start_str, end_str)
+        standards = Parameter.get_all()
         
         # Create PDF
         buffer = io.BytesIO()
-        doc = SimpleDocTemplate(buffer, pagesize=letter)
+        doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=0.5*inch, leftMargin=0.5*inch)
         elements = []
-        
-        # Add title
         styles = getSampleStyleSheet()
-        title = Paragraph(f"Wastewater Treatment Report<br/>{start_date} to {end_date}", 
-                         styles['Title'])
-        elements.append(title)
         
-        # Add summary table
+        # Title
+        title = Paragraph(f"Wastewater Treatment Report", styles['Title'])
+        elements.append(title)
+        elements.append(Paragraph(f"Period: {start_str} to {end_str}", styles['Normal']))
+        elements.append(Paragraph(f"Generated: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", styles['Normal']))
+        elements.append(Paragraph(" ", styles['Normal']))
+        
+        # Summary Table
+        elements.append(Paragraph("Summary", styles['Heading2']))
         summary_data = [
             ['Metric', 'Value'],
-            ['Report Period', f'{start_date} to {end_date}'],
-            ['Total Measurements', summary['count']],
-            ['Compliance Rate', f"{summary['compliance_rate']}%"],
-            ['Active Alerts', summary['alerts']],
-            ['Generated On', datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')],
-            ['Generated By', current_user.email if current_user.is_authenticated else 'System']
+            ['Total Measurements', str(summary.get('count', 0))],
+            ['Compliance Rate', f"{summary.get('compliance_rate', 0)}%"],
+            ['Active Alerts', str(summary.get('alerts', 0))]
         ]
-        
-        table = Table(summary_data)
-        table.setStyle(TableStyle([
+        summary_table = Table(summary_data, colWidths=[2*inch, 2*inch])
+        summary_table.setStyle(TableStyle([
             ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
             ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
             ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
             ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, 0), (-1, 0), 14),
-            ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+            ('FONTSIZE', (0, 0), (-1, 0), 10),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
             ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
             ('GRID', (0, 0), (-1, -1), 1, colors.black)
         ]))
-        elements.append(table)
+        elements.append(summary_table)
+        elements.append(Paragraph(" ", styles['Normal']))
+        
+        # Standards Table
+        elements.append(Paragraph("Water Quality Standards (Class C)", styles['Heading2']))
+        standards_data = [['Parameter', 'Min Limit', 'Max Limit', 'Unit']]
+        for s in standards:
+            unit = 'mg/L'
+            if s['parameter'] == 'ph':
+                unit = '-'
+            elif s['parameter'] == 'temperature':
+                unit = '°C'
+            elif s['parameter'] == 'flow':
+                unit = 'm³/h'
+            standards_data.append([
+                s['parameter'].capitalize(),
+                str(s['min_limit']),
+                str(s['max_limit']),
+                unit
+            ])
+        standards_table = Table(standards_data, colWidths=[1.2*inch, 1*inch, 1*inch, 0.8*inch])
+        standards_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, 0), 8),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 6),
+            ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+            ('GRID', (0, 0), (-1, -1), 1, colors.black)
+        ]))
+        elements.append(standards_table)
+        elements.append(Paragraph(" ", styles['Normal']))
+        
+        # Generate graphs for each parameter
+        elements.append(Paragraph("Weekly Parameter Trends", styles['Heading2']))
+        
+        params = [
+            ('ph', 'pH', '#3b82f6'),
+            ('cod', 'COD (mg/L)', '#ef4444'),
+            ('bod', 'BOD (mg/L)', '#f97316'),
+            ('tss', 'TSS (mg/L)', '#8b5cf6'),
+            ('ammonia', 'Ammonia (mg/L)', '#06b6d4'),
+            ('nitrate', 'Nitrate (mg/L)', '#10b981'),
+            ('phosphate', 'Phosphate (mg/L)', '#84cc16'),
+            ('temperature', 'Temperature (°C)', '#f43f5e'),
+            ('flow', 'Flow (m³/h)', '#6366f1')
+        ]
+        
+        # Get standards dict
+        standards_dict = {s['parameter']: s for s in standards}
+        
+        for param_key, param_name, color in params:
+            # Extract data for this parameter
+            dates = []
+            values = []
+            for m in measurements:
+                val = m.get(param_key)
+                if val is not None:
+                    dates.append(m.get('timestamp', '')[:10])
+                    values.append(float(val))
+            
+            if values:
+                # Create matplotlib figure
+                fig, ax = plt.subplots(figsize=(6, 3))
+                ax.plot(range(len(values)), values, color=color, marker='o', markersize=4, linewidth=2)
+                ax.set_title(param_name, fontsize=10, fontweight='bold')
+                ax.set_ylabel(param_name, fontsize=8)
+                ax.set_xlabel('Date', fontsize=8)
+                ax.set_xticks(range(len(dates)))
+                ax.set_xticklabels(dates, rotation=45, ha='right', fontsize=6)
+                ax.tick_params(axis='y', labelsize=7)
+                ax.grid(True, alpha=0.3)
+                
+                # Add standard limit line if available
+                if param_key in standards_dict:
+                    std = standards_dict[param_key]
+                    ax.axhline(y=float(std['max_limit']), color='red', linestyle='--', linewidth=1, label=f'Max: {std["max_limit"]}')
+                    if float(std['min_limit']) > 0:
+                        ax.axhline(y=float(std['min_limit']), color='orange', linestyle='--', linewidth=1, label=f'Min: {std["min_limit"]}')
+                    ax.legend(fontsize=6)
+                
+                plt.tight_layout()
+                
+                # Save to bytes
+                img_buffer = io.BytesIO()
+                fig.savefig(img_buffer, format='png', dpi=100, bbox_inches='tight')
+                img_buffer.seek(0)
+                plt.close(fig)
+                
+                # Add to PDF
+                elements.append(RLImage(img_buffer, width=6*inch, height=2.5*inch))
+                elements.append(Paragraph(" ", styles['Normal']))
+        
+        # Recent Measurements Table
+        elements.append(Paragraph("Recent Measurements", styles['Heading2']))
+        measurements_data = [['Date', 'pH', 'COD', 'BOD', 'TSS', 'NH3', 'NO3', 'PO4', 'Temp', 'Flow']]
+        for m in measurements[:20]:
+            measurements_data.append([
+                str(m.get('timestamp', ''))[:10],
+                f"{m.get('ph', '-') or '-'}",
+                f"{m.get('cod', '-') or '-'}",
+                f"{m.get('bod', '-') or '-'}",
+                f"{m.get('tss', '-') or '-'}",
+                f"{m.get('ammonia', '-') or '-'}",
+                f"{m.get('nitrate', '-') or '-'}",
+                f"{m.get('phosphate', '-') or '-'}",
+                f"{m.get('temperature', '-') or '-'}",
+                f"{m.get('flow', '-') or '-'}"
+            ])
+        meas_table = Table(measurements_data, colWidths=[0.7*inch, 0.45*inch, 0.45*inch, 0.45*inch, 0.45*inch, 0.45*inch, 0.45*inch, 0.45*inch, 0.45*inch, 0.45*inch])
+        meas_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, 0), 7),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 4),
+            ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.black),
+            ('FONTSIZE', (0, 1), (-1, -1), 6)
+        ]))
+        elements.append(meas_table)
         
         # Build PDF
         doc.build(elements)
@@ -570,10 +972,12 @@ def api_generate_pdf():
             buffer,
             mimetype='application/pdf',
             as_attachment=True,
-            download_name=f'wastewater_report_{start_date}_to_{end_date}.pdf'
+            download_name=f'wastewater_report_{start_str}_to_{end_str}.pdf'
         )
         
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         return jsonify({"error": f"Failed to generate PDF: {str(e)}"}), 500
 
 
@@ -607,13 +1011,27 @@ def unauthorized(error):
 def api_get_users():
     """Get all users."""
     conn = get_connection()
-    users = conn.execute("SELECT id, username FROM users").fetchall()
+    # Add role column if it doesn't exist
+    try:
+        conn.execute("ALTER TABLE users ADD COLUMN role TEXT DEFAULT 'operator'")
+        conn.commit()
+    except:
+        pass  # Column already exists
+    
+    # Ensure admin user (id=1) has admin role
+    try:
+        conn.execute("UPDATE users SET role = 'admin' WHERE id = 1 AND (role IS NULL OR role != 'admin')")
+        conn.commit()
+    except:
+        pass
+    
+    users = conn.execute("SELECT id, username, role FROM users").fetchall()
     conn.close()
     
     return jsonify([{
         "id": u["id"],
         "username": u["username"],
-        "role": "admin" if u["id"] == 1 else "operator"
+        "role": u["role"] if u["role"] else ("admin" if u["id"] == 1 else "operator")
     } for u in users])
 
 
@@ -628,17 +1046,31 @@ def api_create_user():
     
     username = data['username']
     password = data['password']
+    role = data.get('role', 'operator')  # Default to operator
+    
+    # Validate role
+    valid_roles = ['admin', 'operator', 'client']
+    if role not in valid_roles:
+        return jsonify({"error": f"Invalid role. Must be one of: {', '.join(valid_roles)}"}), 400
+    
     hashed_password = generate_password_hash(password)
     
     conn = get_connection()
+    # Add role column if it doesn't exist
+    try:
+        conn.execute("ALTER TABLE users ADD COLUMN role TEXT DEFAULT 'operator'")
+        conn.commit()
+    except:
+        pass  # Column already exists
+    
     try:
         conn.execute(
-            "INSERT INTO users (username, password) VALUES (?, ?)",
-            (username, hashed_password)
+            "INSERT INTO users (username, password, role) VALUES (?, ?, ?)",
+            (username, hashed_password, role)
         )
         conn.commit()
         user_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
-        return jsonify({"success": True, "id": user_id, "username": username}), 201
+        return jsonify({"success": True, "id": user_id, "username": username, "role": role}), 201
     except Exception as e:
         return jsonify({"error": f"Username already exists: {str(e)}"}), 400
     finally:

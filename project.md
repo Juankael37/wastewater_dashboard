@@ -7,6 +7,20 @@ A full‑stack web application for monitoring wastewater treatment plants. Opera
 
 **Target Deployment:** Cloudflare + Supabase (zero‑cost approach)
 
+## Two Interfaces
+
+### 1. AquaDash (Dark Theme) - `localhost:5000`
+- **Type**: Flask backend HTML templates (server-rendered)
+- **Users**: Clients/Owners & Admins
+- **Purpose**: Monitoring dashboard, reports, and system settings
+- **Features**: Dashboard, Reports, Alerts, Settings (admin-only)
+
+### 2. Wastewater Monitor (Light Theme) - `localhost:5173`
+- **Type**: React PWA Frontend (client-side)
+- **Users**: Operators & Admins
+- **Purpose**: Data input and monitoring
+- **Features**: Dashboard, Input Data, Alerts
+
 ## Tech Stack
 
 | Component          | Technology                         |
@@ -19,11 +33,17 @@ A full‑stack web application for monitoring wastewater treatment plants. Opera
 | Mobile App         | PWA (installable)                  |
 | Backup             | Google Sheets API                  |
 
-## User Roles
+## User Roles & Access
+
+| Role | AquaDash (5000) | React PWA (5173) |
+|------|-----------------|------------------|
+| **Admin** | ✅ View | ✅ Full access (Dashboard, Input, Reports, Alerts, Settings) |
+| **Operator** | ✅ View | ✅ Data input & monitoring (no Settings) |
+| **Client/Owner** | ✅ View-only | ❌ No access |
 
 - **Admin** – Full control: manage users, parameters, settings, edit/delete data, generate reports.
-- **Normal User** – View dashboard, download reports (read‑only).
 - **Operator** – Input data via mobile app, view summary of submissions.
+- **Client/Owner** – View-only access to monitoring dashboard.
 
 ## Web App Features
 

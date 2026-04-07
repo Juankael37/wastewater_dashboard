@@ -60,6 +60,16 @@
                 Alerts
             </a>
 
+            <!-- Settings (Admin Only) -->
+            {% if current_user.is_authenticated and (current_user.id == 1 or current_user.id == '1') %}
+            <a href="/settings"
+               class="flex items-center gap-3 px-4 py-2 rounded-lg transition
+               {{ 'bg-gray-200 dark:bg-slate-700 text-teal-500' if request.path.startswith('/settings') else 'text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-slate-700 hover:text-teal-500' }}">
+                <i data-lucide="settings"></i>
+                Settings
+            </a>
+            {% endif %}
+
         </nav>
 
         <!-- Spacer -->
@@ -91,12 +101,6 @@
                     class="bg-gray-200 dark:bg-slate-700 px-3 py-2 rounded-lg text-sm hover:opacity-80 transition">
                     🌗
                 </button>
-
-                <!-- Export -->
-                <a href="/export/pdf"
-                   class="bg-teal-500 hover:bg-teal-600 px-4 py-2 rounded-lg text-sm font-semibold text-white transition">
-                    Export PDF
-                </a>
 
                 <!-- User -->
                 <div class="text-sm text-gray-500 dark:text-gray-400">

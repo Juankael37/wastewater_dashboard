@@ -1,13 +1,13 @@
 import React, { createContext, useContext, useEffect, useState } from 'react'
 import toast from 'react-hot-toast'
-import { authApi } from '../services/api'
+import { authApi, usersApi } from '../services/api'
 
 // Types
 interface User {
   id: number
   username: string
   email?: string
-  role?: string
+  role: 'admin' | 'operator' | 'client'
 }
 
 interface AuthContextType {
@@ -28,6 +28,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<User | null>(null)
   const [isLoading, setIsLoading] = useState(true)
 
+  // Helper function to get user role from backend
+  const getUserRole = async (username: string): Promise<string> => {
+    try {
+      const users = await usersApi.getAll()
+      const currentUser = users.find(u => u.username === username)
+      return currentUser?.role || 'operator'
+    } catch (error) {
+      console.error('Failed to fetch user role:', error)
+      return 'operator'
+    }
+  }
+
   // Check for existing session on mount
   useEffect(() => {
     const checkAuthStatus = async () => {
@@ -36,10 +48,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const authStatus = await authApi.checkAuth()
         
         if (authStatus.authenticated && authStatus.username) {
+          const role = await getUserRole(authStatus.username)
           setUser({
-            id: 1, // This would come from the backend in a real implementation
+            id: 1,
             username: authStatus.username,
-            role: 'operator' // Default role, would come from backend
+            role: role as 'admin' | 'operator' | 'client'
           })
         } else {
           setUser(null)
@@ -72,10 +85,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const isSuccess = response && (response.success === true || Object.keys(response).length === 0)
       
       if (isSuccess) {
+        // Fetch the user's role from the backend
+        const role = await getUserRole(response.username || username)
         setUser({
           id: 1,
-          username: response.username || username, // Use provided username if response doesn't have it
-          role: 'operator'
+          username: response.username || username,
+          role: role as 'admin' | 'operator' | 'client'
         })
         toast.success('Signed in successfully')
       } else {
@@ -137,10 +152,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       const authStatus = await authApi.checkAuth()
       if (authStatus.authenticated && authStatus.username && !user) {
+        const role = await getUserRole(authStatus.username)
         setUser({
           id: 1,
           username: authStatus.username,
-          role: 'operator'
+          role: role as 'admin' | 'operator' | 'client'
         })
       } else if (!authStatus.authenticated && user) {
         setUser(null)

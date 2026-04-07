@@ -285,18 +285,23 @@ class DataImportService:
     
     @staticmethod
     def export_to_csv() -> str:
-        """Export measurements to CSV format."""
-        measurements = Measurement.get_all(limit=1000)  # Limit for export
+        """Export measurements to CSV format with all 9 parameters."""
+        measurements = Measurement.get_all(limit=1000)
         
-        # Create CSV header and rows
-        csv_lines = ["timestamp,ph,cod,bod,tss"]
+        # Create CSV header with all parameters
+        csv_lines = ["timestamp,ph,cod,bod,tss,ammonia,nitrate,phosphate,temperature,flow"]
         for m in measurements:
             csv_lines.append(
-                f"{m['timestamp']},"
-                f"{m['ph'] or ''},"
-                f"{m['cod'] or ''},"
-                f"{m['bod'] or ''},"
-                f"{m['tss'] or ''}"
+                f"{m.get('timestamp', '')},"
+                f"{m.get('ph', '') or ''},"
+                f"{m.get('cod', '') or ''},"
+                f"{m.get('bod', '') or ''},"
+                f"{m.get('tss', '') or ''},"
+                f"{m.get('ammonia', '') or ''},"
+                f"{m.get('nitrate', '') or ''},"
+                f"{m.get('phosphate', '') or ''},"
+                f"{m.get('temperature', '') or ''},"
+                f"{m.get('flow', '') or ''}"
             )
         
         return "\n".join(csv_lines)

@@ -26,7 +26,7 @@ const UserManagementSection: React.FC = () => {
   const [users, setUsers] = useState<User[]>([])
   const [loading, setLoading] = useState(true)
   const [showAddUser, setShowAddUser] = useState(false)
-  const [newUser, setNewUser] = useState({ username: '', password: '', confirmPassword: '' })
+  const [newUser, setNewUser] = useState({ username: '', password: '', confirmPassword: '', role: 'operator' as 'admin' | 'operator' | 'client' })
   const [addingUser, setAddingUser] = useState(false)
 
   useEffect(() => {
@@ -62,9 +62,9 @@ const UserManagementSection: React.FC = () => {
 
     setAddingUser(true)
     try {
-      await usersApi.create(newUser.username, newUser.password)
-      toast.success(`User "${newUser.username}" created successfully`)
-      setNewUser({ username: '', password: '', confirmPassword: '' })
+      await usersApi.create(newUser.username, newUser.password, newUser.role)
+      toast.success(`User "${newUser.username}" created successfully with ${newUser.role} role`)
+      setNewUser({ username: '', password: '', confirmPassword: '', role: 'operator' })
       setShowAddUser(false)
       fetchUsers()
     } catch (error: any) {
@@ -106,7 +106,7 @@ const UserManagementSection: React.FC = () => {
       {showAddUser && (
         <div className="bg-slate-700/50 rounded-lg p-6 border border-slate-600">
           <h3 className="text-lg font-semibold text-white mb-4">Add New User</h3>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <div>
               <label className="block text-sm text-slate-400 mb-1">Username</label>
               <input
@@ -137,6 +137,30 @@ const UserManagementSection: React.FC = () => {
                 placeholder="Re-enter password"
               />
             </div>
+            <div>
+              <label className="block text-sm text-slate-400 mb-1">Role</label>
+              <select
+                value={newUser.role}
+                onChange={(e) => setNewUser({...newUser, role: e.target.value as 'admin' | 'operator' | 'client'})}
+                className="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-white"
+              >
+                <option value="admin">Admin</option>
+                <option value="operator">Operator</option>
+                <option value="client">Client/Owner</option>
+              </select>
+            </div>
+          </div>
+          {/* Role Descriptions */}
+          <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-2 text-xs text-slate-500">
+            <div className="bg-purple-500/10 border border-purple-500/20 rounded p-2">
+              <strong className="text-purple-400">Admin:</strong> Full access to all dashboards and settings
+            </div>
+            <div className="bg-blue-500/10 border border-blue-500/20 rounded p-2">
+              <strong className="text-blue-400">Operator:</strong> Data input and monitoring (no settings access)
+            </div>
+            <div className="bg-green-500/10 border border-green-500/20 rounded p-2">
+              <strong className="text-green-400">Client/Owner:</strong> View-only access to monitoring dashboard
+            </div>
           </div>
           <div className="flex gap-2 mt-4">
             <button
@@ -163,17 +187,18 @@ const UserManagementSection: React.FC = () => {
             <tr>
               <th className="text-left py-3 px-4 text-slate-300 font-semibold">User</th>
               <th className="text-left py-3 px-4 text-slate-300 font-semibold">Role</th>
+              <th className="text-left py-3 px-4 text-slate-300 font-semibold">Access Level</th>
               <th className="text-left py-3 px-4 text-slate-300 font-semibold">Actions</th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={3} className="py-8 text-center text-slate-400">Loading users...</td>
+                <td colSpan={4} className="py-8 text-center text-slate-400">Loading users...</td>
               </tr>
             ) : users.length === 0 ? (
               <tr>
-                <td colSpan={3} className="py-8 text-center text-slate-400">No users found</td>
+                <td colSpan={4} className="py-8 text-center text-slate-400">No users found</td>
               </tr>
             ) : (
               users.map(user => (
@@ -189,21 +214,31 @@ const UserManagementSection: React.FC = () => {
                   <td className="py-3 px-4">
                     <span className={`px-3 py-1 rounded-full text-sm font-medium ${
                       user.role === 'admin' ? 'bg-purple-500/20 text-purple-400' :
+                      user.role === 'client' ? 'bg-green-500/20 text-green-400' :
                       'bg-blue-500/20 text-blue-400'
                     }`}>
                       {user.role}
                     </span>
                   </td>
                   <td className="py-3 px-4">
+                    <span className="text-sm text-slate-400">
+                      {user.role === 'admin' ? 'Full access to all dashboards & settings' :
+                       user.role === 'client' ? 'View-only monitoring dashboard' :
+                       'Data input & monitoring (no settings)'}
+                    </span>
+                  </td>
+                  <td className="py-3 px-4">
                     <div className="flex gap-2">
-                      {user.id !== 1 && (
-                        <button 
+                      {user.id !== 1 ? (
+                        <button
                           onClick={() => handleDeleteUser(user.id, user.username)}
                           className="px-3 py-1 bg-red-500/20 hover:bg-red-500/30 text-red-400 rounded text-sm transition flex items-center gap-1"
                         >
                           <Trash2 className="w-3 h-3" />
-                          Delete
+                          Remove
                         </button>
+                      ) : (
+                        <span className="text-xs text-slate-500 italic">Protected</span>
                       )}
                     </div>
                   </td>
@@ -223,6 +258,9 @@ const ParameterManagementSection: React.FC = () => {
   const [loading, setLoading] = useState(true)
   const [editingParam, setEditingParam] = useState<string | null>(null)
   const [editValues, setEditValues] = useState({ min_limit: 0, max_limit: 0 })
+  const [showAddParam, setShowAddParam] = useState(false)
+  const [newParam, setNewParam] = useState({ parameter: '', min_limit: 0, max_limit: 0 })
+  const [addingParam, setAddingParam] = useState(false)
 
   const paramIcons: Record<string, React.ReactNode> = {
     ph: <Beaker className="w-5 h-5" />,
@@ -276,12 +314,113 @@ const ParameterManagementSection: React.FC = () => {
     }
   }
 
+  const handleAddParameter = async () => {
+    if (!newParam.parameter || newParam.min_limit === undefined || newParam.max_limit === undefined) {
+      toast.error('All fields are required')
+      return
+    }
+    if (newParam.min_limit >= newParam.max_limit) {
+      toast.error('Min limit must be less than max limit')
+      return
+    }
+
+    setAddingParam(true)
+    try {
+      await parametersApi.create(newParam.parameter, newParam.min_limit, newParam.max_limit)
+      toast.success(`Parameter "${newParam.parameter}" added successfully`)
+      setNewParam({ parameter: '', min_limit: 0, max_limit: 0 })
+      setShowAddParam(false)
+      fetchParameters()
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to add parameter')
+    } finally {
+      setAddingParam(false)
+    }
+  }
+
+  const handleDeleteParameter = async (paramName: string) => {
+    if (!confirm(`Are you sure you want to delete parameter "${paramName}"?`)) return
+    
+    try {
+      await parametersApi.delete(paramName)
+      toast.success(`Parameter "${paramName}" deleted`)
+      fetchParameters()
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to delete parameter')
+    }
+  }
+
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-semibold text-white">Parameter Management</h2>
-        <p className="text-slate-400">Configure water quality standards for all parameters</p>
+      <div className="flex justify-between items-center">
+        <div>
+          <h2 className="text-2xl font-semibold text-white">Parameter Management</h2>
+          <p className="text-slate-400">Configure water quality standards for all parameters</p>
+        </div>
+        <button
+          onClick={() => setShowAddParam(!showAddParam)}
+          className="px-4 py-2 bg-teal-500 hover:bg-teal-600 text-white rounded-lg font-semibold transition flex items-center gap-2"
+        >
+          <Plus className="w-4 h-4" />
+          Add Parameter
+        </button>
       </div>
+
+      {/* Add Parameter Form */}
+      {showAddParam && (
+        <div className="bg-slate-700/50 rounded-lg p-6 border border-slate-600">
+          <h3 className="text-lg font-semibold text-white mb-4">Add New Parameter</h3>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div>
+              <label className="block text-sm text-slate-400 mb-1">Parameter Name</label>
+              <input
+                type="text"
+                value={newParam.parameter}
+                onChange={(e) => setNewParam({...newParam, parameter: e.target.value.toLowerCase()})}
+                className="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-white"
+                placeholder="e.g., turbidity"
+              />
+            </div>
+            <div>
+              <label className="block text-sm text-slate-400 mb-1">Min Limit</label>
+              <input
+                type="number"
+                step="0.01"
+                value={newParam.min_limit}
+                onChange={(e) => setNewParam({...newParam, min_limit: parseFloat(e.target.value) || 0})}
+                className="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-white"
+                placeholder="0"
+              />
+            </div>
+            <div>
+              <label className="block text-sm text-slate-400 mb-1">Max Limit</label>
+              <input
+                type="number"
+                step="0.01"
+                value={newParam.max_limit}
+                onChange={(e) => setNewParam({...newParam, max_limit: parseFloat(e.target.value) || 0})}
+                className="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-white"
+                placeholder="100"
+              />
+            </div>
+            <div className="flex items-end gap-2">
+              <button
+                onClick={handleAddParameter}
+                disabled={addingParam}
+                className="flex-1 px-4 py-2 bg-teal-500 hover:bg-teal-600 text-white rounded-lg disabled:opacity-50 transition"
+              >
+                {addingParam ? 'Adding...' : 'Add'}
+              </button>
+              <button
+                onClick={() => setShowAddParam(false)}
+                className="px-4 py-2 bg-slate-600 hover:bg-slate-500 text-white rounded-lg transition"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {loading ? (
@@ -341,6 +480,17 @@ const ParameterManagementSection: React.FC = () => {
                 <div className="text-sm text-slate-300">
                   <p>Standard: <span className="text-white font-medium">{param.min_limit} - {param.max_limit}</span></p>
                 </div>
+              )}
+              
+              {/* Delete button for custom parameters */}
+              {!['ph', 'cod', 'bod', 'tss', 'ammonia', 'nitrate', 'phosphate', 'temperature', 'flow'].includes(param.parameter.toLowerCase()) && (
+                <button
+                  onClick={() => handleDeleteParameter(param.parameter)}
+                  className="mt-2 w-full px-2 py-1 bg-red-500/20 hover:bg-red-500/30 text-red-400 rounded text-xs transition flex items-center justify-center gap-1"
+                >
+                  <Trash2 className="w-3 h-3" />
+                  Delete
+                </button>
               )}
             </div>
           ))

@@ -233,6 +233,15 @@ class Measurement:
         return execute_query(query, params)
     
     @staticmethod
+    def get_all(limit: int = 1000) -> List[Dict]:
+        """Get all measurements (limited)."""
+        rows = execute_query(
+            "SELECT * FROM data ORDER BY timestamp DESC LIMIT ?",
+            (limit,)
+        )
+        return [dict(row) for row in rows]
+    
+    @staticmethod
     def get_recent(limit: int = 100) -> List[Dict]:
         """Get recent measurements."""
         rows = execute_query(
@@ -361,7 +370,7 @@ class Report:
         """Get summary statistics for a date range."""
         # Get measurements in date range
         rows = execute_query(
-            """SELECT * FROM data 
+            """SELECT * FROM data
                WHERE date(timestamp) BETWEEN ? AND ?
                ORDER BY timestamp""",
             (start_date, end_date)
@@ -374,6 +383,9 @@ class Report:
                 "compliance_rate": 0,
                 "alerts": 0
             }
+        
+        # Convert rows to dicts (sqlite3.Row doesn't have .get())
+        rows = [dict(row) for row in rows]
         
         # Get standards for compliance checking
         standards = {row['parameter']: row for row in Parameter.get_all()}

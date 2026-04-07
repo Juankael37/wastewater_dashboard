@@ -53,6 +53,16 @@
                 Alerts
             </a>
 
+            <!-- Settings (Admin Only) -->
+            {% if current_user.is_authenticated and (current_user.id == 1 or current_user.id == '1') %}
+            <a href="/settings"
+               class="flex items-center gap-3 px-4 py-2 rounded-lg transition
+               {{ 'bg-slate-700 text-teal-400 shadow' if request.path.startswith('/settings') else 'text-gray-300 hover:bg-slate-700 hover:text-teal-400' }}">
+                <i data-lucide="settings"></i>
+                Settings
+            </a>
+            {% endif %}
+
         </nav>
 
         <!-- Spacer -->
