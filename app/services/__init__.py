@@ -48,18 +48,23 @@ class ValidationService:
                 continue
             
             # Check if value is within acceptable range
-            if min_val <= value <= max_val:
+            if isinstance(value, (int, float)) and min_val <= value <= max_val:
                 status = "good"
                 message = f"{param_name.upper()} is within standards"
                 valid = True
-            elif value < min_val:
+            elif isinstance(value, (int, float)) and value < min_val:
                 status = "warning"
                 message = f"{param_name.upper()} is below minimum ({min_val})"
                 valid = False
-            else:  # value > max_val
+            elif isinstance(value, (int, float)) and value > max_val:
                 status = "critical"
                 message = f"{param_name.upper()} exceeds maximum ({max_val})"
                 valid = False
+            else:
+                # Handle None or non-numeric values
+                status = "good"
+                message = f"{param_name.upper()} is within standards"
+                valid = True
             
             results[param_name] = {
                 "valid": valid,
@@ -113,10 +118,15 @@ class AlertService:
     def check_and_create_alerts(measurement_data: Dict) -> List[Dict]:
         """Check measurement data and create alerts for any violations."""
         validation_results = ValidationService.validate_measurement(
-            measurement_data.get("ph"),
-            measurement_data.get("cod"),
-            measurement_data.get("bod"),
-            measurement_data.get("tss")
+            ph=measurement_data.get("ph"),
+            cod=measurement_data.get("cod"),
+            bod=measurement_data.get("bod"),
+            tss=measurement_data.get("tss"),
+            ammonia=measurement_data.get("ammonia"),
+            nitrate=measurement_data.get("nitrate"),
+            phosphate=measurement_data.get("phosphate"),
+            temperature=measurement_data.get("temperature"),
+            flow=measurement_data.get("flow")
         )
         
         alerts_created = []

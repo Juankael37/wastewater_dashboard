@@ -46,15 +46,15 @@ const Header: React.FC = () => {
           <div className="flex items-center space-x-3">
             <div className="text-right">
               <p className="text-sm font-medium text-gray-900">
-                {user?.user_metadata?.full_name || user?.email || 'Operator'}
+                {user?.username || user?.email || 'Operator'}
               </p>
               <p className="text-xs text-gray-500">
-                {user?.email || 'operator@example.com'}
+                {user?.email || user?.username || 'operator@example.com'}
               </p>
             </div>
             <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
               <span className="text-blue-600 font-semibold">
-                {(user?.user_metadata?.full_name?.[0] || user?.email?.[0] || 'O').toUpperCase()}
+                {(user?.username?.[0] || user?.email?.[0] || 'O').toUpperCase()}
               </span>
             </div>
           </div>

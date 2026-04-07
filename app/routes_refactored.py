@@ -3,20 +3,20 @@ Refactored routes for the Wastewater Monitoring System.
 This version uses the new service layer and follows separation of concerns.
 """
 
-from flask import Blueprint, render_template, request, jsonify, send_file, abort, redirect
+from flask import Blueprint, render_template, request, jsonify, send_file, abort, redirect, session
 from flask_login import login_required, current_user, login_user, logout_user
 from werkzeug.security import generate_password_hash, check_password_hash
 import datetime
 import io
 
-from app.models import Parameter, Measurement, Alert, Report
+from app import User, get_connection
+from app.models import Parameter, Measurement, Alert, Report, clear_all_data, clear_data_by_date_range, get_data_count
 from app.services import (
     ValidationService,
     AlertService,
     ReportService,
     DataImportService
 )
-from app.__init__ import User, get_connection
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import letter
@@ -32,8 +32,25 @@ def login():
     error = None
     
     if request.method == 'POST':
-        username = request.form.get('username')
-        password = request.form.get('password')
+        # Handle both JSON and FormData requests
+        if request.is_json:
+            data = request.get_json()
+            username = data.get('username')
+            password = data.get('password')
+        else:
+            username = request.form.get('username')
+            password = request.form.get('password')
+        
+        if not username or not password:
+            error = "Username and password required"
+            is_api_request = (
+                request.headers.get('X-Requested-With') == 'XMLHttpRequest' or
+                request.headers.get('Sec-Fetch-Mode') == 'cors' or
+                (request.headers.get('Origin') and request.headers.get('Origin') != request.url_root.rstrip('/'))
+            )
+            if is_api_request:
+                return jsonify({'success': False, 'error': error}), 400
+            return render_template('login.html', error=error)
         
         conn = get_connection()
         user = conn.execute(
@@ -44,16 +61,31 @@ def login():
         
         if user and check_password_hash(user["password"], password):
             login_user(User(user["id"]))
-            # Check if this is an API request (from React frontend)
-            if request.headers.get('Content-Type', '').startswith('multipart/form-data') or \
-               request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            
+            # Detect API requests using multiple indicators
+            # X-Requested-With may not be sent by browsers for cross-origin requests
+            # Use Sec-Fetch-Mode and Origin as reliable indicators
+            is_api_request = (
+                request.headers.get('X-Requested-With') == 'XMLHttpRequest' or
+                request.headers.get('Sec-Fetch-Mode') == 'cors' or
+                (request.headers.get('Origin') and request.headers.get('Origin') != request.url_root.rstrip('/'))
+            )
+            
+            if is_api_request:
                 return jsonify({'success': True, 'message': 'Login successful', 'username': username})
+            
+            # For browser form submissions, redirect to dashboard
             return redirect('/')
         else:
             error = "Invalid username or password"
-            # Check if this is an API request
-            if request.headers.get('Content-Type', '').startswith('multipart/form-data') or \
-               request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            
+            # Detect API requests for error response
+            is_api_request = (
+                request.headers.get('X-Requested-With') == 'XMLHttpRequest' or
+                request.headers.get('Sec-Fetch-Mode') == 'cors' or
+                (request.headers.get('Origin') and request.headers.get('Origin') != request.url_root.rstrip('/'))
+            )
+            if is_api_request:
                 return jsonify({'success': False, 'error': error}), 401
     
     # If GET request or regular form submission with error
@@ -89,11 +121,20 @@ def register():
     return render_template('register.html')
 
 
-@main.route('/logout')
-@login_required
+@main.route('/logout', methods=['GET', 'POST', 'OPTIONS'])
 def logout():
     """Handle user logout."""
+    # Handle CORS preflight for OPTIONS
+    if request.method == 'OPTIONS':
+        return '', 200
+    
     logout_user()
+    
+    # Check if this is an API request
+    is_api_request = request.headers.get('X-Requested-With') == 'XMLHttpRequest'
+    if is_api_request:
+        return jsonify({'success': True, 'message': 'Logged out successfully'})
+    
     return redirect('/login')
 
 
@@ -216,13 +257,12 @@ def api_measurements():
     measurements = Measurement.get_all(limit=limit)
     return jsonify(measurements)
 
-
 @main.route('/api/measurements/recent')
 @login_required
 def api_recent_measurements():
     """Get recent measurements for the dashboard."""
     days = request.args.get('days', 7, type=int)
-    measurements = Measurement.get_recent(days=days)
+    measurements = Measurement.get_recent(limit=days)
     return jsonify(measurements)
 
 
@@ -241,15 +281,15 @@ def api_create_measurement():
         # Create measurement with all parameters
         measurement_id = Measurement.create(
             timestamp=data['timestamp'],
-            ph=float(data.get('ph')) if data.get('ph') is not None else None,
-            cod=float(data.get('cod')) if data.get('cod') is not None else None,
-            bod=float(data.get('bod')) if data.get('bod') is not None else None,
-            tss=float(data.get('tss')) if data.get('tss') is not None else None,
-            ammonia=float(data.get('ammonia')) if data.get('ammonia') is not None else None,
-            nitrate=float(data.get('nitrate')) if data.get('nitrate') is not None else None,
-            phosphate=float(data.get('phosphate')) if data.get('phosphate') is not None else None,
-            temperature=float(data.get('temperature')) if data.get('temperature') is not None else None,
-            flow=float(data.get('flow')) if data.get('flow') is not None else None,
+            ph=data.get('ph'),
+            cod=data.get('cod'),
+            bod=data.get('bod'),
+            tss=data.get('tss'),
+            ammonia=data.get('ammonia'),
+            nitrate=data.get('nitrate'),
+            phosphate=data.get('phosphate'),
+            temperature=data.get('temperature'),
+            flow=data.get('flow'),
             measurement_type=data.get('type', 'effluent'),
             plant_id=data.get('plant_id', 1),
             operator_id=data.get('operator_id'),
@@ -286,6 +326,64 @@ def api_dashboard_alerts():
     """Get alerts summary for dashboard."""
     alerts_summary = AlertService.get_dashboard_alerts()
     return jsonify(alerts_summary)
+
+
+@main.route('/api/data/clear', methods=['DELETE'])
+@login_required
+def api_clear_all_data():
+    """Clear all measurement data (admin only)."""
+    try:
+        # Check if user is admin
+        if not current_user.is_authenticated:
+            return jsonify({"error": "Authentication required"}), 401
+        
+        # Clear all data
+        deleted_count = clear_all_data()
+        
+        return jsonify({
+            "success": True,
+            "message": f"Deleted {deleted_count} measurements",
+            "count": deleted_count
+        })
+    except Exception as e:
+        return jsonify({"error": f"Failed to clear data: {str(e)}"}), 500
+
+
+@main.route('/api/data/clear/<start_date>/<end_date>', methods=['DELETE'])
+@login_required
+def api_clear_data_range():
+    """Clear data within date range (admin only)."""
+    try:
+        if not current_user.is_authenticated:
+            return jsonify({"error": "Authentication required"}), 401
+            
+        start_date = request.view_args['start_date']
+        end_date = request.view_args['end_date']
+        
+        # Clear data in range
+        deleted_count = clear_data_by_date_range(start_date, end_date)
+        
+        return jsonify({
+            "success": True,
+            "message": f"Deleted {deleted_count} measurements from {start_date} to {end_date}",
+            "count": deleted_count
+        })
+    except Exception as e:
+        return jsonify({"error": f"Failed to clear data: {str(e)}"}), 500
+
+
+@main.route('/api/data/count')
+@login_required
+def api_get_data_count():
+    """Get total count of measurements."""
+    try:
+        count = get_data_count()
+        return jsonify({
+            "count": count,
+            "message": f"Total measurements: {count}"
+        })
+    except Exception as e:
+        return jsonify({"error": f"Failed to get data count: {str(e)}"}), 500
 
 
 @main.route('/api/alerts/<int:alert_id>/resolve', methods=['POST'])
@@ -501,3 +599,63 @@ def server_error(error):
 @main.errorhandler(401)
 def unauthorized(error):
     return jsonify({"error": "Unauthorized access"}), 401
+
+
+# ================= USER MANAGEMENT API =================
+@main.route('/api/users')
+@login_required
+def api_get_users():
+    """Get all users."""
+    conn = get_connection()
+    users = conn.execute("SELECT id, username FROM users").fetchall()
+    conn.close()
+    
+    return jsonify([{
+        "id": u["id"],
+        "username": u["username"],
+        "role": "admin" if u["id"] == 1 else "operator"
+    } for u in users])
+
+
+@main.route('/api/users', methods=['POST'])
+@login_required
+def api_create_user():
+    """Create a new user."""
+    data = request.json
+    
+    if not data.get('username') or not data.get('password'):
+        return jsonify({"error": "Username and password required"}), 400
+    
+    username = data['username']
+    password = data['password']
+    hashed_password = generate_password_hash(password)
+    
+    conn = get_connection()
+    try:
+        conn.execute(
+            "INSERT INTO users (username, password) VALUES (?, ?)",
+            (username, hashed_password)
+        )
+        conn.commit()
+        user_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+        return jsonify({"success": True, "id": user_id, "username": username}), 201
+    except Exception as e:
+        return jsonify({"error": f"Username already exists: {str(e)}"}), 400
+    finally:
+        conn.close()
+
+
+@main.route('/api/users/<int:user_id>', methods=['DELETE'])
+@login_required
+def api_delete_user(user_id):
+    """Delete a user."""
+    if user_id == 1:
+        return jsonify({"error": "Cannot delete admin user"}), 400
+    
+    conn = get_connection()
+    try:
+        conn.execute("DELETE FROM users WHERE id = ?", (user_id,))
+        conn.commit()
+        return jsonify({"success": True})
+    finally:
+        conn.close()

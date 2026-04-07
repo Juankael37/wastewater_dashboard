@@ -36,13 +36,12 @@ export interface Measurement {
 
 export interface Alert {
   id: number;
-  measurement_id: number;
-  severity: 'low' | 'medium' | 'high' | 'critical';
-  message: string;
-  resolved: boolean;
-  created_at: string;
-  parameter_name?: string;
-  value?: number;
+  parameter: string;
+  value: number;
+  status: string;
+  state: string;
+  timestamp: string;
+  resolved_at: string | null;
 }
 
 export interface Parameter {
@@ -55,12 +54,28 @@ export interface Parameter {
 }
 
 export interface DashboardData {
-  recent_measurements: Measurement[];
-  alerts: Alert[];
-  summary: {
-    total_measurements: number;
-    total_alerts: number;
-    compliance_rate: number;
+  dates: string[];
+  data: {
+    ph: number[];
+    cod: number[];
+    bod: number[];
+    tss: number[];
+    ammonia: number[];
+    nitrate: number[];
+    phosphate: number[];
+    temperature: number[];
+    flow: number[];
+  };
+  standards: {
+    ph: { min: number; max: number };
+    cod: { max: number };
+    bod: { max: number };
+    tss: { max: number };
+    ammonia: { max: number };
+    nitrate: { max: number };
+    phosphate: { max: number };
+    temperature: { min: number; max: number };
+    flow: { max: number };
   };
 }
 
@@ -77,9 +92,13 @@ async function apiRequest<T>(
   
   const defaultOptions: RequestInit = {
     headers: isFormData
-      ? { ...options.headers } // No Content-Type for FormData
+      ? {
+          'X-Requested-With': 'XMLHttpRequest',
+          ...options.headers
+        } // No Content-Type for FormData
       : {
           'Content-Type': 'application/json',
+          'X-Requested-With': 'XMLHttpRequest',
           ...options.headers,
         },
     credentials: 'include', // Include cookies for Flask session
@@ -88,10 +107,22 @@ async function apiRequest<T>(
   try {
     const response = await fetch(url, { ...defaultOptions, ...options });
     
+    console.log(`[DEBUG apiRequest] ${endpoint} - Status: ${response.status}`);
+    console.log(`[DEBUG apiRequest] ${endpoint} - Content-Type: ${response.headers.get('content-type')}`);
+    console.log(`[DEBUG apiRequest] ${endpoint} - URL: ${response.url}`);
+    
     // Special handling for login endpoint - 302 is success
     if (endpoint === '/login' && response.status === 302) {
       // Login successful, return empty object
+      console.log('[DEBUG apiRequest] Login successful (302 redirect)');
       return {} as T;
+    }
+    
+    // Check if we were redirected to login page (getting HTML instead of JSON)
+    const contentType = response.headers.get('content-type');
+    if (contentType && contentType.includes('text/html')) {
+      console.error(`[DEBUG apiRequest] ${endpoint} - Received HTML instead of JSON (likely redirected to login)`);
+      throw new Error('Authentication required - session expired or not logged in');
     }
     
     if (!response.ok) {
@@ -100,26 +131,25 @@ async function apiRequest<T>(
     }
     
     // Check if response is JSON
-    const contentType = response.headers.get('content-type');
     if (contentType && contentType.includes('application/json')) {
       return await response.json();
     }
     
     return await response.text() as T;
   } catch (error) {
-    console.error(`API request failed for ${endpoint}:`, error);
+    console.error(`[DEBUG apiRequest] Request failed for ${endpoint}:`, error);
     throw error;
   }
 }
 
 // Authentication API
 export const authApi = {
-  login: async (username: string, password: string): Promise<void> => {
+  login: async (username: string, password: string): Promise<{success: boolean, message: string, username: string}> => {
     const formData = new FormData();
     formData.append('username', username);
     formData.append('password', password);
     
-    await apiRequest('/login', {
+    return apiRequest<{success: boolean, message: string, username: string}>('/login', {
       method: 'POST',
       body: formData,
       headers: {
@@ -168,11 +198,20 @@ export const measurementsApi = {
   },
   
   create: async (data: {
-    plant_id: number;
-    parameter_id: number;
-    value: number;
-    type: 'influent' | 'effluent';
     timestamp?: string;
+    ph?: number | null;
+    cod?: number | null;
+    bod?: number | null;
+    tss?: number | null;
+    ammonia?: number | null;
+    nitrate?: number | null;
+    phosphate?: number | null;
+    temperature?: number | null;
+    flow?: number | null;
+    type?: 'influent' | 'effluent';
+    plant_id?: number;
+    operator_id?: number;
+    notes?: string;
   }): Promise<Measurement> => {
     return apiRequest<Measurement>('/api/measurements', {
       method: 'POST',
@@ -293,6 +332,25 @@ export const dataApi = {
   },
 };
 
+// Data Management API
+export const dataManagementApi = {
+  getCount: async (): Promise<{ count: number; message: string }> => {
+    return apiRequest<{ count: number; message: string }>('/api/data/count');
+  },
+  
+  clearAll: async (): Promise<{ success: boolean; message: string; count: number }> => {
+    return apiRequest<{ success: boolean; message: string; count: number }>('/api/data/clear', {
+      method: 'DELETE',
+    });
+  },
+  
+  clearByDateRange: async (startDate: string, endDate: string): Promise<{ success: boolean; message: string; count: number }> => {
+    return apiRequest<{ success: boolean; message: string; count: number }>(`/api/data/clear/${startDate}/${endDate}`, {
+      method: 'DELETE',
+    });
+  },
+};
+
 // Check if backend is available
 export const checkBackendHealth = async (): Promise<boolean> => {
   try {
@@ -304,4 +362,30 @@ export const checkBackendHealth = async (): Promise<boolean> => {
   } catch (error) {
     return false;
   }
+};
+
+// User Management API
+export interface User {
+  id: number;
+  username: string;
+  role: string;
+}
+
+export const usersApi = {
+  getAll: async (): Promise<User[]> => {
+    return apiRequest<User[]>('/api/users');
+  },
+  
+  create: async (username: string, password: string): Promise<{success: boolean; id: number; username: string}> => {
+    return apiRequest('/api/users', {
+      method: 'POST',
+      body: JSON.stringify({ username, password }),
+    });
+  },
+  
+  delete: async (userId: number): Promise<{success: boolean}> => {
+    return apiRequest(`/api/users/${userId}`, {
+      method: 'DELETE',
+    });
+  },
 };

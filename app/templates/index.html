@@ -13,57 +13,132 @@
         </select>
 
         <a href="/export/pdf" class="bg-teal-500 px-4 py-2 rounded hover:bg-teal-600">
-            Export
+            Export PDF
         </a>
     </div>
 </div>
 
 <div id="alertBox" class="mb-4"></div>
 
-<!-- KPI -->
-<div class="grid grid-cols-4 gap-6 mb-8">
-    <div class="bg-slate-800 p-6 rounded-xl text-center">
-        <p class="text-gray-400">pH</p>
-        <h3 id="phVal" class="text-2xl font-bold text-teal-400">-</h3>
+<!-- KPI Cards - All 9 Parameters -->
+<div class="grid grid-cols-3 md:grid-cols-5 gap-4 mb-8">
+    <div class="bg-slate-800 p-4 rounded-xl text-center">
+        <p class="text-gray-400 text-sm">pH</p>
+        <h3 id="phVal" class="text-xl font-bold text-teal-400">-</h3>
+        <p class="text-xs text-gray-500">6.0-9.5</p>
     </div>
-    <div class="bg-slate-800 p-6 rounded-xl text-center">
-        <p class="text-gray-400">COD</p>
-        <h3 id="codVal" class="text-2xl font-bold text-red-400">-</h3>
+    <div class="bg-slate-800 p-4 rounded-xl text-center">
+        <p class="text-gray-400 text-sm">COD</p>
+        <h3 id="codVal" class="text-xl font-bold text-red-400">-</h3>
+        <p class="text-xs text-gray-500">≤100 mg/L</p>
     </div>
-    <div class="bg-slate-800 p-6 rounded-xl text-center">
-        <p class="text-gray-400">BOD</p>
-        <h3 id="bodVal" class="text-2xl font-bold text-green-400">-</h3>
+    <div class="bg-slate-800 p-4 rounded-xl text-center">
+        <p class="text-gray-400 text-sm">BOD</p>
+        <h3 id="bodVal" class="text-xl font-bold text-green-400">-</h3>
+        <p class="text-xs text-gray-500">≤50 mg/L</p>
     </div>
-    <div class="bg-slate-800 p-6 rounded-xl text-center">
-        <p class="text-gray-400">TSS</p>
-        <h3 id="tssVal" class="text-2xl font-bold text-orange-400">-</h3>
+    <div class="bg-slate-800 p-4 rounded-xl text-center">
+        <p class="text-gray-400 text-sm">TSS</p>
+        <h3 id="tssVal" class="text-xl font-bold text-orange-400">-</h3>
+        <p class="text-xs text-gray-500">≤100 mg/L</p>
+    </div>
+    <div class="bg-slate-800 p-4 rounded-xl text-center">
+        <p class="text-gray-400 text-sm">Ammonia</p>
+        <h3 id="ammoniaVal" class="text-xl font-bold text-cyan-400">-</h3>
+        <p class="text-xs text-gray-500">≤0.5 mg/L</p>
+    </div>
+    <div class="bg-slate-800 p-4 rounded-xl text-center">
+        <p class="text-gray-400 text-sm">Nitrate</p>
+        <h3 id="nitrateVal" class="text-xl font-bold text-emerald-400">-</h3>
+        <p class="text-xs text-gray-500">≤14 mg/L</p>
+    </div>
+    <div class="bg-slate-800 p-4 rounded-xl text-center">
+        <p class="text-gray-400 text-sm">Phosphate</p>
+        <h3 id="phosphateVal" class="text-xl font-bold text-lime-400">-</h3>
+        <p class="text-xs text-gray-500">≤1 mg/L</p>
+    </div>
+    <div class="bg-slate-800 p-4 rounded-xl text-center">
+        <p class="text-gray-400 text-sm">Temp</p>
+        <h3 id="tempVal" class="text-xl font-bold text-rose-400">-</h3>
+        <p class="text-xs text-gray-500">10-40°C</p>
+    </div>
+    <div class="bg-slate-800 p-4 rounded-xl text-center">
+        <p class="text-gray-400 text-sm">Flow</p>
+        <h3 id="flowVal" class="text-xl font-bold text-indigo-400">-</h3>
+        <p class="text-xs text-gray-500">≤5000 m³/h</p>
     </div>
 </div>
 
-<!-- TABLE -->
+<!-- TABLE - All 9 Parameters -->
 <div class="bg-slate-800 p-6 rounded-xl mb-8 overflow-auto">
     <table class="w-full text-center">
         <thead class="text-gray-400 border-b border-slate-700">
             <tr>
-                <th>Time</th><th>pH</th><th>COD</th><th>BOD</th><th>TSS</th>
+                <th>Time</th>
+                <th>pH</th>
+                <th>COD</th>
+                <th>BOD</th>
+                <th>TSS</th>
+                <th>Ammonia</th>
+                <th>Nitrate</th>
+                <th>Phosphate</th>
+                <th>Temp</th>
+                <th>Flow</th>
             </tr>
         </thead>
         <tbody id="tableBody"></tbody>
     </table>
 </div>
 
-<!-- CHARTS -->
-<div class="grid grid-cols-2 gap-6">
+<!-- CHARTS - All 9 Parameters -->
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
     <div class="bg-slate-800 p-4 rounded-xl"><canvas id="phChart"></canvas></div>
     <div class="bg-slate-800 p-4 rounded-xl"><canvas id="codChart"></canvas></div>
     <div class="bg-slate-800 p-4 rounded-xl"><canvas id="bodChart"></canvas></div>
     <div class="bg-slate-800 p-4 rounded-xl"><canvas id="tssChart"></canvas></div>
+    <div class="bg-slate-800 p-4 rounded-xl"><canvas id="ammoniaChart"></canvas></div>
+    <div class="bg-slate-800 p-4 rounded-xl"><canvas id="nitrateChart"></canvas></div>
+    <div class="bg-slate-800 p-4 rounded-xl"><canvas id="phosphateChart"></canvas></div>
+    <div class="bg-slate-800 p-4 rounded-xl"><canvas id="tempChart"></canvas></div>
+    <div class="bg-slate-800 p-4 rounded-xl"><canvas id="flowChart"></canvas></div>
+</div>
+
+<!-- INFLUENT vs EFFLUENT COMPARISON -->
+<div class="bg-slate-800 p-6 rounded-xl mb-8">
+    <h3 class="text-xl font-semibold mb-4">Influent vs Effluent Comparison</h3>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div class="bg-slate-700 p-4 rounded-xl">
+            <h4 class="text-lg font-medium text-amber-400 mb-2">Influent (Raw Wastewater)</h4>
+            <div id="influentData" class="text-sm text-gray-300">
+                <p>Loading influent data...</p>
+            </div>
+        </div>
+        <div class="bg-slate-700 p-4 rounded-xl">
+            <h4 class="text-lg font-medium text-teal-400 mb-2">Effluent (Treated Water)</h4>
+            <div id="effluentData" class="text-sm text-gray-300">
+                <p>Loading effluent data...</p>
+            </div>
+        </div>
+    </div>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
 <script>
 let charts = {};
+
+// Parameter configuration
+const paramConfig = {
+    ph: { color: '#2dd4bf', min: 6.0, max: 9.5, unit: '' },
+    cod: { color: '#f87171', min: 0, max: 100, unit: 'mg/L' },
+    bod: { color: '#4ade80', min: 0, max: 50, unit: 'mg/L' },
+    tss: { color: '#fb923c', min: 0, max: 100, unit: 'mg/L' },
+    ammonia: { color: '#22d3ee', min: 0, max: 0.5, unit: 'mg/L' },
+    nitrate: { color: '#34d399', min: 0, max: 14, unit: 'mg/L' },
+    phosphate: { color: '#a3e635', min: 0, max: 1, unit: 'mg/L' },
+    temperature: { color: '#fb7185', min: 10, max: 40, unit: '°C' },
+    flow: { color: '#818cf8', min: 0, max: 5000, unit: 'm³/h' }
+};
 
 async function loadData() {
     try {
@@ -75,108 +150,221 @@ async function loadData() {
         }
         
         const data = await res.json();
-        console.log('Data loaded successfully:', Object.keys(data).map(k => `${k}: ${Array.isArray(data[k]) ? data[k].length : 1}`));
+        console.log('Data loaded successfully:', data);
         
         updateUI(data);
     } catch (error) {
         console.error('Error loading data:', error);
-        // Show error message on page
         document.getElementById("alertBox").innerHTML =
             `<div class="bg-red-500 p-3 rounded">Error loading data: ${error.message}. Check console for details.</div>`;
     }
 }
 
 function updateUI(data) {
-    // Check if data is valid
-    if (!data || !data.labels || !data.labels.length) {
+    if (!data || !data.dates || !data.dates.length) {
         console.warn('No data available or invalid data structure');
         return;
     }
 
-    let lastIndex = data.labels.length - 1;
+    let lastIndex = data.dates.length - 1;
+    const d = data.data;
 
-    // KPI
-    phVal.innerText = data.ph[lastIndex];
-    codVal.innerText = data.cod[lastIndex];
-    bodVal.innerText = data.bod[lastIndex];
-    tssVal.innerText = data.tss[lastIndex];
+    // Update KPI values
+    document.getElementById('phVal').innerText = d.ph[lastIndex]?.toFixed(1) || '-';
+    document.getElementById('codVal').innerText = d.cod[lastIndex]?.toFixed(1) || '-';
+    document.getElementById('bodVal').innerText = d.bod[lastIndex]?.toFixed(1) || '-';
+    document.getElementById('tssVal').innerText = d.tss[lastIndex]?.toFixed(1) || '-';
+    document.getElementById('ammoniaVal').innerText = d.ammonia[lastIndex]?.toFixed(2) || '-';
+    document.getElementById('nitrateVal').innerText = d.nitrate[lastIndex]?.toFixed(1) || '-';
+    document.getElementById('phosphateVal').innerText = d.phosphate[lastIndex]?.toFixed(2) || '-';
+    document.getElementById('tempVal').innerText = d.temperature[lastIndex]?.toFixed(1) || '-';
+    document.getElementById('flowVal').innerText = d.flow[lastIndex]?.toFixed(0) || '-';
 
-    // ALERT
+    // Check for alerts
     let alertHTML = "";
-    if (
-        data.ph[lastIndex] > 9 || data.ph[lastIndex] < 6 ||
-        data.cod[lastIndex] > 100 ||
-        data.bod[lastIndex] > 50 ||
-        data.tss[lastIndex] > 100
-    ) {
-        alertHTML = `<div class="bg-red-500 p-3 rounded">⚠ Critical Water Quality Detected!</div>`;
+    const standards = data.standards;
+    const checks = [
+        { param: 'pH', value: d.ph[lastIndex], min: standards.ph.min, max: standards.ph.max },
+        { param: 'COD', value: d.cod[lastIndex], max: standards.cod.max },
+        { param: 'BOD', value: d.bod[lastIndex], max: standards.bod.max },
+        { param: 'TSS', value: d.tss[lastIndex], max: standards.tss.max },
+        { param: 'Ammonia', value: d.ammonia[lastIndex], max: standards.ammonia.max },
+        { param: 'Nitrate', value: d.nitrate[lastIndex], max: standards.nitrate.max },
+        { param: 'Phosphate', value: d.phosphate[lastIndex], max: standards.phosphate.max },
+        { param: 'Temperature', value: d.temperature[lastIndex], min: standards.temperature.min, max: standards.temperature.max },
+        { param: 'Flow', value: d.flow[lastIndex], max: standards.flow.max }
+    ];
+
+    const violations = checks.filter(c => {
+        if (c.min !== undefined && c.value < c.min) return true;
+        if (c.max !== undefined && c.value > c.max) return true;
+        return false;
+    });
+
+    if (violations.length > 0) {
+        alertHTML = `<div class="bg-red-500 p-3 rounded">⚠ ${violations.length} parameter(s) exceeding standards: ${violations.map(v => v.param).join(', ')}</div>`;
+    } else {
+        alertHTML = `<div class="bg-green-500 p-3 rounded">✓ All parameters within standards</div>`;
     }
     document.getElementById("alertBox").innerHTML = alertHTML;
 
     // Helper function to format timestamp
     function formatTime(timestamp) {
         if (!timestamp) return '--:--:--';
-        
-        // Try to parse ISO format (2026-04-01T17:07:39.960384)
         if (timestamp.includes('T')) {
-            return timestamp.slice(11, 19); // Extract HH:MM:SS
+            return timestamp.slice(11, 19);
         }
-        
-        // Try space-separated format (2026-03-27 17:04:17)
         if (timestamp.includes(' ')) {
             const parts = timestamp.split(' ');
-            if (parts.length > 1) {
-                return parts[1].slice(0, 8); // Extract HH:MM:SS
-            }
+            if (parts.length > 1) return parts[1].slice(0, 8);
         }
-        
-        // Return as-is if format not recognized
         return timestamp;
     }
 
-    // TABLE
+    // TABLE - Show last 20 readings
     let html = "";
-    for (let i = 0; i < data.labels.length; i++) {
+    const startIndex = Math.max(0, data.dates.length - 20);
+    for (let i = data.dates.length - 1; i >= startIndex; i--) {
         html += `
-        <tr class="border-b border-slate-700">
-            <td>${formatTime(data.labels[i])}</td>
-            <td>${data.ph[i]}</td>
-            <td>${data.cod[i]}</td>
-            <td>${data.bod[i]}</td>
-            <td>${data.tss[i]}</td>
+        <tr class="border-b border-slate-700 hover:bg-slate-700">
+            <td class="py-2">${formatTime(data.dates[i])}</td>
+            <td>${d.ph[i]?.toFixed(1) || '-'}</td>
+            <td>${d.cod[i]?.toFixed(1) || '-'}</td>
+            <td>${d.bod[i]?.toFixed(1) || '-'}</td>
+            <td>${d.tss[i]?.toFixed(1) || '-'}</td>
+            <td>${d.ammonia[i]?.toFixed(2) || '-'}</td>
+            <td>${d.nitrate[i]?.toFixed(1) || '-'}</td>
+            <td>${d.phosphate[i]?.toFixed(2) || '-'}</td>
+            <td>${d.temperature[i]?.toFixed(1) || '-'}</td>
+            <td>${d.flow[i]?.toFixed(0) || '-'}</td>
         </tr>`;
     }
-    tableBody.innerHTML = html;
+    document.getElementById("tableBody").innerHTML = html;
 
+    // Update charts
     updateCharts(data);
+
+    // Update influent/effluent comparison
+    updateComparison(data);
 }
 
-function createChart(id, label, values, color) {
+function createChart(id, label, labels, values, color, min, max) {
     if (charts[id]) charts[id].destroy();
 
     charts[id] = new Chart(document.getElementById(id), {
         type: 'line',
         data: {
-            labels: values.timestamps,
+            labels: labels,
             datasets: [{
                 label: label,
-                data: values.data,
+                data: values,
                 borderColor: color,
-                tension: 0.4
+                backgroundColor: color + '20',
+                tension: 0.4,
+                fill: true,
+                pointRadius: 3,
+                pointHoverRadius: 5
+            },
+            {
+                label: 'Max Standard',
+                data: Array(labels.length).fill(max),
+                borderColor: '#ef4444',
+                borderDash: [5, 5],
+                pointRadius: 0,
+                fill: false
             }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: {
+                legend: {
+                    labels: { color: '#94a3b8', font: { size: 10 } }
+                },
+                title: {
+                    display: true,
+                    text: label,
+                    color: '#e2e8f0'
+                }
+            },
+            scales: {
+                y: {
+                    min: min,
+                    max: max,
+                    grid: { color: '#334155' },
+                    ticks: { color: '#94a3b8', font: { size: 10 } }
+                },
+                x: {
+                    grid: { color: '#334155' },
+                    ticks: { color: '#94a3b8', font: { size: 10 }, maxRotation: 45 }
+                }
+            }
         }
     });
 }
 
 function updateCharts(data) {
-    createChart("phChart", "pH", {timestamps: data.labels, data: data.ph}, "#2dd4bf");
-    createChart("codChart", "COD", {timestamps: data.labels, data: data.cod}, "#f87171");
-    createChart("bodChart", "BOD", {timestamps: data.labels, data: data.bod}, "#4ade80");
-    createChart("tssChart", "TSS", {timestamps: data.labels, data: data.tss}, "#fb923c");
+    const d = data.data;
+    const labels = data.dates.slice(-10); // Show last 10 data points
+
+    createChart("phChart", "pH", labels, d.ph.slice(-10), '#2dd4bf', 6, 9.5);
+    createChart("codChart", "COD (mg/L)", labels, d.cod.slice(-10), '#f87171', 0, 100);
+    createChart("bodChart", "BOD (mg/L)", labels, d.bod.slice(-10), '#4ade80', 0, 50);
+    createChart("tssChart", "TSS (mg/L)", labels, d.tss.slice(-10), '#fb923c', 0, 100);
+    createChart("ammoniaChart", "Ammonia (mg/L)", labels, d.ammonia.slice(-10), '#22d3ee', 0, 0.5);
+    createChart("nitrateChart", "Nitrate (mg/L)", labels, d.nitrate.slice(-10), '#34d399', 0, 14);
+    createChart("phosphateChart", "Phosphate (mg/L)", labels, d.phosphate.slice(-10), '#a3e635', 0, 1);
+    createChart("tempChart", "Temperature (°C)", labels, d.temperature.slice(-10), '#fb7185', 10, 40);
+    createChart("flowChart", "Flow (m³/h)", labels, d.flow.slice(-10), '#818cf8', 0, 5000);
 }
 
-// AUTO REFRESH
-setInterval(loadData, 5000);
+function updateComparison(data) {
+    const d = data.data;
+    const standards = data.standards;
+    const lastIndex = data.dates.length - 1;
+
+    // Simulate influent values (typically higher than effluent)
+    // In a real system, these would come from separate influent measurements
+    const influentFactors = {
+        ph: 1.1, cod: 2.5, bod: 3, tss: 2.5,
+        ammonia: 3, nitrate: 1.5, phosphate: 2,
+        temperature: 1.05, flow: 1.2
+    };
+
+    const params = [
+        { key: 'ph', name: 'pH', unit: '' },
+        { key: 'cod', name: 'COD', unit: 'mg/L' },
+        { key: 'bod', name: 'BOD', unit: 'mg/L' },
+        { key: 'tss', name: 'TSS', unit: 'mg/L' },
+        { key: 'ammonia', name: 'Ammonia', unit: 'mg/L' },
+        { key: 'nitrate', name: 'Nitrate', unit: 'mg/L' },
+        { key: 'phosphate', name: 'Phosphate', unit: 'mg/L' },
+        { key: 'temperature', name: 'Temperature', unit: '°C' },
+        { key: 'flow', name: 'Flow', unit: 'm³/h' }
+    ];
+
+    let influentHTML = '<table class="w-full"><tr class="border-b border-slate-600"><th class="text-left py-1">Parameter</th><th class="text-right">Value</th></tr>';
+    let effluentHTML = '<table class="w-full"><tr class="border-b border-slate-600"><th class="text-left py-1">Parameter</th><th class="text-right">Value</th></tr>';
+
+    params.forEach(p => {
+        const effluentVal = d[p.key][lastIndex] || 0;
+        const influentVal = effluentVal * (influentFactors[p.key] || 1);
+        const std = standards[p.key];
+        const maxVal = std.max || '-';
+
+        influentHTML += `<tr class="border-b border-slate-600"><td class="py-1">${p.name}</td><td class="text-right">${influentVal.toFixed(1)} ${p.unit}</td></tr>`;
+        effluentHTML += `<tr class="border-b border-slate-600"><td class="py-1">${p.name}</td><td class="text-right">${effluentVal.toFixed(1)} ${p.unit}</td></tr>`;
+    });
+
+    influentHTML += '</table>';
+    effluentHTML += '</table>';
+
+    document.getElementById('influentData').innerHTML = influentHTML;
+    document.getElementById('effluentData').innerHTML = effluentHTML;
+}
+
+// AUTO REFRESH every 30 seconds
+setInterval(loadData, 30000);
 loadData();
 </script>
 

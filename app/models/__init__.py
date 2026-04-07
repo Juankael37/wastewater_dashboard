@@ -8,6 +8,34 @@ from datetime import datetime
 from typing import Dict, List, Optional, Any
 
 
+def clear_all_data():
+    """Clear all measurement data from database."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM data")
+    deleted_count = cursor.rowcount
+    conn.commit()
+    conn.close()
+    return deleted_count
+
+
+def clear_data_by_date_range(start_date: str, end_date: str):
+    """Clear data within a specific date range."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM data WHERE date(timestamp) BETWEEN ? AND ?", (start_date, end_date))
+    deleted_count = cursor.rowcount
+    conn.commit()
+    conn.close()
+    return deleted_count
+
+
+def get_data_count():
+    """Get total count of measurements in database."""
+    result = fetch_one("SELECT COUNT(*) as count FROM data")
+    return result['count'] if result else 0
+
+
 def get_db_connection():
     """Get a database connection with dict-style row factory."""
     conn = sqlite3.connect('data.db')
@@ -64,6 +92,15 @@ def init_db():
     )
     """)
 
+    # Create users table
+    c.execute("""
+    CREATE TABLE IF NOT EXISTS users (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        username TEXT UNIQUE,
+        password TEXT
+    )
+    """)
+
     # Insert default standards if table is empty
     existing = c.execute("SELECT COUNT(*) as count FROM standards").fetchone()["count"]
     if existing == 0:
@@ -105,13 +142,13 @@ def execute_query(query, params=()):
 
 
 def fetch_one(query, params=()):
-    """Fetch a single row from the database."""
+    """Fetch a single row from database."""
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute(query, params)
     result = cursor.fetchone()
     conn.close()
-    return result
+    return dict(result) if result else None
 
 
 # Parameter model
@@ -121,7 +158,8 @@ class Parameter:
     @staticmethod
     def get_all() -> List[Dict]:
         """Get all parameters with their standards."""
-        return execute_query("SELECT * FROM standards ORDER BY parameter")
+        rows = execute_query("SELECT * FROM standards ORDER BY parameter")
+        return [dict(row) for row in rows]
     
     @staticmethod
     def get_by_name(parameter_name: str) -> Optional[Dict]:
@@ -147,7 +185,7 @@ class Measurement:
     """Model for water quality measurements."""
     
     @staticmethod
-    def create(data: Dict) -> int:
+    def create(**kwargs) -> int:
         """Create a new measurement."""
         query = """
         INSERT INTO data (
@@ -156,21 +194,40 @@ class Measurement:
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """
         
+        # Helper function to safely convert and strip
+        def safe_float(key):
+            value = kwargs.get(key)
+            if value is not None and str(value).strip():
+                try:
+                    return float(value)
+                except ValueError:
+                    return None
+            return None
+            
+        def safe_int(key, default=1):
+            value = kwargs.get(key)
+            if value is not None and str(value).strip():
+                try:
+                    return int(value)
+                except ValueError:
+                    return default
+            return default
+        
         params = (
-            data.get('timestamp', datetime.now().isoformat()),
-            data.get('ph'),
-            data.get('cod'),
-            data.get('bod'),
-            data.get('tss'),
-            data.get('ammonia'),
-            data.get('nitrate'),
-            data.get('phosphate'),
-            data.get('temperature'),
-            data.get('flow'),
-            data.get('type', 'effluent'),
-            data.get('plant_id', 1),
-            data.get('operator_id'),
-            data.get('notes', '')
+            kwargs.get('timestamp', datetime.now().isoformat()),
+            safe_float('ph'),
+            safe_float('cod'),
+            safe_float('bod'),
+            safe_float('tss'),
+            safe_float('ammonia'),
+            safe_float('nitrate'),
+            safe_float('phosphate'),
+            safe_float('temperature'),
+            safe_float('flow'),
+            kwargs.get('type', 'effluent'),
+            safe_int('plant_id', 1),
+            safe_int('operator_id'),
+            kwargs.get('notes', '')
         )
         
         return execute_query(query, params)
@@ -178,18 +235,21 @@ class Measurement:
     @staticmethod
     def get_recent(limit: int = 100) -> List[Dict]:
         """Get recent measurements."""
-        return execute_query(
+        rows = execute_query(
             "SELECT * FROM data ORDER BY timestamp DESC LIMIT ?",
             (limit,)
         )
+        # Convert Row objects to dictionaries
+        return [dict(row) for row in rows]
     
     @staticmethod
     def get_by_date_range(start_date: str, end_date: str) -> List[Dict]:
         """Get measurements within a date range."""
-        return execute_query(
+        rows = execute_query(
             "SELECT * FROM data WHERE date(timestamp) BETWEEN ? AND ? ORDER BY timestamp",
             (start_date, end_date)
         )
+        return [dict(row) for row in rows]
     
     @staticmethod
     def get_for_chart() -> Dict[str, Any]:
@@ -273,9 +333,10 @@ class Alert:
     @staticmethod
     def get_active() -> List[Dict]:
         """Get all active alerts."""
-        return execute_query(
+        rows = execute_query(
             "SELECT * FROM alerts WHERE state = 'ACTIVE' ORDER BY timestamp DESC"
         )
+        return [dict(row) for row in rows]
     
     @staticmethod
     def resolve(alert_id: int) -> bool:
@@ -360,6 +421,53 @@ class Report:
             "compliance_rate": round(compliance_rate, 2),
             "alerts": active_alerts
         }
+
+
+# User model
+class User:
+    """Model for user authentication."""
+    
+    @staticmethod
+    def get_by_username(username: str) -> Optional[Dict]:
+        """Get user by username."""
+        return fetch_one("SELECT * FROM users WHERE username = ?", (username,))
+    
+    @staticmethod
+    def create(username: str, password: str) -> int:
+        """Create a new user with hashed password."""
+        from werkzeug.security import generate_password_hash
+        hashed_password = generate_password_hash(password)
+        return execute_query(
+            "INSERT INTO users (username, password) VALUES (?, ?)",
+            (username, hashed_password)
+        )
+    
+    @staticmethod
+    def verify_password(username: str, password: str) -> bool:
+        """Verify user password."""
+        from werkzeug.security import check_password_hash
+        user = User.get_by_username(username)
+        if user:
+            return check_password_hash(user['password'], password)
+        return False
+
+
+def create_admin():
+    """Create default admin user if not exists."""
+    from werkzeug.security import generate_password_hash
+    conn = get_db_connection()
+    c = conn.cursor()
+    
+    try:
+        c.execute(
+            "INSERT INTO users (username, password) VALUES (?, ?)",
+            ("admin", generate_password_hash("admin123"))
+        )
+    except sqlite3.IntegrityError:
+        pass  # Admin user already exists
+    
+    conn.commit()
+    conn.close()
 
 
 # Initialize database when module is imported

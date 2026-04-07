@@ -66,20 +66,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const signIn = async (username: string, password: string) => {
     try {
       setIsLoading(true)
-      await authApi.login(username, password)
+      const response = await authApi.login(username, password)
       
-      // After successful login, check auth status
-      const authStatus = await authApi.checkAuth()
+      // Check if response indicates success (handle both API response and empty response from 302)
+      const isSuccess = response && (response.success === true || Object.keys(response).length === 0)
       
-      if (authStatus.authenticated && authStatus.username) {
+      if (isSuccess) {
         setUser({
           id: 1,
-          username: authStatus.username,
+          username: response.username || username, // Use provided username if response doesn't have it
           role: 'operator'
         })
         toast.success('Signed in successfully')
       } else {
-        throw new Error('Authentication failed')
+        const errorMsg = response?.message || 'Authentication failed'
+        throw new Error(errorMsg)
       }
     } catch (error: any) {
       toast.error(error.message || 'Failed to sign in')

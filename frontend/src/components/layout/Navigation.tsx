@@ -2,6 +2,7 @@ import React from 'react'
 import { NavLink } from 'react-router-dom'
 import {
   Home,
+  PlusCircle,
   BarChart3,
   AlertTriangle,
   Settings,
@@ -14,6 +15,7 @@ const Navigation: React.FC = () => {
   
   const navItems = [
     { path: '/dashboard', icon: Home, label: 'Dashboard' },
+    { path: '/input', icon: PlusCircle, label: 'Input Data' },
     { path: '/reports', icon: BarChart3, label: 'Reports' },
     { path: '/alerts', icon: AlertTriangle, label: 'Alerts' },
     { path: '/settings', icon: Settings, label: 'Settings' },

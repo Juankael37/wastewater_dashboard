@@ -9,6 +9,7 @@ import Layout from './components/layout/Layout'
 import LoginPage from './pages/auth/LoginPage'
 import RegisterPage from './pages/auth/RegisterPage'
 import DashboardPage from './pages/dashboard/DashboardPage'
+import InputPage from './pages/input/InputPage'
 import ReportsPage from './pages/reports/ReportsPage'
 import AlertsPage from './pages/alerts/AlertsPage'
 import SettingsPage from './pages/settings/SettingsPage'
@@ -51,6 +52,7 @@ function App() {
             <Route element={<Layout />}>
               <Route path="/" element={<Navigate to="/dashboard" replace />} />
               <Route path="/dashboard" element={<DashboardPage />} />
+              <Route path="/input" element={<InputPage />} />
               <Route path="/reports" element={<ReportsPage />} />
               <Route path="/alerts" element={<AlertsPage />} />
               <Route path="/settings" element={<SettingsPage />} />
