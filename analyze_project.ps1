@@ -1,9 +1,33 @@
-# analyze_project.ps1 - Sequential OpenCode analysis
+# analyze_project.ps1 - Sequential OpenCode analysis (run auto_index.ps1 first)
 
 $projectPath = "C:\Users\admin\Desktop\wastewater_dashboard"
 Set-Location $projectPath
 
-# Prompt 1: Map Project
+$indexPath = Join-Path $projectPath "project_index.txt"
+if (-not (Test-Path $indexPath)) {
+    Write-Error "Missing project_index.txt. Run .\auto_index.ps1 first."
+    exit 1
+}
+
+function Invoke-OpenCodeStep {
+    param(
+        [string]$PromptBody,
+        [string]$StepLabel
+    )
+    $tmp = [System.IO.Path]::GetTempFileName() + ".txt"
+    try {
+        $PromptBody | Set-Content -Path $tmp -Encoding utf8
+        Write-Host "=== $StepLabel ==="
+        opencode run --dir $projectPath `
+            -f $indexPath `
+            -f $tmp `
+            "Use the attached file index and follow every instruction in the other attached file."
+    }
+    finally {
+        Remove-Item $tmp -Force -ErrorAction SilentlyContinue
+    }
+}
+
 $prompt1 = @"
 You are analyzing a full codebase using the file index at project_index.txt.
 1. Scan all files listed.
@@ -20,10 +44,8 @@ You are analyzing a full codebase using the file index at project_index.txt.
 Do not modify anything yet.
 "@
 
-Write-Host "=== Running Project Mapping ==="
-opencode . --prompt $prompt1
+Invoke-OpenCodeStep -PromptBody $prompt1 -StepLabel "Running Project Mapping"
 
-# Prompt 2: Deep Analysis
 $prompt2 = @"
 Using your understanding of the project:
 1. Identify potential bugs, inefficiencies, security issues, performance bottlenecks.
@@ -32,10 +54,8 @@ Using your understanding of the project:
 Be concrete, avoid generic advice.
 "@
 
-Write-Host "=== Running Deep Analysis ==="
-opencode . --prompt $prompt2
+Invoke-OpenCodeStep -PromptBody $prompt2 -StepLabel "Running Deep Analysis"
 
-# Prompt 3: Step-by-step improvement/refactor plan
 $prompt3 = @"
 Using your understanding of the full project (from previous analysis):
 
@@ -56,5 +76,4 @@ Using your understanding of the full project (from previous analysis):
 Produce the plan in a numbered list.
 "@
 
-Write-Host "=== Running Step-by-Step Refactor Plan ==="
-opencode . --prompt $prompt3
+Invoke-OpenCodeStep -PromptBody $prompt3 -StepLabel "Running Step-by-Step Refactor Plan"

@@ -7,6 +7,8 @@ A full‑stack web application for monitoring wastewater treatment plants. Opera
 
 **Target Deployment:** Cloudflare + Supabase (zero‑cost approach)
 
+**Implementation status:** [`PROJECT_PLAN.md`](PROJECT_PLAN.md) (current stack vs migration).
+
 ## Two Interfaces
 
 ### 1. AquaDash (Dark Theme) - `localhost:5000`
@@ -19,7 +21,7 @@ A full‑stack web application for monitoring wastewater treatment plants. Opera
 - **Type**: React PWA Frontend (client-side)
 - **Users**: Operators & Admins
 - **Purpose**: Data input and monitoring
-- **Features**: Dashboard, Input Data, Alerts
+- **Features**: Dashboard, Input, Reports, Alerts, Settings (admin), offline PWA
 
 ## Tech Stack
 

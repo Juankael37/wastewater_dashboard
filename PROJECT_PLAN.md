@@ -1,5 +1,7 @@
 # Wastewater Monitoring System – Project Status & Migration Plan
 
+**Also see:** [`IMPLEMENTATION_ROADMAP.md`](IMPLEMENTATION_ROADMAP.md) (milestone checklist + API/schema reference) · [`PROGRESS_SUMMARY.md`](PROGRESS_SUMMARY.md) (recent session notes)
+
 ## 📊 Current Implementation Status (April 8, 2026)
 
 ### ✅ Completed Features (Enhanced Legacy + New Infrastructure)
@@ -106,7 +108,9 @@
 - [x] **Installed all dependencies** including `react-hot-toast`
 - [x] **Built fully functional Settings page** - `SettingsPage.tsx` with user/parameter/data management
 
-### Phase 4: Integration & Deployment ✅ COMPLETED
+### Phase 4: Integration & deployment — **local complete**, cloud pending
+Local Flask + React integration and operator workflows are done. Target stack (Supabase + Workers) is **not** deployed yet.
+
 - [x] Create API integration infrastructure
 - [x] Develop comprehensive deployment guides
 - [x] Update code for environment configuration
@@ -119,9 +123,9 @@
 - [x] **Add export date range selection (Today, Week, Month, All)**
 - [x] **Add PDF export with matplotlib trend graphs for all 9 parameters**
 - [x] **Enhance CSV export with professional header and metadata**
-- [ ] Deploy Supabase database (future)
-- [ ] Deploy Cloudflare Workers API (future)
-- [ ] Implement Google Sheets backup (future)
+- [ ] Deploy Supabase database
+- [ ] Deploy Cloudflare Workers API
+- [ ] Implement Google Sheets backup
 
 ### Phase 5: Advanced Features (UPCOMING)
 - [ ] Implement Google Sheets backup (guide created)
@@ -243,20 +247,20 @@
 - PWA Resources: https://web.dev/progressive-web-apps/
 - React Best Practices: https://reactjs.org/docs/getting-started.html
 
-## 🎯 Success Metrics for Current Phase
+## 🎯 Success metrics (target stack: Cloudflare + Supabase)
 
-The migration to Cloudflare + Supabase stack will be considered successful when:
+Migration is complete when **all** of the following are true:
 
-1. ✅ Supabase database deployed with working authentication
-2. ✅ Cloudflare Workers API operational and accessible
-3. ✅ Frontend successfully connected to new infrastructure
-4. ✅ Data migrated from SQLite to PostgreSQL
-5. ✅ Mobile PWA tested and functional on actual devices
-6. ✅ Google Sheets backup implemented and tested
+1. [ ] Supabase database deployed with working authentication and RLS
+2. [ ] Cloudflare Workers API operational and reachable from the PWA
+3. [ ] Frontend using production API + Supabase Auth (not only Flask sessions)
+4. [ ] Data migrated from SQLite to PostgreSQL with validation
+5. [ ] Mobile PWA verified on real devices (install, camera, offline sync)
+6. [ ] Google Sheets backup implemented and tested
 
 ## 📈 Project Health Status
 
-- **Overall Progress**: 98% (Core features complete, export features enhanced)
+- **Overall Progress**: ~98% local product; **cloud migration** = schema + code ready, deploy & cutover pending
 - **Frontend**: 100% (All pages functional and tested)
 - **Backend**: 98% (All APIs operational including export with graphs, Cloudflare deployment pending)
 - **Documentation**: 100% (All guides created)

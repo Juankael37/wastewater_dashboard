@@ -1,12 +1,47 @@
-# auto_index.ps1 - Auto-index and prepare OpenCode analysis
-$projectPath = "C:\Users\admin\Desktop\wastewater_dashboard"
-$ignorePatterns = Get-Content "$projectPath\.opencodeignore" -ErrorAction SilentlyContinue
+# auto_index.ps1 - Build project_index.txt for OpenCode / analysis (uses .cursorignore)
 
-# Recursively list files, skipping ignored ones
-$files = Get-ChildItem -Path $projectPath -Recurse -File | Where-Object {
-    ($ignorePatterns -notcontains $_.Name)
+$projectPath = "C:\Users\admin\Desktop\wastewater_dashboard"
+$ignoreFile = Join-Path $projectPath ".cursorignore"
+
+function Get-IgnorePatterns {
+    param([string]$Path)
+    if (-not (Test-Path $Path)) { return @() }
+    Get-Content $Path -ErrorAction Stop | ForEach-Object {
+        $line = $_.Trim()
+        if (-not $line -or $line.StartsWith("#")) { return }
+        $line
+    }
 }
 
-# Save paths for reference
-$files | Select-Object FullName | Out-File "$projectPath\project_index.txt"
-Write-Host "Indexed $($files.Count) files. Project index ready."
+function Test-IndexedPathIgnored {
+    param(
+        [string]$FullPath,
+        [string]$Root,
+        [string[]]$Patterns
+    )
+    $rel = $FullPath.Substring($Root.Length).TrimStart("\", "/")
+    $leaf = Split-Path $FullPath -Leaf
+    foreach ($p in $Patterns) {
+        if ($p -match '\*') {
+            if ($leaf -like $p) { return $true }
+            if ($rel -like $p) { return $true }
+            continue
+        }
+        if ($leaf -eq $p) { return $true }
+        $segments = $rel -split '[\\/]'
+        foreach ($seg in $segments) {
+            if ($seg -eq $p) { return $true }
+        }
+    }
+    $false
+}
+
+$patterns = @(Get-IgnorePatterns $ignoreFile)
+$rootNorm = (Resolve-Path $projectPath).Path.TrimEnd("\", "/")
+
+$files = Get-ChildItem -Path $projectPath -Recurse -File -Force | Where-Object {
+    -not (Test-IndexedPathIgnored -FullPath $_.FullName -Root $rootNorm -Patterns $patterns)
+}
+
+$files | Select-Object -ExpandProperty FullName | Set-Content -Path (Join-Path $projectPath "project_index.txt") -Encoding utf8
+Write-Host "Indexed $($files.Count) files using .cursorignore. Wrote project_index.txt."
