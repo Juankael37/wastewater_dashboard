@@ -1,10 +1,10 @@
 import React, { createContext, useContext, useEffect, useState } from 'react'
 import toast from 'react-hot-toast'
-import { authApi, usersApi } from '../services/api'
+import { authApi } from '../services/api'
 
 // Types
 interface User {
-  id: number
+  id: string
   username: string
   email?: string
   role: 'admin' | 'operator' | 'client'
@@ -28,16 +28,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<User | null>(null)
   const [isLoading, setIsLoading] = useState(true)
 
-  // Helper function to get user role from backend
-  const getUserRole = async (username: string): Promise<string> => {
-    try {
-      const users = await usersApi.getAll()
-      const currentUser = users.find(u => u.username === username)
-      return currentUser?.role || 'operator'
-    } catch (error) {
-      console.error('Failed to fetch user role:', error)
-      return 'operator'
+  const getRoleFromUser = (apiUser: any): 'admin' | 'operator' | 'client' => {
+    const rawRole = apiUser?.user_metadata?.role || 'operator'
+    if (rawRole === 'admin' || rawRole === 'client' || rawRole === 'operator') {
+      return rawRole
     }
+    return 'operator'
   }
 
   // Check for existing session on mount
@@ -47,11 +43,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setIsLoading(true)
         const authStatus = await authApi.checkAuth()
         
-        if (authStatus.authenticated && authStatus.username) {
-          const role = await getUserRole(authStatus.username)
+        if (authStatus.authenticated && authStatus.user) {
+          const role = getRoleFromUser(authStatus.user)
+          const email = authStatus.user.email || ''
           setUser({
-            id: 1,
-            username: authStatus.username,
+            id: authStatus.user.id,
+            username: email || 'user',
+            email,
             role: role as 'admin' | 'operator' | 'client'
           })
         } else {
@@ -76,27 +74,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [])
 
   // Sign in function
-  const signIn = async (username: string, password: string) => {
+  const signIn = async (usernameOrEmail: string, password: string) => {
     try {
       setIsLoading(true)
-      const response = await authApi.login(username, password)
-      
-      // Check if response indicates success (handle both API response and empty response from 302)
-      const isSuccess = response && (response.success === true || Object.keys(response).length === 0)
-      
-      if (isSuccess) {
-        // Fetch the user's role from the backend
-        const role = await getUserRole(response.username || username)
-        setUser({
-          id: 1,
-          username: response.username || username,
-          role: role as 'admin' | 'operator' | 'client'
-        })
-        toast.success('Signed in successfully')
-      } else {
-        const errorMsg = response?.message || 'Authentication failed'
-        throw new Error(errorMsg)
-      }
+      const response = await authApi.login(usernameOrEmail, password)
+      const role = getRoleFromUser(response.user)
+      const email = response.user?.email || usernameOrEmail
+      setUser({
+        id: response.user?.id,
+        username: email,
+        email,
+        role,
+      })
+      toast.success('Signed in successfully')
     } catch (error: any) {
       toast.error(error.message || 'Failed to sign in')
       throw error
@@ -109,7 +99,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const signUp = async (username: string, password: string, email?: string) => {
     try {
       setIsLoading(true)
-      await authApi.register(username, password, email)
+      const registrationEmail = email || username
+      await authApi.register(registrationEmail, password, username)
       toast.success('Account created successfully! You can now sign in.')
     } catch (error: any) {
       toast.error(error.message || 'Failed to create account')
@@ -151,12 +142,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const checkAuth = async (): Promise<boolean> => {
     try {
       const authStatus = await authApi.checkAuth()
-      if (authStatus.authenticated && authStatus.username && !user) {
-        const role = await getUserRole(authStatus.username)
+      if (authStatus.authenticated && authStatus.user && !user) {
+        const role = getRoleFromUser(authStatus.user)
+        const email = authStatus.user.email || ''
         setUser({
-          id: 1,
-          username: authStatus.username,
-          role: role as 'admin' | 'operator' | 'client'
+          id: authStatus.user.id,
+          username: email || 'user',
+          email,
+          role
         })
       } else if (!authStatus.authenticated && user) {
         setUser(null)

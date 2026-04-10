@@ -1,31 +1,21 @@
 /**
- * API Service for connecting to Flask backend
- * Uses relative URLs to leverage Vite's dev server proxy or Flask serving
+ * API Service for Cloudflare Worker + Supabase-backed auth.
  */
 
-// Determine API base URL based on current host
 const getApiBaseUrl = () => {
-  // Use environment variable if set (for production)
   if (import.meta.env.VITE_API_URL) {
     return import.meta.env.VITE_API_URL;
   }
-  
-  // For development with Vite, use relative URLs (Vite proxy will forward to Flask)
-  // For production served from Flask, use relative URLs from server root
-  // Check if we're being served from /pwa/ path (Flask serving PWA)
-  if (window.location.pathname.startsWith('/pwa')) {
-    // When served from Flask at /pwa/, API routes are at server root
-    return '';
-  }
-  
-  // For Vite dev server, use relative URLs (proxy handles forwarding)
-  return '';
+
+  return 'http://localhost:8787';
 };
 
 const API_BASE_URL = getApiBaseUrl();
-console.log('[API] Base URL:', API_BASE_URL || '(relative)');
-console.log('[API] Current hostname:', window.location.hostname);
-console.log('[API] Current pathname:', window.location.pathname);
+const ACCESS_TOKEN_KEY = 'ww_access_token';
+
+const getAccessToken = () => localStorage.getItem(ACCESS_TOKEN_KEY);
+const setAccessToken = (token: string) => localStorage.setItem(ACCESS_TOKEN_KEY, token);
+const clearAccessToken = () => localStorage.removeItem(ACCESS_TOKEN_KEY);
 
 // Types
 export interface Measurement {
@@ -89,93 +79,102 @@ async function apiRequest<T>(
   options: RequestInit = {}
 ): Promise<T> {
   const url = `${API_BASE_URL}${endpoint}`;
-  
-  // Determine if we should include Content-Type header
-  // Don't include it for FormData (browser will set it automatically)
   const isFormData = options.body instanceof FormData;
-  
+  const token = getAccessToken();
+
   const defaultOptions: RequestInit = {
     headers: isFormData
       ? {
-          'X-Requested-With': 'XMLHttpRequest',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
           ...options.headers
-        } // No Content-Type for FormData
+        }
       : {
           'Content-Type': 'application/json',
-          'X-Requested-With': 'XMLHttpRequest',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
           ...options.headers,
         },
-    credentials: 'include', // Include cookies for Flask session
   };
 
   try {
     const response = await fetch(url, { ...defaultOptions, ...options });
-    
-    console.log(`[DEBUG apiRequest] ${endpoint} - Status: ${response.status}`);
-    console.log(`[DEBUG apiRequest] ${endpoint} - Content-Type: ${response.headers.get('content-type')}`);
-    console.log(`[DEBUG apiRequest] ${endpoint} - URL: ${response.url}`);
-    
-    // Check if we were redirected to login page (getting HTML instead of JSON)
+
     const contentType = response.headers.get('content-type');
-    if (contentType && contentType.includes('text/html')) {
-      console.error(`[DEBUG apiRequest] ${endpoint} - Received HTML instead of JSON (likely redirected to login)`);
-      throw new Error('Authentication required - session expired or not logged in');
-    }
-    
     if (!response.ok) {
       const errorText = await response.text();
       throw new Error(`API Error (${response.status}): ${errorText}`);
     }
-    
-    // Check if response is JSON
+
     if (contentType && contentType.includes('application/json')) {
       return await response.json();
     }
-    
+
     return await response.text() as T;
   } catch (error) {
-    console.error(`[DEBUG apiRequest] Request failed for ${endpoint}:`, error);
-    console.error(`[DEBUG apiRequest] Full URL attempted: ${API_BASE_URL}${endpoint}`);
-    console.error(`[DEBUG apiRequest] Current hostname: ${window.location.hostname}`);
-    console.error(`[DEBUG apiRequest] Error details:`, JSON.stringify(error, Object.getOwnPropertyNames(error)));
+    console.error(`[API] Request failed for ${endpoint}:`, error);
     throw error;
   }
 }
 
 // Authentication API
 export const authApi = {
-  login: async (username: string, password: string): Promise<{success: boolean, message: string, username: string}> => {
-    // Use JSON for API endpoint
-    return apiRequest<{success: boolean, message: string, username: string}>('/api/login', {
+  login: async (email: string, password: string): Promise<{ user: any; session: any }> => {
+    const result = await apiRequest<{ user: any; session: any }>('/auth/login', {
       method: 'POST',
-      body: JSON.stringify({ username, password }),
+      body: JSON.stringify({ email, password }),
     });
+
+    if (result?.session?.access_token) {
+      setAccessToken(result.session.access_token);
+    }
+
+    return result;
   },
   
   logout: async (): Promise<void> => {
-    await apiRequest('/api/logout', { method: 'POST' });
+    clearAccessToken();
   },
   
-  register: async (username: string, password: string, email?: string): Promise<void> => {
-    const formData = new FormData();
-    formData.append('username', username);
-    formData.append('password', password);
-    if (email) formData.append('email', email);
-    
-    await apiRequest('/register', {
+  register: async (email: string, password: string, fullName?: string): Promise<{ user: any; session: any }> => {
+    const result = await apiRequest<{ user: any; session: any }>('/auth/register', {
       method: 'POST',
-      body: formData,
+      body: JSON.stringify({
+        email,
+        password,
+        full_name: fullName || email.split('@')[0],
+      }),
     });
+
+    if (result?.session?.access_token) {
+      setAccessToken(result.session.access_token);
+    }
+
+    return result;
   },
   
-  checkAuth: async (): Promise<{ authenticated: boolean; username?: string }> => {
+  checkAuth: async (): Promise<{ authenticated: boolean; user?: any }> => {
+    const token = getAccessToken();
+    if (!token) return { authenticated: false };
+
     try {
-      // Use the dedicated auth check endpoint
-      const response = await apiRequest<{ authenticated: boolean; username?: string }>('/api/auth/check');
-      return response;
+      const response = await authApi.getProfile();
+      return { authenticated: true, user: response.user };
     } catch (error) {
+      clearAccessToken();
       return { authenticated: false };
     }
+  },
+
+  getProfile: async (): Promise<{ user: any }> => {
+    const token = getAccessToken();
+    if (!token) throw new Error('No access token');
+    const payload = JSON.parse(atob(token.split('.')[1] || 'e30='));
+    return {
+      user: {
+        id: payload.sub,
+        email: payload.email,
+        user_metadata: payload.user_metadata || {},
+      },
+    };
   },
 };
 
