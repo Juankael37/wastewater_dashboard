@@ -9,15 +9,16 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "hono": "^4.0.0",
+    "@hono/zod-validator": "^0.7.6",
     "@supabase/supabase-js": "^2.39.0",
+    "hono": "^4.0.0",
     "zod": "^3.22.0"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20231121.0",
-    "wrangler": "^3.0.0",
+    "typescript": "^5.0.0",
     "vitest": "^1.0.0",
-    "typescript": "^5.0.0"
+    "wrangler": "^3.0.0"
   },
   "engines": {
     "node": ">=18.0.0"

@@ -5,125 +5,138 @@ import { createClient } from '@supabase/supabase-js'
 import { z } from 'zod'
 import { zValidator } from '@hono/zod-validator'
 
-// Initialize Hono app
 const app = new Hono()
 
-// Middleware
+const parseAllowedOrigins = (raw) =>
+  (raw || 'http://localhost:5173,http://127.0.0.1:5173')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean)
+
 app.use('*', logger())
+
 app.use('*', cors({
-  origin: ['http://localhost:5173', 'https://wastewater-monitor.pages.dev'],
+  origin: (origin, c) => {
+    const allowed = parseAllowedOrigins(c.env.ALLOWED_ORIGINS)
+    if (origin && allowed.includes(origin)) return origin
+    return allowed[0] || 'http://localhost:5173'
+  },
   allowHeaders: ['Content-Type', 'Authorization'],
-  allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   exposeHeaders: ['Content-Length'],
   maxAge: 600,
   credentials: true,
 }))
 
-// Supabase client - use environment variables
-const supabaseUrl = process.env.SUPABASE_URL || 'https://your-project.supabase.co'
-const supabaseKey = process.env.SUPABASE_ANON_KEY || 'your-anon-key'
-
-const supabase = createClient(supabaseUrl, supabaseKey, {
-  auth: {
-    persistSession: false
+/** Cloudflare Workers expose bindings on `c.env` (not process.env). */
+app.use('*', async (c, next) => {
+  const url = c.env.SUPABASE_URL
+  const key = c.env.SUPABASE_ANON_KEY
+  if (!url || !key) {
+    console.error('Missing SUPABASE_URL or SUPABASE_ANON_KEY')
   }
+  const supabase = createClient(url || '', key || '', {
+    auth: { persistSession: false },
+  })
+  c.set('supabase', supabase)
+  await next()
 })
 
-// Authentication middleware
 const authMiddleware = async (c, next) => {
+  const supabase = c.get('supabase')
   const authHeader = c.req.header('Authorization')
-  
+
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     return c.json({ error: 'Unauthorized' }, 401)
   }
-  
+
   const token = authHeader.split(' ')[1]
-  
+
   try {
     const { data: { user }, error } = await supabase.auth.getUser(token)
-    
+
     if (error || !user) {
       return c.json({ error: 'Invalid token' }, 401)
     }
-    
+
     c.set('user', user)
     await next()
-  } catch (error) {
+  } catch {
     return c.json({ error: 'Authentication failed' }, 401)
   }
 }
 
-// Validation schemas
 const measurementSchema = z.object({
   plant_id: z.string().uuid(),
   parameter_id: z.string().uuid(),
   value: z.number(),
   type: z.enum(['influent', 'effluent']),
   timestamp: z.string().datetime().optional(),
-  notes: z.string().optional()
+  notes: z.string().optional(),
 })
 
 const alertResolveSchema = z.object({
-  resolved: z.boolean()
+  resolved: z.boolean(),
 })
 
-// Health check endpoint
 app.get('/', (c) => {
+  const configured = Boolean(c.env.SUPABASE_URL && c.env.SUPABASE_ANON_KEY)
   return c.json({
     message: 'Wastewater Monitoring API',
     version: '1.0.0',
-    status: 'healthy'
+    status: 'healthy',
+    supabase_configured: configured,
   })
 })
 
-// Authentication endpoints
 app.post('/auth/login', async (c) => {
+  const supabase = c.get('supabase')
   const { email, password } = await c.req.json()
-  
+
   const { data, error } = await supabase.auth.signInWithPassword({
     email,
-    password
+    password,
   })
-  
+
   if (error) {
     return c.json({ error: error.message }, 401)
   }
-  
+
   return c.json({
     user: data.user,
-    session: data.session
+    session: data.session,
   })
 })
 
 app.post('/auth/register', async (c) => {
+  const supabase = c.get('supabase')
   const { email, password, full_name, role } = await c.req.json()
-  
+
   const { data, error } = await supabase.auth.signUp({
     email,
     password,
     options: {
       data: {
         full_name,
-        role: role || 'viewer'
-      }
-    }
+        role: role || 'viewer',
+      },
+    },
   })
-  
+
   if (error) {
     return c.json({ error: error.message }, 400)
   }
-  
+
   return c.json({
     user: data.user,
-    session: data.session
+    session: data.session,
   })
 })
 
-// Measurements endpoints
 app.get('/measurements', authMiddleware, async (c) => {
-  const user = c.get('user')
+  const supabase = c.get('supabase')
   const { plant_id, parameter_id, start_date, end_date, limit = 100 } = c.req.query()
-  
+
   let query = supabase
     .from('measurements')
     .select(`
@@ -132,57 +145,59 @@ app.get('/measurements', authMiddleware, async (c) => {
       parameters!inner(name, display_name, unit)
     `)
     .order('timestamp', { ascending: false })
-    .limit(parseInt(limit))
-  
+    .limit(parseInt(limit, 10))
+
   if (plant_id) {
     query = query.eq('plant_id', plant_id)
   }
-  
+
   if (parameter_id) {
     query = query.eq('parameter_id', parameter_id)
   }
-  
+
   if (start_date) {
     query = query.gte('timestamp', start_date)
   }
-  
+
   if (end_date) {
     query = query.lte('timestamp', end_date)
   }
-  
+
   const { data, error } = await query
-  
+
   if (error) {
     return c.json({ error: error.message }, 500)
   }
-  
+
   return c.json({ data })
 })
 
 app.post('/measurements', authMiddleware, zValidator('json', measurementSchema), async (c) => {
+  const supabase = c.get('supabase')
   const user = c.get('user')
   const measurement = c.req.valid('json')
-  
+
   const { data, error } = await supabase
     .from('measurements')
     .insert({
       ...measurement,
       operator_id: user.id,
-      timestamp: measurement.timestamp || new Date().toISOString()
+      timestamp: measurement.timestamp || new Date().toISOString(),
     })
     .select()
     .single()
-  
+
   if (error) {
     return c.json({ error: error.message }, 500)
   }
-  
+
   return c.json({ data }, 201)
 })
 
 app.get('/measurements/:id', authMiddleware, async (c) => {
+  const supabase = c.get('supabase')
   const { id } = c.req.param()
-  
+
   const { data, error } = await supabase
     .from('measurements')
     .select(`
@@ -192,18 +207,18 @@ app.get('/measurements/:id', authMiddleware, async (c) => {
     `)
     .eq('id', id)
     .single()
-  
+
   if (error) {
     return c.json({ error: error.message }, 404)
   }
-  
+
   return c.json({ data })
 })
 
-// Alerts endpoints
 app.get('/alerts', authMiddleware, async (c) => {
+  const supabase = c.get('supabase')
   const { resolved, limit = 50 } = c.req.query()
-  
+
   let query = supabase
     .from('alerts')
     .select(`
@@ -215,70 +230,71 @@ app.get('/alerts', authMiddleware, async (c) => {
       )
     `)
     .order('created_at', { ascending: false })
-    .limit(parseInt(limit))
-  
+    .limit(parseInt(limit, 10))
+
   if (resolved !== undefined) {
     query = query.eq('resolved', resolved === 'true')
   }
-  
+
   const { data, error } = await query
-  
+
   if (error) {
     return c.json({ error: error.message }, 500)
   }
-  
+
   return c.json({ data })
 })
 
 app.patch('/alerts/:id/resolve', authMiddleware, zValidator('json', alertResolveSchema), async (c) => {
+  const supabase = c.get('supabase')
   const user = c.get('user')
   const { id } = c.req.param()
   const { resolved } = c.req.valid('json')
-  
+
   const { data, error } = await supabase
     .from('alerts')
     .update({
       resolved,
       resolved_at: resolved ? new Date().toISOString() : null,
-      resolved_by: resolved ? user.id : null
+      resolved_by: resolved ? user.id : null,
     })
     .eq('id', id)
     .select()
     .single()
-  
+
   if (error) {
     return c.json({ error: error.message }, 500)
   }
-  
+
   return c.json({ data })
 })
 
-// Parameters endpoints
 app.get('/parameters', authMiddleware, async (c) => {
+  const supabase = c.get('supabase')
   const { active } = c.req.query()
-  
+
   let query = supabase
     .from('parameters')
     .select('*')
     .order('name')
-  
+
   if (active !== undefined) {
     query = query.eq('is_active', active === 'true')
   }
-  
+
   const { data, error } = await query
-  
+
   if (error) {
     return c.json({ error: error.message }, 500)
   }
-  
+
   return c.json({ data })
 })
 
-// Standards endpoints
 app.get('/standards', authMiddleware, async (c) => {
+  const supabase = c.get('supabase')
   const { class: standardClass } = c.req.query()
-  
+
   let query = supabase
     .from('standards')
     .select(`
@@ -286,37 +302,35 @@ app.get('/standards', authMiddleware, async (c) => {
       parameters!inner(*)
     `)
     .order('parameter_id')
-  
+
   if (standardClass) {
     query = query.eq('class', standardClass)
   }
-  
+
   const { data, error } = await query
-  
+
   if (error) {
     return c.json({ error: error.message }, 500)
   }
-  
+
   return c.json({ data })
 })
 
-// Plants endpoints
 app.get('/plants', authMiddleware, async (c) => {
-  const user = c.get('user')
-  
+  const supabase = c.get('supabase')
+
   const { data, error } = await supabase
     .from('plants')
     .select('*')
     .order('name')
-  
+
   if (error) {
     return c.json({ error: error.message }, 500)
   }
-  
+
   return c.json({ data })
 })
 
-// Error handling
 app.onError((err, c) => {
   console.error(err)
   return c.json({ error: 'Internal server error' }, 500)

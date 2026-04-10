@@ -30,59 +30,26 @@ wrangler login
 # This will open a browser window for authentication
 ```
 
-## Step 3: Configure Environment Variables
+## Step 3: Configure environment variables
 
-Update `api/wrangler.toml` with your actual values:
+The Worker reads **Cloudflare bindings** on `c.env` (not `process.env`).
 
-```toml
-name = "wastewater-api"
-main = "src/index.js"
-compatibility_date = "2024-01-01"
-compatibility_flags = ["nodejs_compat"]
+1. Edit `api/wrangler.toml` and set **`SUPABASE_URL`** to your project URL (safe to keep as a plain var).
+2. Set the **anon key** as a **secret** (do not commit it):
+   ```bash
+   cd api
+   npx wrangler secret put SUPABASE_ANON_KEY
+   ```
+3. **CORS:** set **`ALLOWED_ORIGINS`** in `[vars]` to a comma-separated list (e.g. `http://localhost:5173,https://your-app.pages.dev`).
+4. Local dev: copy `api/.dev.vars.example` → **`api/.dev.vars`** and fill in real values (`wrangler dev` loads this file).
 
-[vars]
-SUPABASE_URL = "https://your-project-ref.supabase.co"
-SUPABASE_ANON_KEY = "your-anon-key-here"
-SUPABASE_SERVICE_ROLE_KEY = "your-service-role-key-here"
+Default `wrangler.toml` is minimal (no custom routes, no KV) so **`wrangler deploy` works on `*.workers.dev`** out of the box. Add routes/KV/crons later if you need them.
 
-[env.production]
-vars = { 
-  SUPABASE_URL = "https://your-project-ref.supabase.co",
-  SUPABASE_ANON_KEY = "your-anon-key-here",
-  SUPABASE_SERVICE_ROLE_KEY = "your-service-role-key-here"
-}
+## Step 4: API code note
 
-# Remove or update the routes section if you don't have a custom domain
-[[routes]]
-pattern = "api.your-domain.com/*"
-zone_name = "your-domain.com"
+`api/src/index.js` creates a Supabase client per request from `c.env.SUPABASE_URL` and `c.env.SUPABASE_ANON_KEY`. `GET /` returns **`supabase_configured: true/false`** so you can confirm vars/secrets are wired.
 
-[[kv_namespaces]]
-binding = "CACHE"
-id = "cache-id"
-preview_id = "cache-preview-id"
-
-[triggers]
-crons = ["0 * * * *", "0 0 * * *"]
-```
-
-## Step 4: Update API Code to Use Environment Variables
-
-Update `api/src/index.js` to use environment variables:
-
-```javascript
-// Supabase client - use environment variables
-const supabaseUrl = process.env.SUPABASE_URL || 'https://your-project.supabase.co'
-const supabaseKey = process.env.SUPABASE_ANON_KEY || 'your-anon-key'
-
-const supabase = createClient(supabaseUrl, supabaseKey, {
-  auth: {
-    persistSession: false
-  }
-})
-```
-
-## Step 5: Test Locally
+## Step 5: Test locally
 
 ```bash
 # Navigate to api directory
@@ -117,22 +84,7 @@ wrangler deploy
 
 ## Step 7: Configure CORS
 
-Update CORS settings in `api/src/index.js` to include your frontend URLs:
-
-```javascript
-app.use('*', cors({
-  origin: [
-    'http://localhost:5173', 
-    'https://wastewater-monitor.pages.dev',
-    'https://your-frontend-domain.com'
-  ],
-  allowHeaders: ['Content-Type', 'Authorization'],
-  allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  exposeHeaders: ['Content-Length'],
-  maxAge: 600,
-  credentials: true,
-}))
-```
+CORS allowed origins come from the **`ALLOWED_ORIGINS`** variable in `wrangler.toml` (comma-separated). Update it when you deploy the frontend (e.g. Cloudflare Pages URL) and redeploy the Worker.
 
 ## Step 8: Update Frontend API Configuration
 
@@ -154,7 +106,7 @@ VITE_API_URL=https://api.your-domain.com
 
 1. **Health Check**: Visit your API URL in browser
    - Example: `https://wastewater-api.your-username.workers.dev`
-   - Should return: `{"message":"Wastewater Monitoring API","version":"1.0.0","status":"healthy"}`
+   - Should return JSON including `"status":"healthy"` and `"supabase_configured":true` once URL + anon secret are set.
 
 2. **Test Authentication**:
    ```bash

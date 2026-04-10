@@ -87,13 +87,12 @@ VITE_SUPABASE_URL=https://your-project-ref.supabase.co
 VITE_SUPABASE_ANON_KEY=your-anon-key-here
 ```
 
-### `api/wrangler.toml`
-```toml
-[vars]
-SUPABASE_URL = "https://your-project-ref.supabase.co"
-SUPABASE_ANON_KEY = "your-anon-key-here"
-SUPABASE_SERVICE_ROLE_KEY = "your-service-role-key-here"
-```
+### Cloudflare Worker (`api/`)
+
+- Set **`SUPABASE_URL`** in `api/wrangler.toml` `[vars]`.
+- Set **`SUPABASE_ANON_KEY`** with Wrangler (secret, not in git):  
+  `cd api && npx wrangler secret put SUPABASE_ANON_KEY`  
+- See `api/.dev.vars.example` for local `wrangler dev`.
 
 ## Step 8: Test the Connection
 

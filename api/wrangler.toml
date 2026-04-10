@@ -3,26 +3,14 @@ main = "src/index.js"
 compatibility_date = "2024-01-01"
 compatibility_flags = ["nodejs_compat"]
 
+# Non-secret config. Replace SUPABASE_URL after you create the project.
+# For SUPABASE_ANON_KEY use a secret (not committed):
+#   cd api && npx wrangler secret put SUPABASE_ANON_KEY
 [vars]
-SUPABASE_URL = "https://your-project.supabase.co"
-SUPABASE_ANON_KEY = "your-anon-key"
-SUPABASE_SERVICE_ROLE_KEY = "your-service-role-key"
+SUPABASE_URL = "https://YOUR_PROJECT_REF.supabase.co"
+ALLOWED_ORIGINS = "http://localhost:5173,http://127.0.0.1:5173"
 
-[env.production]
-vars = { 
-  SUPABASE_URL = "https://your-project.supabase.co",
-  SUPABASE_ANON_KEY = "your-anon-key",
-  SUPABASE_SERVICE_ROLE_KEY = "your-service-role-key"
-}
-
-[[routes]]
-pattern = "api.wastewater-monitor.com/*"
-zone_name = "wastewater-monitor.com"
-
-[[kv_namespaces]]
-binding = "CACHE"
-id = "cache-id"
-preview_id = "cache-preview-id"
-
-[triggers]
-crons = ["0 * * * *", "0 0 * * *"]
+# Optional: production-only vars (uncomment and set your real URLs)
+# [env.production.vars]
+# SUPABASE_URL = "https://xxxx.supabase.co"
+# ALLOWED_ORIGINS = "https://your-frontend.pages.dev,http://localhost:5173"
