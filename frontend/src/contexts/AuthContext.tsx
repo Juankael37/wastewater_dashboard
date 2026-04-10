@@ -14,7 +14,7 @@ interface AuthContextType {
   user: User | null
   isLoading: boolean
   signIn: (username: string, password: string) => Promise<void>
-  signUp: (username: string, password: string, email?: string) => Promise<void>
+  signUp: (username: string, password: string, email?: string, role?: 'admin' | 'operator' | 'client') => Promise<void>
   signOut: () => Promise<void>
   resetPassword: (email: string) => Promise<void>
   checkAuth: () => Promise<boolean>
@@ -96,11 +96,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }
 
   // Sign up function
-  const signUp = async (username: string, password: string, email?: string) => {
+  const signUp = async (
+    username: string,
+    password: string,
+    email?: string,
+    role: 'admin' | 'operator' | 'client' = 'operator'
+  ) => {
     try {
       setIsLoading(true)
       const registrationEmail = email || username
-      await authApi.register(registrationEmail, password, username)
+      await authApi.register(registrationEmail, password, username, role)
       toast.success('Account created successfully! You can now sign in.')
     } catch (error: any) {
       toast.error(error.message || 'Failed to create account')

@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { Camera, Save, Eye, AlertCircle } from 'lucide-react'
 import toast from 'react-hot-toast'
-import { measurementsApi } from '../../services/api'
+import { measurementsApi, plantsApi } from '../../services/api'
 
 interface InputFormData {
   plantId: string
@@ -25,12 +25,26 @@ const InputPage: React.FC = () => {
   const [capturedImages, setCapturedImages] = useState<Record<string, string>>({})
   const [showPreview, setShowPreview] = useState(false)
   const [previewData, setPreviewData] = useState<InputFormData | null>(null)
+  const [plants, setPlants] = useState<Array<{ id: string; name: string }>>([])
 
   const {
     register,
     handleSubmit,
     watch
   } = useForm<InputFormData>()
+
+  React.useEffect(() => {
+    const loadPlants = async () => {
+      try {
+        const plantData = await plantsApi.getAll()
+        setPlants(plantData)
+      } catch (error) {
+        console.error('Failed to load plants:', error)
+        toast.error('Unable to load plants from cloud API')
+      }
+    }
+    loadPlants()
+  }, [])
 
   const parametersWithCamera = ['cod', 'bod', 'ammonia', 'nitrate', 'phosphate']
 
@@ -125,7 +139,7 @@ const InputPage: React.FC = () => {
         temperature: parseFloat(previewData.temperature) || null,
         flow: parseFloat(previewData.flow) || null,
         type: previewData.type,
-        plant_id: parseInt(previewData.plantId),
+        plant_id: previewData.plantId,
         notes: `Images captured: ${Object.keys(capturedImages).join(', ')}`
       }
       
@@ -295,9 +309,11 @@ const InputPage: React.FC = () => {
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
               >
                 <option value="">Select Plant</option>
-                <option value="1">Main Treatment Plant</option>
-                <option value="2">Secondary Facility</option>
-                <option value="3">Backup Plant</option>
+                {plants.map((plant) => (
+                  <option key={plant.id} value={plant.id}>
+                    {plant.name}
+                  </option>
+                ))}
               </select>
             </div>
 

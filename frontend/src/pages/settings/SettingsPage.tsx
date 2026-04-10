@@ -73,7 +73,7 @@ const UserManagementSection: React.FC = () => {
     }
   }
 
-  const handleDeleteUser = async (userId: number, username: string) => {
+  const handleDeleteUser = async (userId: string, username: string) => {
     if (!confirm(`Are you sure you want to delete user "${username}"?`)) return
     
     try {
@@ -228,7 +228,7 @@ const UserManagementSection: React.FC = () => {
                   </td>
                   <td className="py-3 px-4">
                     <div className="flex gap-2">
-                      {user.id !== 1 ? (
+                      {user.role !== 'admin' ? (
                         <button
                           onClick={() => handleDeleteUser(user.id, user.username)}
                           className="px-3 py-1 bg-red-500/20 hover:bg-red-500/30 text-red-400 rounded text-sm transition flex items-center gap-1"

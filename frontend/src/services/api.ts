@@ -19,19 +19,21 @@ const clearAccessToken = () => localStorage.removeItem(ACCESS_TOKEN_KEY);
 
 // Types
 export interface Measurement {
-  id: number;
-  plant_id: number;
-  parameter_id: number;
+  id: string;
+  plant_id: string;
+  parameter_id: string;
   value: number;
   type: 'influent' | 'effluent';
   timestamp: string;
-  operator_id: number;
+  operator_id: string;
   parameter_name?: string;
+  plant_name?: string;
   unit?: string;
+  [key: string]: any;
 }
 
 export interface Alert {
-  id: number;
+  id: string;
   parameter: string;
   value: number;
   status: string;
@@ -41,7 +43,7 @@ export interface Alert {
 }
 
 export interface Parameter {
-  id: number;
+  id: string;
   parameter: string;
   min_limit: number;
   max_limit: number;
@@ -134,13 +136,19 @@ export const authApi = {
     clearAccessToken();
   },
   
-  register: async (email: string, password: string, fullName?: string): Promise<{ user: any; session: any }> => {
+  register: async (
+    email: string,
+    password: string,
+    fullName?: string,
+    role: 'admin' | 'operator' | 'client' = 'operator'
+  ): Promise<{ user: any; session: any }> => {
     const result = await apiRequest<{ user: any; session: any }>('/auth/register', {
       method: 'POST',
       body: JSON.stringify({
         email,
         password,
         full_name: fullName || email.split('@')[0],
+        role,
       }),
     });
 
@@ -181,11 +189,36 @@ export const authApi = {
 // Measurements API
 export const measurementsApi = {
   getAll: async (): Promise<Measurement[]> => {
-    return apiRequest<Measurement[]>('/api/measurements');
+    const response = await apiRequest<{ data: any[] }>('/measurements');
+    return (response.data || []).map((item) => ({
+      id: item.id,
+      plant_id: item.plant_id,
+      parameter_id: item.parameter_id,
+      value: item.value,
+      type: item.type,
+      timestamp: item.timestamp,
+      operator_id: item.operator_id,
+      parameter_name: item.parameters?.display_name || item.parameters?.name,
+      plant_name: item.plants?.name,
+      unit: item.parameters?.unit,
+    }));
   },
   
   getRecent: async (limit: number = 10): Promise<Measurement[]> => {
-    return apiRequest<Measurement[]>(`/api/measurements/recent?limit=${limit}`);
+    const response = await apiRequest<{ data: any[] }>(`/measurements?limit=${limit}`);
+    return (response.data || []).map((item) => ({
+      id: item.id,
+      plant_id: item.plant_id,
+      parameter_id: item.parameter_id,
+      value: item.value,
+      type: item.type,
+      timestamp: item.timestamp,
+      operator_id: item.operator_id,
+      parameter_name: item.parameters?.display_name || item.parameters?.name,
+      plant_name: item.plants?.name,
+      unit: item.parameters?.unit,
+      [item.parameters?.name || 'value']: item.value,
+    }));
   },
   
   create: async (data: {
@@ -200,14 +233,58 @@ export const measurementsApi = {
     temperature?: number | null;
     flow?: number | null;
     type?: 'influent' | 'effluent';
-    plant_id?: number;
+    plant_id?: number | string;
     operator_id?: number;
     notes?: string;
-  }): Promise<Measurement> => {
-    return apiRequest<Measurement>('/api/measurements', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    });
+  }): Promise<any> => {
+    // Compatibility path: old UI submits all parameters in one payload.
+    // Worker API expects one measurement per parameter.
+    const parametersResponse = await apiRequest<{ data: any[] }>('/parameters?active=true');
+    const parameters = parametersResponse.data || [];
+    const parameterMap = new Map(parameters.map((p) => [String(p.name).toLowerCase(), p.id]));
+
+    const paramEntries: Array<[string, number | null | undefined]> = [
+      ['ph', data.ph],
+      ['cod', data.cod],
+      ['bod', data.bod],
+      ['tss', data.tss],
+      ['ammonia', data.ammonia],
+      ['nitrate', data.nitrate],
+      ['phosphate', data.phosphate],
+      ['temperature', data.temperature],
+      ['flow', data.flow],
+    ];
+
+    const plantId = String(data.plant_id || '').trim();
+    if (!plantId) {
+      throw new Error('Missing plant_id. Select a valid plant from backend list.');
+    }
+
+    const created: any[] = [];
+    for (const [name, value] of paramEntries) {
+      if (value === null || value === undefined || Number.isNaN(value)) continue;
+      const parameterId = parameterMap.get(name);
+      if (!parameterId) continue;
+
+      const result = await apiRequest<{ data: any }>('/measurements', {
+        method: 'POST',
+        body: JSON.stringify({
+          plant_id: plantId,
+          parameter_id: parameterId,
+          value,
+          type: data.type || 'effluent',
+          timestamp: data.timestamp,
+          notes: data.notes,
+        }),
+      });
+      if (result?.data) created.push(result.data);
+    }
+
+    if (created.length === 0) {
+      throw new Error('No measurement values were submitted.');
+    }
+
+    return { created_count: created.length, data: created };
   },
   
   validate: async (parameterId: number, value: number, type: 'influent' | 'effluent'): Promise<{
@@ -229,7 +306,20 @@ export const measurementsApi = {
 // Alerts API
 export const alertsApi = {
   getAll: async (): Promise<Alert[]> => {
-    return apiRequest<Alert[]>('/api/alerts');
+    const response = await apiRequest<{ data: any[] }>('/alerts?resolved=false&limit=50');
+    return (response.data || []).map((item) => {
+      const measurement = item.measurements || {};
+      const parameter = measurement.parameters?.display_name || measurement.parameters?.name || 'Unknown';
+      return {
+        id: item.id,
+        parameter,
+        value: measurement.value,
+        status: item.severity || (item.resolved ? 'resolved' : 'warning'),
+        state: item.resolved ? 'resolved' : 'active',
+        timestamp: item.created_at || measurement.timestamp,
+        resolved_at: item.resolved_at || null,
+      };
+    });
   },
   
   getDashboard: async (): Promise<Alert[]> => {
@@ -237,43 +327,111 @@ export const alertsApi = {
   },
   
   resolve: async (alertId: number): Promise<void> => {
-    await apiRequest(`/api/alerts/${alertId}/resolve`, {
-      method: 'POST',
+    await apiRequest(`/alerts/${alertId}/resolve`, {
+      method: 'PATCH',
+      body: JSON.stringify({ resolved: true }),
     });
+  },
+};
+
+export const plantsApi = {
+  getAll: async (): Promise<Array<{ id: string; name: string; location?: string }>> => {
+    const response = await apiRequest<{ data: any[] }>('/plants');
+    return (response.data || []).map((p) => ({
+      id: p.id,
+      name: p.name,
+      location: p.location,
+    }));
   },
 };
 
 // Parameters API
 export const parametersApi = {
   getAll: async (): Promise<Parameter[]> => {
-    return apiRequest<Parameter[]>('/api/parameters');
-  },
-  
-  create: async (parameter: string, min_limit: number, max_limit: number): Promise<Parameter> => {
-    return apiRequest<Parameter>('/api/parameters', {
-      method: 'POST',
-      body: JSON.stringify({ parameter, min_limit, max_limit }),
+    const [parametersResponse, standardsResponse] = await Promise.all([
+      apiRequest<{ data: any[] }>('/parameters'),
+      apiRequest<{ data: any[] }>('/standards'),
+    ]);
+
+    const standardsByParameterId = new Map<string, any>();
+    (standardsResponse.data || []).forEach((std) => {
+      if (!standardsByParameterId.has(std.parameter_id)) {
+        standardsByParameterId.set(std.parameter_id, std);
+      }
+    });
+
+    return (parametersResponse.data || []).map((p) => {
+      const std = standardsByParameterId.get(p.id);
+      return {
+        id: p.id,
+        parameter: p.name,
+        min_limit: std?.min_value ?? 0,
+        max_limit: std?.max_value ?? 0,
+      };
     });
   },
   
-  update: async (parameterName: string, data: Partial<Parameter>): Promise<Parameter> => {
-    return apiRequest<Parameter>(`/api/parameters/${parameterName}`, {
-      method: 'PUT',
-      body: JSON.stringify(data),
-    });
+  create: async (_parameter: string, _min_limit: number, _max_limit: number): Promise<Parameter> => {
+    throw new Error('Parameter creation is not implemented on the Worker API yet.');
+  },
+  
+  update: async (parameterName: string, _data: Partial<Parameter>): Promise<Parameter> => {
+    throw new Error(`Parameter update for "${parameterName}" is not implemented on the Worker API yet.`);
   },
   
   delete: async (parameterName: string): Promise<{success: boolean}> => {
-    return apiRequest(`/api/parameters/${parameterName}`, {
-      method: 'DELETE',
-    });
+    throw new Error(`Parameter delete for "${parameterName}" is not implemented on the Worker API yet.`);
   },
 };
 
 // Dashboard API
 export const dashboardApi = {
   getData: async (): Promise<DashboardData> => {
-    return apiRequest<DashboardData>('/api/data');
+    const response = await apiRequest<{ data: any[] }>('/measurements?limit=500');
+    const measurements = response.data || [];
+
+    const paramKeys = ['ph', 'cod', 'bod', 'tss', 'ammonia', 'nitrate', 'phosphate', 'temperature', 'flow'];
+    const groupedByDate: Record<string, Record<string, number>> = {};
+
+    for (const m of measurements) {
+      const key = String(m.parameters?.name || '').toLowerCase();
+      if (!paramKeys.includes(key)) continue;
+      const date = new Date(m.timestamp).toISOString().slice(0, 10);
+      groupedByDate[date] ||= {};
+      // Prefer effluent values for dashboard summary trend line.
+      if (m.type === 'effluent' || groupedByDate[date][key] === undefined) {
+        groupedByDate[date][key] = Number(m.value);
+      }
+    }
+
+    const dates = Object.keys(groupedByDate).sort();
+    const buildSeries = (param: string) => dates.map((d) => groupedByDate[d][param] ?? 0);
+
+    return {
+      dates,
+      data: {
+        ph: buildSeries('ph'),
+        cod: buildSeries('cod'),
+        bod: buildSeries('bod'),
+        tss: buildSeries('tss'),
+        ammonia: buildSeries('ammonia'),
+        nitrate: buildSeries('nitrate'),
+        phosphate: buildSeries('phosphate'),
+        temperature: buildSeries('temperature'),
+        flow: buildSeries('flow'),
+      },
+      standards: {
+        ph: { min: 6.0, max: 9.5 },
+        cod: { max: 100 },
+        bod: { max: 50 },
+        tss: { max: 100 },
+        ammonia: { max: 0.5 },
+        nitrate: { max: 14 },
+        phosphate: { max: 1 },
+        temperature: { min: 10, max: 40 },
+        flow: { max: 5000 },
+      },
+    };
   },
   
   getSummary: async (): Promise<any> => {
@@ -358,9 +516,8 @@ export const dataManagementApi = {
 // Check if backend is available
 export const checkBackendHealth = async (): Promise<boolean> => {
   try {
-    const response = await fetch(`${API_BASE_URL}/api/data`, {
+    const response = await fetch(`${API_BASE_URL}/`, {
       method: 'HEAD',
-      credentials: 'include',
     });
     return response.ok;
   } catch (error) {
@@ -370,26 +527,21 @@ export const checkBackendHealth = async (): Promise<boolean> => {
 
 // User Management API
 export interface User {
-  id: number;
+  id: string;
   username: string;
   role: 'admin' | 'operator' | 'client';
 }
 
 export const usersApi = {
   getAll: async (): Promise<User[]> => {
-    return apiRequest<User[]>('/api/users');
+    throw new Error('User management endpoints are not implemented on the Worker API yet.');
   },
   
-  create: async (username: string, password: string, role: string): Promise<{success: boolean; id: number; username: string; role: string}> => {
-    return apiRequest('/api/users', {
-      method: 'POST',
-      body: JSON.stringify({ username, password, role }),
-    });
+  create: async (_username: string, _password: string, _role: string): Promise<{success: boolean; id: string; username: string; role: string}> => {
+    throw new Error('User creation is not implemented on the Worker API yet.');
   },
   
-  delete: async (userId: number): Promise<{success: boolean}> => {
-    return apiRequest(`/api/users/${userId}`, {
-      method: 'DELETE',
-    });
+  delete: async (_userId: string): Promise<{success: boolean}> => {
+    throw new Error('User deletion is not implemented on the Worker API yet.');
   },
 };
