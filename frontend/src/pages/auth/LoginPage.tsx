@@ -4,7 +4,7 @@ import { useAuth } from '../../contexts/AuthContext'
 import { AlertCircle, User, Lock, Eye, EyeOff, Droplets } from 'lucide-react'
 
 const LoginPage = () => {
-  const [username, setUsername] = useState('')
+  const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
@@ -19,7 +19,7 @@ const LoginPage = () => {
     setIsLoading(true)
 
     try {
-      await signIn(username, password)
+      await signIn(email, password)
       navigate('/dashboard')
     } catch (err: any) {
       setError(err.message || 'Failed to sign in')
@@ -62,23 +62,23 @@ const LoginPage = () => {
           <form onSubmit={handleSubmit} className="space-y-5">
             {/* Username Field */}
             <div>
-              <label htmlFor="username" className="block text-sm font-medium text-gray-700 mb-2">
-                Username or Email
+              <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
+                Email
               </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                   <User className="h-5 w-5 text-gray-400" />
                 </div>
                 <input
-                  id="username"
-                  name="username"
+                  id="email"
+                  name="email"
                   type="text"
                   autoComplete="username"
                   required
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
                   className="block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
-                  placeholder="admin or operator@example.com"
+                  placeholder="operator@example.com"
                 />
               </div>
             </div>
@@ -161,11 +161,8 @@ const LoginPage = () => {
           </div>
         </div>
 
-        {/* Demo Credentials */}
         <div className="mt-6 text-center">
-          <p className="text-xs text-gray-400">
-            Demo: <span className="font-medium text-gray-500">admin</span> / <span className="font-medium text-gray-500">admin123</span>
-          </p>
+          <p className="text-xs text-gray-400">Use your Supabase user email and password.</p>
         </div>
       </div>
     </div>
