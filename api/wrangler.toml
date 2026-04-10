@@ -7,8 +7,8 @@ compatibility_flags = ["nodejs_compat"]
 # For SUPABASE_ANON_KEY use a secret (not committed):
 #   cd api && npx wrangler secret put SUPABASE_ANON_KEY
 [vars]
-SUPABASE_URL = "https://YOUR_PROJECT_REF.supabase.co"
-ALLOWED_ORIGINS = "http://localhost:5173,http://127.0.0.1:5173"
+SUPABASE_URL = "https://pkyazsrbhjtxbpwsxbwe.supabase.co"
+ALLOWED_ORIGINS = "http://localhost:5173,http://127.0.0.1:5173,https://wastewaterinput.pages.dev"
 
 # Optional: production-only vars (uncomment and set your real URLs)
 # [env.production.vars]
