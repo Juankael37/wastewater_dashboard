@@ -3,9 +3,7 @@ import { NavLink } from 'react-router-dom'
 import {
   Home,
   PlusCircle,
-  BarChart3,
   AlertTriangle,
-  Settings,
   LogOut
 } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'

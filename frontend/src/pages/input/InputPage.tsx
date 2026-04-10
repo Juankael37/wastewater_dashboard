@@ -137,9 +137,9 @@ const InputPage: React.FC = () => {
       toast.success('Measurement submitted successfully!')
       setShowPreview(false)
       navigate('/dashboard')
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ Submission error:', error)
-      toast.error(`Failed to submit measurement: ${error.message || error}`)
+      toast.error(`Failed to submit measurement: ${error.message || 'Unknown error'}`)
     } finally {
       setIsSubmitting(false)
     }

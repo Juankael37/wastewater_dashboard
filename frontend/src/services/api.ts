@@ -1,25 +1,31 @@
 /**
  * API Service for connecting to Flask backend
+ * Uses relative URLs to leverage Vite's dev server proxy or Flask serving
  */
 
 // Determine API base URL based on current host
 const getApiBaseUrl = () => {
-  // Use environment variable if set
+  // Use environment variable if set (for production)
   if (import.meta.env.VITE_API_URL) {
     return import.meta.env.VITE_API_URL;
   }
   
-  // If accessing from localhost, use localhost for backend
-  if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-    return 'http://localhost:5000';
+  // For development with Vite, use relative URLs (Vite proxy will forward to Flask)
+  // For production served from Flask, use relative URLs from server root
+  // Check if we're being served from /pwa/ path (Flask serving PWA)
+  if (window.location.pathname.startsWith('/pwa')) {
+    // When served from Flask at /pwa/, API routes are at server root
+    return '';
   }
   
-  // If accessing from network IP (like 192.168.1.4), use the same IP for backend
-  // Replace with your computer's actual IP if different
-  return `http://${window.location.hostname}:5000`;
+  // For Vite dev server, use relative URLs (proxy handles forwarding)
+  return '';
 };
 
 const API_BASE_URL = getApiBaseUrl();
+console.log('[API] Base URL:', API_BASE_URL || '(relative)');
+console.log('[API] Current hostname:', window.location.hostname);
+console.log('[API] Current pathname:', window.location.pathname);
 
 // Types
 export interface Measurement {
@@ -109,13 +115,6 @@ async function apiRequest<T>(
     console.log(`[DEBUG apiRequest] ${endpoint} - Content-Type: ${response.headers.get('content-type')}`);
     console.log(`[DEBUG apiRequest] ${endpoint} - URL: ${response.url}`);
     
-    // Special handling for login endpoint - 302 is success
-    if (endpoint === '/login' && response.status === 302) {
-      // Login successful, return empty object
-      console.log('[DEBUG apiRequest] Login successful (302 redirect)');
-      return {} as T;
-    }
-    
     // Check if we were redirected to login page (getting HTML instead of JSON)
     const contentType = response.headers.get('content-type');
     if (contentType && contentType.includes('text/html')) {
@@ -136,6 +135,9 @@ async function apiRequest<T>(
     return await response.text() as T;
   } catch (error) {
     console.error(`[DEBUG apiRequest] Request failed for ${endpoint}:`, error);
+    console.error(`[DEBUG apiRequest] Full URL attempted: ${API_BASE_URL}${endpoint}`);
+    console.error(`[DEBUG apiRequest] Current hostname: ${window.location.hostname}`);
+    console.error(`[DEBUG apiRequest] Error details:`, JSON.stringify(error, Object.getOwnPropertyNames(error)));
     throw error;
   }
 }
@@ -143,21 +145,15 @@ async function apiRequest<T>(
 // Authentication API
 export const authApi = {
   login: async (username: string, password: string): Promise<{success: boolean, message: string, username: string}> => {
-    const formData = new FormData();
-    formData.append('username', username);
-    formData.append('password', password);
-    
-    return apiRequest<{success: boolean, message: string, username: string}>('/login', {
+    // Use JSON for API endpoint
+    return apiRequest<{success: boolean, message: string, username: string}>('/api/login', {
       method: 'POST',
-      body: formData,
-      headers: {
-        // Remove Content-Type for FormData, browser will set it with boundary
-      },
+      body: JSON.stringify({ username, password }),
     });
   },
   
   logout: async (): Promise<void> => {
-    await apiRequest('/logout', { method: 'POST' });
+    await apiRequest('/api/logout', { method: 'POST' });
   },
   
   register: async (username: string, password: string, email?: string): Promise<void> => {
@@ -174,11 +170,9 @@ export const authApi = {
   
   checkAuth: async (): Promise<{ authenticated: boolean; username?: string }> => {
     try {
-      // Try to access a protected endpoint
-      await apiRequest<any>('/api/data');
-      // If successful, we're authenticated
-      // For now, return a default username since /api/data doesn't return user info
-      return { authenticated: true, username: 'admin' };
+      // Use the dedicated auth check endpoint
+      const response = await apiRequest<{ authenticated: boolean; username?: string }>('/api/auth/check');
+      return response;
     } catch (error) {
       return { authenticated: false };
     }

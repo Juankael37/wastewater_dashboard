@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react'
-import { db, initDatabase, measurementService, syncService, cacheService, Measurement } from '../services/offline/database'
+import { initDatabase, measurementService, syncService, Measurement } from '../services/offline/database'
 
 interface OfflineContextType {
   isOnline: boolean

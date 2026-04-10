@@ -1,13 +1,12 @@
 import React, { useState, useEffect } from 'react'
-import { 
-  Users, 
-  Settings as SettingsIcon, 
-  Database, 
-  Bell, 
-  Shield, 
-  Download, 
-  Trash2, 
-  AlertTriangle, 
+import {
+  Users,
+  Database,
+  Bell,
+  Shield,
+  Download,
+  Trash2,
+  AlertTriangle,
   RefreshCw,
   Plus,
   Edit,

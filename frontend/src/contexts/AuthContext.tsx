@@ -135,7 +135,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }
 
   // Reset password function
-  const resetPassword = async (email: string) => {
+  const resetPassword = async (_email: string) => {
     try {
       // Note: Flask backend doesn't have password reset yet
       // This is a placeholder for future implementation

@@ -58,7 +58,7 @@ class WastewaterDatabase extends Dexie {
       measurements: '++id, plant, timestamp, type, synced, [plant+timestamp]',
       syncQueue: '++id, measurementId, action, status, createdAt, [status+createdAt]',
       offlineCache: '++id, key, expiresAt'
-    }).upgrade(trans => {
+    }).upgrade(() => {
       // Migration logic if needed
     })
   }
@@ -73,7 +73,7 @@ export const initDatabase = async () => {
     console.log('IndexedDB database initialized successfully')
     
     // Create some indexes for better performance
-    await db.measurements.where('synced').equals(false).count()
+    await db.measurements.where('synced').equals(0).count()
     await db.syncQueue.where('status').equals('pending').count()
     
     return db
@@ -113,7 +113,7 @@ export const measurementService = {
   async getPendingMeasurements(): Promise<Measurement[]> {
     return await db.measurements
       .where('synced')
-      .equals(false)
+      .equals(0)
       .sortBy('timestamp')
   },
   
@@ -267,7 +267,7 @@ export const cacheService = {
   async clearExpired(): Promise<void> {
     const now = new Date()
     const expired = await db.offlineCache
-      .filter(item => item.expiresAt && item.expiresAt < now)
+      .filter(item => Boolean(item.expiresAt && item.expiresAt < now))
       .toArray()
     
     for (const item of expired) {

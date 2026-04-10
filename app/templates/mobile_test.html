@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mobile Login Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; max-width: 400px; margin: 0 auto; }
+        .form-group { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 5px; font-weight: bold; }
+        input { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
+        button { width: 100%; padding: 12px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; }
+        button:disabled { background: #ccc; }
+        #result { margin-top: 20px; padding: 15px; border-radius: 4px; white-space: pre-wrap; word-break: break-all; font-family: monospace; font-size: 12px; }
+        .success { background: #d4edda; border: 1px solid #c3e6cb; }
+        .error { background: #f8d7da; border: 1px solid #f5c6cb; }
+        .info { background: #d1ecf1; border: 1px solid #bee5eb; }
+    </style>
+</head>
+<body>
+    <h1>Mobile Login Test</h1>
+    <p>This page tests login directly from the Flask backend.</p>
+    
+    <div class="form-group">
+        <label for="username">Username:</label>
+        <input type="text" id="username" value="admin">
+    </div>
+    
+    <div class="form-group">
+        <label for="password">Password:</label>
+        <input type="password" id="password" value="admin123">
+    </div>
+    
+    <button id="loginBtn" onclick="testLogin()">Test Login</button>
+    <button id="checkBtn" onclick="testAuthCheck()" style="margin-top: 10px;">Test Auth Check</button>
+    
+    <div id="result" class="info">Ready to test...</div>
+
+    <script>
+        // Get the API URL based on current host
+        const getApiUrl = () => {
+            const hostname = window.location.hostname;
+            const port = window.location.port;
+            
+            // If we're on the same host as the backend, use relative URL
+            if (hostname === 'localhost' || hostname === '127.0.0.1') {
+                return 'http://localhost:5000';
+            }
+            
+            // Use the same IP as the current page
+            return `http://${hostname}:5000`;
+        };
+        
+        const API_BASE = getApiUrl();
+        
+        function log(message, type = 'info') {
+            const result = document.getElementById('result');
+            result.className = type;
+            result.textContent += '\n' + message;
+            result.scrollTop = result.scrollHeight;
+        }
+        
+        async function testLogin() {
+            const result = document.getElementById('result');
+            result.className = 'info';
+            result.textContent = 'Testing login...\n';
+            
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            
+            log(`API Base: ${API_BASE}`);
+            log(`Current URL: ${window.location.href}`);
+            log(`Current Host: ${window.location.hostname}`);
+            log(`\nSending POST to ${API_BASE}/api/login...`);
+            
+            try {
+                const response = await fetch(`${API_BASE}/api/login`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ username, password }),
+                    credentials: 'include'
+                });
+                
+                log(`Response Status: ${response.status}`);
+                log(`Response Headers:`);
+                for (const [key, value] of response.headers.entries()) {
+                    log(`  ${key}: ${value}`);
+                }
+                
+                const data = await response.json();
+                log(`\nResponse Body:`);
+                log(JSON.stringify(data, null, 2));
+                
+                if (data.success) {
+                    log('\n✅ LOGIN SUCCESSFUL!', 'success');
+                } else {
+                    log(`\n❌ Login failed: ${data.error}`, 'error');
+                }
+                
+            } catch (error) {
+                log(`\n❌ ERROR: ${error.message}`, 'error');
+                log(`Full error: ${JSON.stringify(error, Object.getOwnPropertyNames(error))}`, 'error');
+                log('\nTroubleshooting:', 'info');
+                log('1. Check if Flask server is running on port 5000', 'info');
+                log('2. Check Windows Firewall settings', 'info');
+                log('3. Verify your device is on the same WiFi network', 'info');
+                log('4. Try accessing http://' + window.location.hostname + ':5000 directly', 'info');
+            }
+        }
+        
+        async function testAuthCheck() {
+            const result = document.getElementById('result');
+            result.className = 'info';
+            result.textContent = 'Testing auth check...\n';
+            
+            log(`Sending GET to ${API_BASE}/api/auth/check...`);
+            
+            try {
+                const response = await fetch(`${API_BASE}/api/auth/check`, {
+                    credentials: 'include'
+                });
+                
+                log(`Response Status: ${response.status}`);
+                
+                const data = await response.json();
+                log(`Response Body:`);
+                log(JSON.stringify(data, null, 2));
+                
+                if (data.authenticated) {
+                    log(`\n✅ Authenticated as: ${data.username}`, 'success');
+                } else {
+                    log(`\n❌ Not authenticated`, 'error');
+                }
+                
+            } catch (error) {
+                log(`\n❌ ERROR: ${error.message}`, 'error');
+            }
+        }
+    </script>
+</body>
+</html>

@@ -107,7 +107,39 @@ export default defineConfig({
   },
   server: {
     port: 5173,
-    host: true
+    host: true,
+    strictPort: false,
+    cors: true,
+    proxy: {
+      '/api': {
+        target: 'http://192.168.1.4:5000',
+        changeOrigin: true,
+        secure: false,
+        configure: (proxy, _options) => {
+          proxy.on('error', (err, _req, _res) => {
+            console.log('[Vite Proxy Error]', err);
+          });
+          proxy.on('proxyReq', (proxyReq, req) => {
+            console.log('[Vite Proxy]', req.method, req.url);
+          });
+        },
+      },
+      '/login': {
+        target: 'http://192.168.1.4:5000',
+        changeOrigin: true,
+        secure: false,
+      },
+      '/logout': {
+        target: 'http://192.168.1.4:5000',
+        changeOrigin: true,
+        secure: false,
+      },
+      '/register': {
+        target: 'http://192.168.1.4:5000',
+        changeOrigin: true,
+        secure: false,
+      },
+    }
   },
   build: {
     outDir: 'dist',

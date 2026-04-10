@@ -33,7 +33,7 @@ if ('serviceWorker' in navigator && import.meta.env.PROD) {
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <QueryClientProvider client={queryClient}>
-      <BrowserRouter>
+      <BrowserRouter basename={window.location.pathname.startsWith('/pwa') ? '/pwa' : undefined}>
         <App />
       </BrowserRouter>
     </QueryClientProvider>

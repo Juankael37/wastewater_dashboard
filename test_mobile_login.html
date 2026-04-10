@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Mobile Login Test</title>
+</head>
+<body>
+    <h1>Mobile Login Test</h1>
+    <p>Open this page on your mobile device at: http://192.168.1.4:5173/test_mobile_login.html</p>
+    <button onclick="testLogin()">Test Login</button>
+    <pre id="result"></pre>
+
+    <script>
+        async function testLogin() {
+            const result = document.getElementById('result');
+            result.textContent = 'Testing login...\n';
+            
+            try {
+                // Test direct fetch to Flask backend
+                const response = await fetch('http://192.168.1.4:5000/api/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        username: 'admin',
+                        password: 'admin123'
+                    }),
+                    credentials: 'include'
+                });
+                
+                result.textContent += `Status: ${response.status}\n`;
+                result.textContent += `Headers: ${JSON.stringify(Object.fromEntries(response.headers.entries()))}\n`;
+                
+                const data = await response.json();
+                result.textContent += `Response: ${JSON.stringify(data, null, 2)}\n`;
+                
+            } catch (error) {
+                result.textContent += `Error: ${error.message}\n`;
+                result.textContent += `Full error: ${JSON.stringify(error)}\n`;
+            }
+        }
+    </script>
+</body>
+</html>

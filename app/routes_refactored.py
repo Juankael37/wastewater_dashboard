@@ -3,7 +3,8 @@ Refactored routes for the Wastewater Monitoring System.
 This version uses the new service layer and follows separation of concerns.
 """
 
-from flask import Blueprint, render_template, request, jsonify, send_file, abort, redirect, session
+import os
+from flask import Blueprint, render_template, request, jsonify, send_file, abort, redirect, session, send_from_directory
 from flask_login import login_required, current_user, login_user, logout_user
 from werkzeug.security import generate_password_hash, check_password_hash
 import datetime
@@ -139,6 +140,49 @@ def logout():
 
 
 # ================= DASHBOARD & VIEW ROUTES =================
+@main.route('/mobile-test')
+def mobile_test():
+    """Render the mobile login test page (no auth required)."""
+    return render_template('mobile_test.html')
+
+
+# ================= PWA ROUTES =================
+# Path to the React PWA build output
+PWA_BUILD_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'frontend', 'dist')
+
+@main.route('/pwa')
+def pwa_index():
+    """Serve the React PWA index.html."""
+    return send_from_directory(PWA_BUILD_PATH, 'index.html')
+
+@main.route('/pwa/')
+def pwa_index_trailing():
+    """Serve the React PWA index.html with trailing slash."""
+    return send_from_directory(PWA_BUILD_PATH, 'index.html')
+
+# Serve assets from /assets/ path (referenced in HTML as /assets/...)
+@main.route('/assets/<path:filename>')
+def pwa_assets(filename):
+    """Serve asset files from the PWA build assets directory."""
+    return send_from_directory(os.path.join(PWA_BUILD_PATH, 'assets'), filename)
+
+# Serve root-level static files (registerSW.js, manifest.webmanifest, etc.)
+@main.route('/<path:filename>')
+def pwa_root_static(filename):
+    """Serve root-level static files from the PWA build."""
+    # Only serve specific file types at root to avoid conflicts with API routes
+    if filename in ('registerSW.js', 'manifest.webmanifest', 'sw.js', 'workbox-58bd4dca.js', 'workbox-58bd4dca.js.map', 'sw.js.map', 'vite.svg', 'favicon.ico'):
+        return send_from_directory(PWA_BUILD_PATH, filename)
+    # For other paths, this shouldn't match - let other routes handle it
+    return abort(404)
+
+# Serve other static files from /pwa/ path
+@main.route('/pwa/<path:filename>')
+def pwa_static(filename):
+    """Serve static files from the PWA build."""
+    return send_from_directory(PWA_BUILD_PATH, filename)
+
+
 @main.route('/')
 @login_required
 def index():
@@ -250,6 +294,61 @@ def alerts_page():
 
 
 # ================= API ENDPOINTS =================
+@main.route('/api/login', methods=['POST'])
+def api_login():
+    """API endpoint for login - returns JSON response."""
+    data = request.get_json(silent=True)
+    
+    if not data:
+        # Try form data
+        username = request.form.get('username')
+        password = request.form.get('password')
+    else:
+        username = data.get('username')
+        password = data.get('password')
+    
+    if not username or not password:
+        return jsonify({'success': False, 'error': 'Username and password required'}), 400
+    
+    conn = get_connection()
+    user = conn.execute(
+        "SELECT * FROM users WHERE username = ?",
+        (username,)
+    ).fetchone()
+    conn.close()
+    
+    if user and check_password_hash(user["password"], password):
+        login_user(User(user["id"]))
+        return jsonify({'success': True, 'message': 'Login successful', 'username': username})
+    else:
+        return jsonify({'success': False, 'error': 'Invalid username or password'}), 401
+
+
+@main.route('/api/logout', methods=['POST'])
+def api_logout():
+    """API endpoint for logout."""
+    logout_user()
+    return jsonify({'success': True, 'message': 'Logged out successfully'})
+
+
+@main.route('/api/auth/check')
+def api_auth_check():
+    """API endpoint to check authentication status."""
+    if current_user.is_authenticated:
+        conn = get_connection()
+        user = conn.execute(
+            "SELECT username FROM users WHERE id = ?",
+            (current_user.id,)
+        ).fetchone()
+        conn.close()
+        
+        return jsonify({
+            'authenticated': True,
+            'username': user['username'] if user else None
+        })
+    return jsonify({'authenticated': False}), 401
+
+
 @main.route('/api/data')
 @login_required
 def api_data():

@@ -1,8 +1,6 @@
 import React, { useState, useEffect } from 'react'
-import { 
-  TrendingUp, 
-  TrendingDown, 
-  AlertTriangle, 
+import {
+  AlertTriangle,
   CheckCircle,
   Droplets,
   Thermometer,
@@ -10,9 +8,6 @@ import {
   Beaker,
   Activity,
   Wind,
-  ArrowUpRight,
-  ArrowDownRight,
-  Minus
 } from 'lucide-react'
 import { Line } from 'react-chartjs-2'
 import {
@@ -115,7 +110,6 @@ const DashboardPage: React.FC = () => {
         // Process dashboard data
         if (dashboardData.data && dashboardData.dates) {
           const latestData = dashboardData.data
-          const standards = dashboardData.standards
           const dates = dashboardData.dates
           
           // Calculate compliance rate
@@ -161,12 +155,9 @@ const DashboardPage: React.FC = () => {
             })
             
             // Build chart data for each parameter
-            const influentValues: number[] = []
-            const effluentValues: number[] = []
-            
             // Filter measurements by parameter
-            const paramMeasurements = measurementsData.filter((m: any) => {
-              const paramName = key === 'ph' ? 'ph' : 
+            measurementsData.filter((m: any) => {
+              const paramName = key === 'ph' ? 'ph' :
                                key === 'cod' ? 'cod' :
                                key === 'bod' ? 'bod' :
                                key === 'tss' ? 'tss' :
@@ -182,7 +173,7 @@ const DashboardPage: React.FC = () => {
               ...prev,
               [key]: {
                 labels: dates.slice(-10),
-                influent: values.slice(-10).map((v, i) => v * (0.9 + Math.random() * 0.2)), // Simulated influent
+                influent: values.slice(-10).map((v: number) => v * (0.9 + Math.random() * 0.2)), // Simulated influent
                 effluent: values.slice(-10)
               }
             }))

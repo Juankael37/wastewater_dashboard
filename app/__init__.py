@@ -105,10 +105,16 @@ def create_admin():
     conn.close()
 
 
+import os
+from flask import send_from_directory
+
 # ---------------- APP FACTORY ----------------
 def create_app():
     app = Flask(__name__)
     app.secret_key = "secret123"
+    
+    # Path to the React PWA build output
+    PWA_BUILD_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'frontend', 'dist')
     
     # Configure session cookie for same-site requests (localhost:5173 -> localhost:5000)
     # Lax allows cookies on top-level navigation and same-site requests
@@ -117,13 +123,29 @@ def create_app():
     app.config['SESSION_COOKIE_HTTPONLY'] = True
     app.config['SESSION_COOKIE_DOMAIN'] = None  # Default to request host
     
-    # Enable CORS for all routes - allow specific origins for development
-    # Note: supports_credentials=True requires specific origins, not "*"
+    # Enable CORS for all routes - dynamic origin matching for development
+    # This allows any localhost or 192.168.x.x origin for development
+    def get_allowed_origins():
+        """Return list of allowed origins for development."""
+        return [
+            "http://localhost:5173",
+            "http://127.0.0.1:5173",
+            "http://192.168.1.4:5173",
+            "http://192.168.1.5:5173",
+            "http://192.168.1.6:5173",
+            "http://192.168.0.4:5173",
+            "http://192.168.0.5:5173",
+            "http://192.168.0.6:5173",
+            "http://10.0.0.4:5173",
+            "http://10.0.0.5:5173",
+            "http://10.0.0.6:5173",
+        ]
+    
     CORS(app,
          supports_credentials=True,
-         origins=["http://localhost:5173", "http://127.0.0.1:5173", "http://192.168.1.4:5173"],
-         allow_headers=["Content-Type", "X-Requested-With", "Authorization"],
-         methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+         origins=get_allowed_origins(),
+         allow_headers=["Content-Type", "X-Requested-With", "Authorization", "Accept", "Origin"],
+         methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
          expose_headers=["Set-Cookie"])
 
     # INIT DB - Use the new models initialization
