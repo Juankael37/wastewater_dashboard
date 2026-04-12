@@ -20,6 +20,19 @@ import {
 import toast from 'react-hot-toast'
 import { dataManagementApi, usersApi, parametersApi, type User, type Parameter } from '../../services/api'
 
+/** Local Flask app (legacy full admin API). Cloudflare Worker uses Supabase for auth and partial CRUD. */
+function isFlaskBackend(): boolean {
+  const base = import.meta.env.VITE_API_URL ?? ''
+  return base.includes('localhost:5000') || base.includes('127.0.0.1:5000')
+}
+
+const CloudSettingsNotice: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => (
+  <div className="rounded-lg border border-teal-500/30 bg-teal-500/10 px-4 py-3 text-sm text-slate-300">
+    <p className="font-medium text-teal-300">{title}</p>
+    <div className="mt-2 space-y-1 text-slate-400">{children}</div>
+  </div>
+)
+
 // User Management Component
 const UserManagementSection: React.FC = () => {
   const [users, setUsers] = useState<User[]>([])
@@ -29,6 +42,10 @@ const UserManagementSection: React.FC = () => {
   const [addingUser, setAddingUser] = useState(false)
 
   useEffect(() => {
+    if (!isFlaskBackend()) {
+      setLoading(false)
+      return
+    }
     fetchUsers()
   }, [])
 
@@ -43,6 +60,25 @@ const UserManagementSection: React.FC = () => {
     } finally {
       setLoading(false)
     }
+  }
+
+  if (!isFlaskBackend()) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h2 className="text-2xl font-semibold text-white">User Management</h2>
+          <p className="text-slate-400">Cloud deployment</p>
+        </div>
+        <CloudSettingsNotice title="Managed in Supabase Authentication">
+          <p>
+            User accounts are created via the app Register page or in the Supabase Dashboard (Authentication → Users).
+          </p>
+          <p className="pt-1">
+            Listing and deleting users from this screen requires the legacy Flask admin API. It is not available on the Cloudflare Worker yet.
+          </p>
+        </CloudSettingsNotice>
+      </div>
+    )
   }
 
   const handleAddUser = async () => {
@@ -253,6 +289,7 @@ const UserManagementSection: React.FC = () => {
 
 // Parameter Management Component
 const ParameterManagementSection: React.FC = () => {
+  const flaskBackend = isFlaskBackend()
   const [parameters, setParameters] = useState<Parameter[]>([])
   const [loading, setLoading] = useState(true)
   const [editingParam, setEditingParam] = useState<string | null>(null)
@@ -351,22 +388,31 @@ const ParameterManagementSection: React.FC = () => {
 
   return (
     <div className="space-y-6">
+      {!flaskBackend && (
+        <CloudSettingsNotice title="Read-only on cloud API">
+          <p>
+            Parameters and standards are loaded from Supabase. Add, edit, and delete here still use the legacy Flask API and are hidden until equivalent Worker endpoints exist.
+          </p>
+        </CloudSettingsNotice>
+      )}
       <div className="flex justify-between items-center">
         <div>
           <h2 className="text-2xl font-semibold text-white">Parameter Management</h2>
           <p className="text-slate-400">Configure water quality standards for all parameters</p>
         </div>
-        <button
-          onClick={() => setShowAddParam(!showAddParam)}
-          className="px-4 py-2 bg-teal-500 hover:bg-teal-600 text-white rounded-lg font-semibold transition flex items-center gap-2"
-        >
-          <Plus className="w-4 h-4" />
-          Add Parameter
-        </button>
+        {flaskBackend && (
+          <button
+            onClick={() => setShowAddParam(!showAddParam)}
+            className="px-4 py-2 bg-teal-500 hover:bg-teal-600 text-white rounded-lg font-semibold transition flex items-center gap-2"
+          >
+            <Plus className="w-4 h-4" />
+            Add Parameter
+          </button>
+        )}
       </div>
 
       {/* Add Parameter Form */}
-      {showAddParam && (
+      {flaskBackend && showAddParam && (
         <div className="bg-slate-700/50 rounded-lg p-6 border border-slate-600">
           <h3 className="text-lg font-semibold text-white mb-4">Add New Parameter</h3>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -432,14 +478,16 @@ const ParameterManagementSection: React.FC = () => {
                   {paramIcons[param.parameter] || <Beaker className="w-5 h-5" />}
                   <span className="font-semibold text-white capitalize">{param.parameter}</span>
                 </div>
-                {editingParam === param.parameter ? (
-                  <button onClick={() => setEditingParam(null)} className="text-slate-400 hover:text-white">
-                    <X className="w-4 h-4" />
-                  </button>
-                ) : (
-                  <button onClick={() => { setEditingParam(param.parameter); setEditValues({ min_limit: param.min_limit || 0, max_limit: param.max_limit || 0 }) }} className="text-slate-400 hover:text-white">
-                    <Edit className="w-4 h-4" />
-                  </button>
+                {flaskBackend && (
+                  editingParam === param.parameter ? (
+                    <button onClick={() => setEditingParam(null)} className="text-slate-400 hover:text-white">
+                      <X className="w-4 h-4" />
+                    </button>
+                  ) : (
+                    <button onClick={() => { setEditingParam(param.parameter); setEditValues({ min_limit: param.min_limit || 0, max_limit: param.max_limit || 0 }) }} className="text-slate-400 hover:text-white">
+                      <Edit className="w-4 h-4" />
+                    </button>
+                  )
                 )}
               </div>
 
@@ -482,7 +530,7 @@ const ParameterManagementSection: React.FC = () => {
               )}
               
               {/* Delete button for custom parameters */}
-              {!['ph', 'cod', 'bod', 'tss', 'ammonia', 'nitrate', 'phosphate', 'temperature', 'flow'].includes(param.parameter.toLowerCase()) && (
+              {flaskBackend && !['ph', 'cod', 'bod', 'tss', 'ammonia', 'nitrate', 'phosphate', 'temperature', 'flow'].includes(param.parameter.toLowerCase()) && (
                 <button
                   onClick={() => handleDeleteParameter(param.parameter)}
                   className="mt-2 w-full px-2 py-1 bg-red-500/20 hover:bg-red-500/30 text-red-400 rounded text-xs transition flex items-center justify-center gap-1"
@@ -501,11 +549,13 @@ const ParameterManagementSection: React.FC = () => {
 
 // Data Management Component
 const DataManagementSection: React.FC = () => {
+  const flaskBackend = isFlaskBackend()
   const [dataCount, setDataCount] = useState<number | null>(null)
   const [loading, setLoading] = useState(false)
   const [showClearConfirm, setShowClearConfirm] = useState(false)
 
   useEffect(() => {
+    if (!flaskBackend) return
     fetchDataCount()
   }, [])
 
@@ -516,6 +566,22 @@ const DataManagementSection: React.FC = () => {
     } catch (error) {
       console.error('Failed to fetch data count:', error)
     }
+  }
+
+  if (!flaskBackend) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h2 className="text-2xl font-semibold text-white">Data Management</h2>
+          <p className="text-slate-400">Cloud deployment</p>
+        </div>
+        <CloudSettingsNotice title="Not available on Worker API yet">
+          <p>
+            Bulk counts and clearing measurements are implemented on the legacy Flask API. Use the Supabase Table Editor for measurements if you need to inspect or delete rows during development.
+          </p>
+        </CloudSettingsNotice>
+      </div>
+    )
   }
 
   const handleClearAllData = async () => {
