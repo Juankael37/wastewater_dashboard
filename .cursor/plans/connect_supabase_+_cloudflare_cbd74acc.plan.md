@@ -4,24 +4,26 @@ overview: Connect the existing Supabase project and Cloudflare account to this r
 todos:
   - id: get-ids
     content: Collect Supabase project ref and intended Cloudflare Pages project name/URL.
-    status: pending
+    status: completed
   - id: deploy-supabase-schema
     content: Apply `supabase_schema.sql` in Supabase SQL Editor and verify required tables exist.
-    status: pending
+    status: completed
   - id: configure-worker-env
     content: "Set Worker vars/secrets: SUPABASE_URL, SUPABASE_ANON_KEY, ALLOWED_ORIGINS; deploy with Wrangler."
-    status: pending
+    status: completed
   - id: configure-pwa-env
     content: Set frontend env vars (VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY, VITE_API_URL) for dev/prod builds.
-    status: pending
+    status: completed
   - id: rls-policies
     content: Enable RLS and add minimal policies aligned with current Worker queries and user roles.
-    status: pending
+    status: completed
   - id: smoke-test
     content: Run end-to-end auth + measurements + alerts calls against deployed Worker + Supabase.
-    status: pending
+    status: completed
 isProject: false
 ---
+
+**Keep todos in sync:** From repo root run `.\scripts\sync-connect-plan-todos.ps1` (check) or `.\scripts\sync-connect-plan-todos.ps1 -UpdatePlan` (set `status: completed` when repo checks pass). See `.cursor/rules/connect-plan-sync.mdc`.
 
 ## What I need from you (no secrets)
 - Your **Supabase Project Ref** (the `YOUR_PROJECT_REF` part of `https://YOUR_PROJECT_REF.supabase.co`).

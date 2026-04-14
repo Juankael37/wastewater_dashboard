@@ -1,4 +1,4 @@
-# auto_index.ps1 - Build project_index.txt for OpenCode / analysis (uses .cursorignore)
+# auto_index.ps1 - Build project_index.txt for Cursor analysis (uses .cursorignore)
 
 $projectPath = "C:\Users\admin\Desktop\wastewater_dashboard"
 $ignoreFile = Join-Path $projectPath ".cursorignore"

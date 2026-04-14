@@ -1,0 +1,4 @@
+1. In Supabase Dashboard → SQL Editor, run the full contents of ../supabase_schema.sql (creates tables, base RLS, triggers, storage).
+2. Run ../supabase/migrations/20260413120000_worker_seed_rls_and_profiles.sql (seed org/plant, profile trigger, policies for Worker + PWA).
+3. Optional: run ../scripts/verify_supabase_schema.sql to confirm table names.
+4. After Worker deploy: ../scripts/smoke-test-worker.ps1 (health). For full auth + GET/POST flow, copy ../scripts/smoke.env.example to ../scripts/smoke.env and set WORKER_URL, SMOKE_EMAIL, SMOKE_PASSWORD.

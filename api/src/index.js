@@ -4,6 +4,7 @@ import { logger } from 'hono/logger'
 import { createClient } from '@supabase/supabase-js'
 import { z } from 'zod'
 import { zValidator } from '@hono/zod-validator'
+import { appendMeasurementRow, isSheetsBackupConfigured } from './sheetsBackup.js'
 
 const app = new Hono()
 
@@ -29,14 +30,20 @@ app.use('*', cors({
 }))
 
 /** Cloudflare Workers expose bindings on `c.env` (not process.env). */
+/** Forward caller JWT so PostgREST applies RLS as that user (auth.uid()). */
 app.use('*', async (c, next) => {
   const url = c.env.SUPABASE_URL
   const key = c.env.SUPABASE_ANON_KEY
   if (!url || !key) {
     console.error('Missing SUPABASE_URL or SUPABASE_ANON_KEY')
   }
+  const authHeader = c.req.header('Authorization')
+  const isAuthRoute = c.req.path.startsWith('/auth/')
   const supabase = createClient(url || '', key || '', {
     auth: { persistSession: false },
+    global: authHeader && !isAuthRoute
+      ? { headers: { Authorization: authHeader } }
+      : {},
   })
   c.set('supabase', supabase)
   await next()
@@ -86,6 +93,7 @@ app.get('/', (c) => {
     version: '1.0.0',
     status: 'healthy',
     supabase_configured: configured,
+    sheets_backup_configured: isSheetsBackupConfigured(c.env),
   })
 })
 
@@ -184,11 +192,30 @@ app.post('/measurements', authMiddleware, zValidator('json', measurementSchema),
       operator_id: user.id,
       timestamp: measurement.timestamp || new Date().toISOString(),
     })
-    .select()
+    .select(`
+      *,
+      plants!inner(name),
+      parameters!inner(name, display_name, unit)
+    `)
     .single()
 
   if (error) {
     return c.json({ error: error.message }, 500)
+  }
+
+  const operatorEmail = user.email || ''
+  const backupPromise = appendMeasurementRow(c.env, {
+    measurement: data,
+    operatorEmail,
+  })
+
+  const exec = c.executionCtx
+  if (exec?.waitUntil) {
+    exec.waitUntil(
+      backupPromise.catch((err) => console.error('[sheets] backup error', err))
+    )
+  } else {
+    await backupPromise.catch((err) => console.error('[sheets] backup error', err))
   }
 
   return c.json({ data }, 201)

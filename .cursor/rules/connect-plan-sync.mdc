@@ -1,0 +1,19 @@
+---
+description: Sync connect Supabase + Cloudflare plan YAML todos when related work finishes
+alwaysApply: true
+---
+
+# Connect plan — keep todos accurate
+
+The checklist lives in `.cursor/plans/connect_supabase_+_cloudflare_cbd74acc.plan.md` (YAML `todos` in frontmatter).
+
+**When you finish work that satisfies one of those items** (schema/migrations, Worker `wrangler.toml` + `.dev.vars.example`, PWA `frontend/.env.example`, RLS in `supabase/migrations`, smoke script):
+
+1. Run from repo root: `.\scripts\sync-connect-plan-todos.ps1 -UpdatePlan`  
+   This verifies repo signals and sets `status: completed` for matching todos (it only **promotes** pending → completed unless you pass `-AllowDowngrade`).
+
+2. Or manually set that todo’s `status:` to `completed` in the plan frontmatter if the script’s heuristics do not apply (e.g. purely dashboard steps).
+
+**After touching** `api/`, `frontend/`, or `supabase/` for this integration, prefer running the sync script once before ending the task.
+
+Do not mark a todo completed if the underlying deliverable is not actually done; fix the repo first, then sync.

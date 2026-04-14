@@ -1,34 +1,22 @@
 # Progress Summary — Wastewater Monitoring System
 
-**Last updated:** April 10, 2026  
+**Last updated:** April 13, 2026  
 
-**Canonical status & next steps:** [`PROJECT_PLAN.md`](PROJECT_PLAN.md) · **Milestones & technical reference:** [`IMPLEMENTATION_ROADMAP.md`](IMPLEMENTATION_ROADMAP.md)
-
----
-
-## What works (local / LAN)
-
-- **AquaDash** (Flask): dashboard, reports, exports (PDF with charts, CSV), alerts, settings.
-- **React PWA**: login, dashboard, input, reports, alerts, settings (admin), offline queue, camera capture in UI; talks to Flask with session cookies.
-- **LAN testing:** run the Vite dev server and open the app from another device on the same network (use your PC’s LAN IP, e.g. `http://192.168.x.x:5173`). Ensure Flask listens on `0.0.0.0:5000` if the phone must reach the API; adjust Windows firewall if needed.
-- **Dev-only note:** avoid shipping wide-open CORS or default dev credentials to production.
+**Canonical status & next steps:** [`project_plan.md`](project_plan.md) · **Milestones & technical reference:** [`IMPLEMENTATION_ROADMAP.md`](IMPLEMENTATION_ROADMAP.md) · **Supabase + Cloudflare connect (done):** [`.cursor/plans/connect_supabase_+_cloudflare_cbd74acc.plan.md`](.cursor/plans/connect_supabase_+_cloudflare_cbd74acc.plan.md)
 
 ---
 
-## Notable fixes & features (April 2026 sessions)
+## What works
 
-- Auth: CORS + `SameSite` cookie behavior aligned for API vs browser; login/logout support JSON and form posts; clearer API vs HTML detection.
-- AquaDash: all nine parameters, charts, KPIs, influent/effluent views, alerts.
-- Settings: users, parameters/standards, data tools, report settings (including schedule UI).
-- API examples: `GET/POST /api/users`, `DELETE /api/users/<id>`, `GET /api/parameters`, `PUT /api/parameters/<name>`.
-- Exports: date ranges, matplotlib trends in PDF, CSV headers/metadata.
-- Legacy `app/routes.py` removed in favor of `routes_refactored.py`.
+- **AquaDash (Flask):** dashboard, reports, exports (PDF with charts, CSV), alerts, settings — local / LAN.
+- **React PWA:** login/register, dashboard, input, alerts, settings; **API base** from `VITE_API_URL`. When pointed at the **Cloudflare Worker**, core flows use **Supabase Auth** (JWT) and Worker routes (`/auth/*`, `/measurements`, `/plants`, `/parameters`, `/standards`, `/alerts`). Some features still call **Flask-style** `/api/*` paths (validation, reports, data tools); use Flask (`:5000`) as `VITE_API_URL` if you need those without the Worker implementing them yet.
+- **LAN testing:** Vite dev server + LAN IP; for phone testing, ensure the API host you configure is reachable and CORS/`ALLOWED_ORIGINS` includes your origin.
 
 ---
 
 ## Architecture (one line)
 
-**Today:** Flask + SQLite + React PWA. **Target:** Supabase + Cloudflare Workers + Supabase Auth — code and guides exist; **deploy and cutover are outstanding.**
+**Dual stack:** Flask + SQLite + AquaDash remain for rich exports and legacy admin APIs. **Target path for operators:** React PWA → **Cloudflare Worker** → **Supabase** (see `api/src/index.js`, `frontend/src/services/api.ts`). **Not done:** full parity on Worker for every Flask `/api/*` route; SQLite → Postgres migration; Google Sheets backup.
 
 ---
 
@@ -36,31 +24,31 @@
 
 | Component | Notes |
 |-----------|--------|
-| Flask backend | Operational for core features |
-| React PWA | Feature-complete vs Flask API |
-| Supabase | Schema designed; project deploy pending |
-| Workers `api/` | Coded; deploy pending |
+| Flask backend | Operational for exports, validation, reports, data tools |
+| React PWA | Worker + Supabase Auth when `VITE_API_URL` is the Worker; hybrid `/api/*` calls documented in `IMPLEMENTATION_ROADMAP.md` |
+| Supabase | **Connect plan done:** schema applied, RLS for Worker; see plan + `supabase/migrations/` |
+| Workers `api/` | **Connect plan done:** env/secrets, deploy, health `supabase_configured`; routes in `api/src/index.js` |
 | Sheets backup | Guide only |
-| Mobile / PWA hardening | Production build + real-device pass still recommended |
+| Mobile / PWA hardening | Production build + real-device pass recommended |
 
 ---
 
 ## Technical debt (short)
 
 - Tighten TypeScript types where still loose.
-- Camera + image upload path fully validated against production storage.
+- Resolve **hybrid API**: implement missing routes on Worker, split env vars, or document dual-backend setup clearly.
+- Camera + image upload vs Supabase Storage — validate E2E on production.
 - Run E2E and mobile/offline tests from `PWA_TESTING_GUIDE.md`.
-- Complete cloud migration (see `PROJECT_PLAN.md` success metrics).
 
 ---
 
 ## Migration success (target stack)
 
-Track these as **unchecked until done** (same list as `PROJECT_PLAN.md`):
+Items **1–3** match the completed [connect Supabase + Cloudflare plan](.cursor/plans/connect_supabase_+_cloudflare_cbd74acc.plan.md) (schema, Worker + env, PWA `VITE_*`, RLS, smoke test). **4–6** remain product backlog.
 
-1. Supabase live (auth + RLS + storage as needed)  
-2. Workers deployed and callable from the PWA  
-3. Frontend on Supabase Auth + Workers (not only Flask)  
-4. SQLite → Postgres migration validated  
-5. Real-device PWA verification  
-6. Google Sheets backup implemented  
+1. [x] Supabase live (schema + auth + RLS per connect plan)  
+2. [x] Workers deployed and callable from the PWA (`VITE_API_URL`)  
+3. [x] PWA uses Supabase JWT + Worker for core CRUD (not Flask sessions for that path)  
+4. [ ] SQLite → Postgres migration validated (if needed)  
+5. [ ] Real-device PWA verification  
+6. [ ] Google Sheets backup implemented  

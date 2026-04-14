@@ -1,5 +1,8 @@
 -- Wastewater Monitoring System - Supabase PostgreSQL Schema
 -- Phase 0: Core Database Setup
+--
+-- After this file, apply supabase/migrations/20260413120000_worker_seed_rls_and_profiles.sql
+-- (see supabase/APPLY_ORDER.txt). Required for Cloudflare Worker RLS + default plant seed.
 
 -- Enable necessary extensions
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";

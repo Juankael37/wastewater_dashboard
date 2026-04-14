@@ -1,8 +1,10 @@
 # Wastewater Monitoring System — Implementation Roadmap
 
-**Companion doc:** Use [`PROJECT_PLAN.md`](PROJECT_PLAN.md) for narrative status, percentages, and week-by-week priorities. This file is a **milestone checklist** plus a short **technical reference**.
+**Companion doc:** Use [`project_plan.md`](project_plan.md) for narrative status, percentages, and week-by-week priorities. This file is a **milestone checklist** plus a short **technical reference**.
 
-**Last updated:** April 10, 2026
+**Connect Supabase + Cloudflare (completed checklist):** [`.cursor/plans/connect_supabase_+_cloudflare_cbd74acc.plan.md`](.cursor/plans/connect_supabase_+_cloudflare_cbd74acc.plan.md) — schema deploy, Worker env/secrets + deploy, PWA env (`VITE_*`), RLS aligned with Worker queries, smoke test (auth + measurements + alerts). *Out of scope for that plan:* Flask `/api/*` parity, Sheets backup, SQLite data migration.
+
+**Last updated:** April 13, 2026
 
 ---
 
@@ -10,11 +12,11 @@
 
 | Area | Status |
 |------|--------|
-| Flask + SQLite + AquaDash | Operational |
-| React PWA + Flask API | Operational (local / LAN) |
-| Supabase schema & guides | Designed; **project not deployed** |
-| Cloudflare Workers API | Coded; **not deployed** |
-| Auth | Flask-Login in use; **Supabase Auth migration pending** |
+| Flask + SQLite + AquaDash | Operational (local); exports & admin tooling |
+| React PWA | **Hybrid:** Worker base URL (`VITE_API_URL`) for auth, measurements, plants, parameters, standards, alerts; some calls still use Flask-style `/api/*` paths (validation, reports, data tools) — point `VITE_API_URL` at Flask (`:5000`) for full legacy behavior, or Workers for cloud core flows |
+| Supabase | **Connected (per plan):** schema applied, RLS/policies in place for Worker usage; migrations under `supabase/migrations/` |
+| Cloudflare Workers API | **Deployed & configured** (`SUPABASE_URL`, `SUPABASE_ANON_KEY`, `ALLOWED_ORIGINS`); routes in `api/src/index.js` |
+| Auth (PWA → Worker) | Supabase Auth via `POST /auth/login`, `POST /auth/register`; JWT in `localStorage` |
 | Google Sheets backup | Guide only; **not implemented** |
 
 ---
@@ -25,8 +27,8 @@
 - [x] `supabase_schema.sql` + `SUPABASE_SETUP_GUIDE.md`
 - [x] `api/` Workers skeleton + `CLOUDFLARE_DEPLOYMENT_GUIDE.md`
 - [x] React + Vite PWA, Dexie offline, core dependencies
-- [ ] **Next:** Create Supabase project, apply schema, RLS, storage buckets
-- [ ] **Next:** Deploy Workers; add production secrets
+- [x] **Supabase:** project + schema apply + RLS — see [connect plan](.cursor/plans/connect_supabase_+_cloudflare_cbd74acc.plan.md) and `supabase/migrations/`
+- [x] **Workers:** deploy + secrets; smoke test per plan (`scripts/smoke-test-worker.ps1` or manual checklist in plan)
 
 ---
 
@@ -46,19 +48,19 @@
 
 ---
 
-## Milestone 3 — Local integration *(complete)*
+## Milestone 3 — Integration *(complete locally; cloud path in use)*
 
-- [x] `frontend/src/services/api.ts` + Flask session auth
+- [x] `frontend/src/services/api.ts` — Bearer token auth, Worker routes + remaining Flask `/api/*` calls (see file)
 - [x] Deployment guides: Supabase, Cloudflare, PWA testing, Sheets backup
-- [x] Env templates (`frontend`, `api/wrangler.toml`); **no production secrets in repo**
-- [x] End-to-end on **local** stack
+- [x] Env templates (`frontend/.env.example`, `api/.dev.vars.example`, `config/deployment.env.example`); **no production secrets in repo**
+- [x] End-to-end on **local** stack (Flask); **Worker + Supabase** path exercised when `VITE_API_URL` targets the Worker
 
-**Not done (cloud):**
+**Still open:**
 
-- [ ] Deploy Supabase + migrate SQLite → Postgres
-- [ ] Deploy Workers; point PWA to production API
-- [ ] Supabase Auth replacing Flask-Login for the PWA
+- [ ] Migrate SQLite → Postgres (optional; if you have production SQLite data)
+- [ ] Port or duplicate Flask-only `/api/*` features on the Worker (or document dual-backend dev)
 - [ ] Implement Sheets backup
+- [ ] Supabase Storage end-to-end for camera images (if not finished)
 
 ---
 
@@ -68,7 +70,7 @@
 
 - [x] Report Settings tab; schedule UI (daily/weekly/monthly)
 - [x] User / parameter / data management in Settings
-- [x] PDF/CSV enhancements (see `PROJECT_PLAN.md`)
+- [x] PDF/CSV enhancements (see `project_plan.md`)
 
 **Still open:**
 
@@ -97,15 +99,18 @@ profiles, companies, plants, parameters, standards,
 measurements, measurement_images, alerts
 ```
 
-### Workers API (intended)
+### Workers API (current — `api/src/index.js`)
 
 ```
-GET/POST   /api/measurements  (+ /:id)
-GET        /api/alerts
-POST       /api/alerts/resolve/:id
-GET/POST   /api/reports/generate, /api/reports/schedule
-POST       /api/backup/to-sheets
+GET        /
+POST       /auth/login, /auth/register
+GET/POST   /measurements, GET /measurements/:id
+GET        /alerts
+PATCH      /alerts/:id/resolve
+GET        /parameters, /standards, /plants
 ```
+
+Flask-only (not on Worker yet): `/api/validation/check`, `/api/reports/*`, `/api/data/*`, parts of alerts dashboard — see `frontend/src/services/api.ts`.
 
 ### Frontend layout *(implemented)*
 
@@ -113,11 +118,12 @@ POST       /api/backup/to-sheets
 
 ---
 
-## Quality gates *(not met until cloud migration is done)*
+## Quality gates
 
-- [ ] RLS and auth tested; no cross-tenant leaks
-- [ ] PWA: install + camera + offline sync on real devices
+- [ ] RLS and auth tested in production; no cross-tenant leaks
+- [ ] PWA: install + camera + offline sync on real devices against Worker URL
 - [ ] Reasonable load times and error handling in production
+- [ ] Hybrid API: either remove Flask dependency for PWA or document when each backend is required
 
 ---
 
@@ -126,10 +132,12 @@ POST       /api/backup/to-sheets
 - Free-tier limits (Supabase/Workers) — monitor usage
 - Offline conflicts — design exists; validate under real usage
 - Camera behavior varies by browser/OS — test on target phones
+- **Dual API surface** — PWA mixes Worker and Flask routes; easy to misconfigure `VITE_API_URL`
 
 ---
 
 ## Revision history
 
-- **2026-04-10:** Consolidated duplicate “Phase 5” sections; fixed contradictory “done/pending” checkmarks; aligned with `PROJECT_PLAN.md`; removed stale dated “today” block.
+- **2026-04-13:** Linked [connect plan](.cursor/plans/connect_supabase_+_cloudflare_cbd74acc.plan.md); snapshot reflects completed connect work (schema, Worker env/deploy, PWA env, RLS, smoke test) plus hybrid `/api/*` and actual Worker routes.
+- **2026-04-10:** Consolidated duplicate “Phase 5” sections; fixed contradictory “done/pending” checkmarks; aligned with `project_plan.md`; removed stale dated “today” block.
 - **2026-04-07:** Prior version (phase numbering overlapped; some items marked done while text said pending).

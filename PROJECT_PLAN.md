@@ -1,8 +1,11 @@
 # Wastewater Monitoring System – Project Status & Migration Plan
 
-**Also see:** [`IMPLEMENTATION_ROADMAP.md`](IMPLEMENTATION_ROADMAP.md) (milestone checklist + API/schema reference) · [`PROGRESS_SUMMARY.md`](PROGRESS_SUMMARY.md) (recent session notes)
+**Also see:** [`IMPLEMENTATION_ROADMAP.md`](IMPLEMENTATION_ROADMAP.md) (milestone checklist + API/schema reference) · [`PROGRESS_SUMMARY.md`](PROGRESS_SUMMARY.md) (recent session notes) · **[Connect Supabase + Cloudflare](.cursor/plans/connect_supabase_+_cloudflare_cbd74acc.plan.md)** (completed: schema deploy, Worker vars/secrets + deploy, PWA env, RLS, smoke test)
 
-## 📊 Current Implementation Status (April 8, 2026)
+### Connect plan vs rest of migration
+The [connect plan](.cursor/plans/connect_supabase_+_cloudflare_cbd74acc.plan.md) scoped **wiring** this repo to Supabase + a deployed Worker + PWA env + minimal RLS + E2E checks. **Outside that plan** (still tracked below): Flask `/api/*` parity for some PWA screens, optional SQLite → Postgres migration, Google Sheets backup, email automation, multi-tenant, full camera→Storage QA.
+
+## 📊 Current Implementation Status (April 13, 2026)
 
 ### ✅ Completed Features (Enhanced Legacy + New Infrastructure)
 
@@ -25,15 +28,14 @@
 - **PWA features**: Manifest, service worker, offline capabilities
 - **Complete page structure**: Login, Register, Dashboard, Input, Reports, Alerts, Settings
 - **Offline capabilities**: IndexedDB with Dexie.js, background sync
-- **API integration**: Comprehensive service layer connecting to backend
-- **Authentication Flow**: Fixed API handling for Flask 302 redirects
+- **API integration**: `frontend/src/services/api.ts` — Worker routes + remaining Flask `/api/*` where features are not ported yet
+- **Authentication Flow**: Supabase Auth via Worker when `VITE_API_URL` points at the Worker (JWT in `localStorage`); Flask session path still available for AquaDash
 - **Error Handling**: Enhanced error handling for authentication failures
 
-#### Infrastructure (Ready for Deployment)
-- **Supabase schema** designed and documented (`supabase_schema.sql`)
-- **Cloudflare Workers API** coded and configured (`api/` directory)
-- **Implementation guides** created for all deployment steps
-- **Environment configuration** updated for production deployment
+#### Infrastructure (cloud path in repo)
+- **Supabase schema** + migrations (`supabase_schema.sql`, `supabase/migrations/`)
+- **Cloudflare Workers API** (`api/src/index.js`) — auth, measurements, plants, parameters, standards, alerts
+- **Implementation guides** and env templates (`frontend/.env.example`, `api/.dev.vars.example`, `config/deployment.env.example`)
 
 ### ✅ Refactoring & Preparation Improvements (Completed)
 - **Extended Database Schema**: Added support for Ammonia, Nitrate, Phosphate, Temperature, Flow parameters
@@ -42,26 +44,23 @@
 - **Consolidated Architecture**: Clean separation between routes, services, and models
 - **Fixed SQL Issues**: Resolved SQL query parameter binding problems
 - **Comprehensive Testing**: All core functionality tested and verified
-- **API Integration**: Created `frontend/src/services/api.ts` for Flask backend connection
+- **API Integration**: `frontend/src/services/api.ts` targets Worker + Supabase for core flows; Flask `/api/*` for legacy report/data routes
 - **Deployment Guides**: Created comprehensive guides for Supabase, Cloudflare, PWA testing, and Google Sheets backup
 - **Authentication Fix**: Resolved login issues with frontend API handling of Flask 302 redirects
 - **Documentation**: Created `AUTHENTICATION_FIX.md` troubleshooting guide
 
 ### ⚠️ Remaining Migration Tasks
-- **Technology Stack Migration**: From Flask + SQLite to Cloudflare + Supabase
-- **Authentication Migration**: From Flask-Login to Supabase Auth
-- **Database Deployment**: Deploy Supabase schema to production
-- **API Deployment**: Deploy Cloudflare Workers to production
-- **Integration Testing**: Test frontend with new infrastructure
-- **Data Migration**: Migrate existing SQLite data to Supabase
-- **PWA Subdirectory Routing**: Fixed React Router basename configuration for `/pwa` path
+- **Feature parity**: Port or replace Flask-only `/api/*` usage in the PWA (validation, reports, data import/export) on the Worker — or run a documented dual-backend setup
+- **Data Migration**: Optional — SQLite → Postgres if you need historical data in Supabase
+- **Storage**: Supabase Storage wired for camera images end-to-end (verify uploads + RLS)
+- **Backup / email**: Google Sheets backup; scheduled email reports (future)
 
 ## 🎯 Target Architecture (Zero-Cost Deployment)
 - **Frontend**: React PWA with offline capabilities (✅ Complete)
-- **Backend**: Cloudflare Workers/Pages Functions (⚠️ Ready for deployment)
-- **Database**: Supabase PostgreSQL with RLS (⚠️ Schema designed, deployment pending)
-- **Auth**: Supabase Auth with role management (⚠️ Migration pending)
-- **Storage**: Supabase Storage for parameter images (⚠️ Configuration pending)
+- **Backend**: Cloudflare Worker (`api/`) for core API; Flask retained for AquaDash and legacy `/api/*` features
+- **Database**: Supabase PostgreSQL with RLS (schema + migrations in repo; verify in project)
+- **Auth**: Supabase Auth for PWA when using Worker URL
+- **Storage**: Supabase Storage for parameter images (⚠️ finish E2E if not done)
 - **Backup**: Google Sheets API integration (⚠️ Implementation guide created)
 - **Email**: Supabase Edge Functions + Resend/SendGrid (📅 Future phase)
 
@@ -73,31 +72,31 @@
 - [x] Create detailed migration roadmap (`IMPLEMENTATION_ROADMAP.md`)
 - [x] Set up project structure and configuration files
 
-### Phase 1: Database Migration (IN PROGRESS)
+### Phase 1: Database Migration (IN PROGRESS — cloud baseline done)
 - [x] Design Supabase schema (PostgreSQL) - `supabase_schema.sql`
 - [x] **Enhanced legacy SQLite database** with proper models
 - [x] **Implemented data validation services**
 - [x] **Created deployment guide** (`SUPABASE_SETUP_GUIDE.md`)
-- [ ] Create actual Supabase project and deploy schema
-- [ ] Migrate existing data from SQLite to Supabase
-- [ ] Implement Row Level Security (RLS) policies
-- [ ] Set up storage buckets for images
+- [x] Create Supabase project and apply schema (per your deployment)
+- [ ] Migrate existing data from SQLite to Supabase (optional)
+- [x] Row Level Security (RLS) — policies/migrations in repo; **verify** in Supabase dashboard
+- [ ] Set up storage buckets for images (if not complete)
 
-### Phase 2: Backend API Migration (READY FOR DEPLOYMENT)
+### Phase 2: Backend API Migration (Worker live; extend as needed)
 - [x] Create Cloudflare Workers API skeleton - `api/` directory
 - [x] **Refactored Flask backend** with proper service layer
-- [x] **Implemented authentication** with Flask-Login
+- [x] **Implemented authentication** with Flask-Login (AquaDash / Flask API)
 - [x] **Built CRUD operations** for all entities via services
 - [x] **Added validation and business logic** in services module
 - [x] **Updated API to use environment variables**
 - [x] **Created deployment guide** (`CLOUDFLARE_DEPLOYMENT_GUIDE.md`)
-- [ ] Deploy API to Cloudflare Workers
-- [ ] Test API endpoints in production
+- [x] Deploy API to Cloudflare Workers (per your account)
+- [ ] Extend Worker for remaining `/api/*` features used by the PWA, or keep Flask for those routes
 - [ ] Set up monitoring and logging
 
 ### Phase 3: Frontend Rewrite (React PWA) ✅ COMPLETED
 - [x] Set up React + Vite project with PWA configuration - `frontend/` directory
-- [x] Implement authentication flows - `AuthContext.tsx` (updated for Flask API)
+- [x] Implement authentication flows - `AuthContext.tsx` (Worker + Supabase JWT when using Worker `VITE_API_URL`)
 - [x] **Built dashboard component** with all 9 parameters and charts - `DashboardPage.tsx`
 - [x] **Created layout components** - Layout, Navigation, Header
 - [x] **Implemented offline context** - `OfflineContext.tsx`
@@ -108,24 +107,25 @@
 - [x] **Installed all dependencies** including `react-hot-toast`
 - [x] **Built fully functional Settings page** - `SettingsPage.tsx` with user/parameter/data management
 
-### Phase 4: Integration & deployment — **local complete**, cloud pending
-Local Flask + React integration and operator workflows are done. Target stack (Supabase + Workers) is **not** deployed yet.
+### Phase 4: Integration & deployment — **local complete**, **cloud path connected**
+Local Flask + React integration is done. The PWA can use **Supabase + Workers** when `VITE_API_URL` points at the deployed Worker; some screens still call Flask `/api/*` routes.
 
 - [x] Create API integration infrastructure
 - [x] Develop comprehensive deployment guides
 - [x] Update code for environment configuration
 - [x] **Fix CORS and session cookie configuration**
-- [x] **Fix authentication flow with proper API detection**
+- [x] **Authentication for Worker path (JWT + Bearer)**
 - [x] **Enhance AquaDash dashboard with all 9 parameters**
 - [x] **Build functional Settings page with user/parameter management**
-- [x] **Add user management API endpoints**
+- [x] **Add user management API endpoints** (Flask)
 - [x] **Clean up legacy code files**
 - [x] **Add export date range selection (Today, Week, Month, All)**
 - [x] **Add PDF export with matplotlib trend graphs for all 9 parameters**
 - [x] **Enhance CSV export with professional header and metadata**
-- [ ] Deploy Supabase database
-- [ ] Deploy Cloudflare Workers API
+- [x] Deploy Supabase database (your project)
+- [x] Deploy Cloudflare Workers API (your account)
 - [ ] Implement Google Sheets backup
+- [ ] Close gaps: Worker vs Flask feature parity for PWA (see `IMPLEMENTATION_ROADMAP.md`)
 
 ### Phase 5: Advanced Features (UPCOMING)
 - [ ] Implement Google Sheets backup (guide created)
@@ -155,29 +155,14 @@ Local Flask + React integration and operator workflows are done. Target stack (S
    - PWA Testing Guide
    - Google Sheets Backup Guide
 7. ✅ **Updated API integration**
-   - Created `frontend/src/services/api.ts`
-   - Updated AuthContext for Flask authentication
+   - Created `frontend/src/services/api.ts` (Worker + selective Flask `/api/*`)
+   - AuthContext uses JWT/session from Worker login path
    - Enhanced error handling and TypeScript types
 
-### 🔄 Week 4: Integration & Deployment - IN PROGRESS
-1. **Priority 1: Supabase Deployment** (1-2 hours)
-   - Create Supabase account and project
-   - Deploy database schema
-   - Configure authentication and storage
-   - Update environment variables
-
-2. **Priority 2: Cloudflare Workers Deployment** (1 hour)
-   - Install Wrangler CLI and login to Cloudflare
-   - Update `api/wrangler.toml` with Supabase credentials
-   - Deploy API to Cloudflare Workers
-   - Test API endpoints
-
-3. **Priority 3: Frontend Integration** (2 hours)
-   - Update frontend to use deployed Cloudflare API
-   - Test authentication flow with Supabase
-   - Verify data submission and retrieval
-   - Test offline capabilities with new backend
-
+### 🔄 Week 4: Integration & Deployment — **mostly complete**; polish remains
+1. **Supabase** — Confirm RLS, profiles, and storage match app usage.
+2. **Workers** — Keep secrets and `ALLOWED_ORIGINS` aligned with Pages/Vite origins.
+3. **Frontend** — Resolve hybrid API: either implement missing Worker routes or document `VITE_API_URL` = Flask for full legacy PWA features.
 4. **Priority 4: Mobile PWA Testing** (1 hour)
    - Build production PWA
    - Test installation on mobile devices
@@ -212,7 +197,7 @@ Local Flask + React integration and operator workflows are done. Target stack (S
 - **Status**: ✅ Complete and Functional
 - **Dependencies**: All installed including Dexie, React Hook Form, Lucide Icons, Chart.js
 - **PWA Configuration**: ✅ Complete with manifest and service worker
-- **API Integration**: ✅ Complete with comprehensive service layer
+- **API Integration**: ✅ Worker + hybrid Flask routes (see `api.ts`)
 - **Pages**: Dashboard (9 params + charts), Input, Reports, Alerts, Settings (users/params/data)
 
 ### Backend APIs (Flask + SQLite)
@@ -222,11 +207,11 @@ Local Flask + React integration and operator workflows are done. Target stack (S
 - **Parameter Management**: ✅ Get/update standards API
 - **Data Management**: ✅ Clear data, get count API
 - **Measurements**: ✅ CRUD operations for all 9 parameters
-- **Cloudflare Workers API**: ⚠️ Coded, ready for deployment
+- **Cloudflare Workers API**: ✅ Core routes deployed (auth, measurements, plants, parameters, standards, alerts)
 
 ### Database
 - **SQLite**: ✅ Enhanced with all 9 parameters, users, standards, alerts
-- **Supabase PostgreSQL**: ⚠️ Schema designed, deployment pending
+- **Supabase PostgreSQL**: ✅ In use for Worker path; migrations in repo
 
 ### Two Interfaces
 - **AquaDash** (localhost:5000): Dark theme for clients/owners - monitoring dashboard
@@ -251,29 +236,28 @@ Local Flask + React integration and operator workflows are done. Target stack (S
 
 Migration is complete when **all** of the following are true:
 
-1. [ ] Supabase database deployed with working authentication and RLS
-2. [ ] Cloudflare Workers API operational and reachable from the PWA
-3. [ ] Frontend using production API + Supabase Auth (not only Flask sessions)
-4. [ ] Data migrated from SQLite to PostgreSQL with validation
+1. [x] Supabase database deployed with working authentication and RLS (verify policies in dashboard)
+2. [x] Cloudflare Workers API operational and reachable from the PWA
+3. [x] Frontend using production Worker API + Supabase Auth for core flows (JWT); Flask remains for AquaDash and some PWA `/api/*` features
+4. [ ] Data migrated from SQLite to PostgreSQL with validation (if required)
 5. [ ] Mobile PWA verified on real devices (install, camera, offline sync)
 6. [ ] Google Sheets backup implemented and tested
 
 ## 📈 Project Health Status
 
-- **Overall Progress**: ~98% local product; **cloud migration** = schema + code ready, deploy & cutover pending
-- **Frontend**: 100% (All pages functional and tested)
-- **Backend**: 98% (All APIs operational including export with graphs, Cloudflare deployment pending)
-- **Documentation**: 100% (All guides created)
-- **Testing**: 85% (Core features tested, export features tested, mobile PWA testing pending)
+- **Overall Progress**: Product feature-rich locally; **cloud operator path** live; **parity + backup + device QA** remain
+- **Frontend**: Strong; resolve hybrid API for a single clear production story
+- **Backend**: Flask complete for exports/admin; Worker covers core CRUD + auth
+- **Documentation**: Roadmap/progress aligned as of April 2026
+- **Testing**: Exercise smoke tests (`scripts/smoke-test-worker.ps1`) and `PWA_TESTING_GUIDE.md` on real devices
 
 The system is fully functional with two interfaces:
 1. **AquaDash** (Flask HTML templates) - Client/owner monitoring dashboard with export features
-2. **React PWA** - Operator data input and admin settings management
+2. **React PWA** - Operator data input and settings; **Worker + Supabase** when configured
 
-### Latest Features (April 7, 2026):
-- Export PDF with trend graphs for all 9 parameters
-- Export CSV with professional header
-- Date range selection for exports
+### Latest features (recent sessions):
+- Worker + Supabase integration; RLS/migration artifacts in `supabase/migrations/`
+- Export PDF with trend graphs for all 9 parameters (Flask / AquaDash)
 - Report Settings tab in Settings page
 
-Ready for production deployment to Cloudflare + Supabase when needed.
+**Next focus:** Google Sheets backup, optional SQLite migration, Worker parity for PWA-only Flask routes, production device testing.

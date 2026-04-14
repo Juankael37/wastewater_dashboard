@@ -7,7 +7,7 @@ A full‑stack web application for monitoring wastewater treatment plants. Opera
 
 **Target Deployment:** Cloudflare + Supabase (zero‑cost approach)
 
-**Implementation status:** [`PROJECT_PLAN.md`](PROJECT_PLAN.md) (current stack vs migration).
+**Implementation status:** [`project_plan.md`](project_plan.md), [`IMPLEMENTATION_ROADMAP.md`](IMPLEMENTATION_ROADMAP.md), and the completed [Connect Supabase + Cloudflare](.cursor/plans/connect_supabase_+_cloudflare_cbd74acc.plan.md) checklist (schema, Worker, PWA env, RLS, smoke test). Broader backlog: hybrid API parity, Sheets backup, optional data migration.
 
 ## Two Interfaces
 
