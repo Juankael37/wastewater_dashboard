@@ -107,6 +107,13 @@ Real‑time warnings when values exceed valid ranges (see detailed table in orig
 - Refactor before session end.
 - **Save to GitHub** – initiate git commit and push.
 
+## Checkpoint (April 15, 2026)
+
+- Completed: security hardening, RBAC/CORS fixes, offline sync stabilization, report hot-path optimization, schema-mutation cleanup, and DTO normalization.
+- In progress: Worker parity migration for legacy Flask `/api/*` contracts used by the PWA.
+- Worker parity now includes: validation check, report metric endpoints, alerts dashboard summary, data count/clear, and user list/create (delete still intentionally disabled).
+- Remaining blockers: Worker PDF/export parity strategy, account deletion lifecycle policy for Worker, observability/release safety implementation.
+
 ## Key Constraints
 - Zero‑cost deployment (Cloudflare + Supabase)
 - Offline‑capable mobile app

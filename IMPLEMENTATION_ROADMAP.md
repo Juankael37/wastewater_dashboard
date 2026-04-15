@@ -4,7 +4,7 @@
 
 **Connect Supabase + Cloudflare (completed checklist):** [`.cursor/plans/connect_supabase_+_cloudflare_cbd74acc.plan.md`](.cursor/plans/connect_supabase_+_cloudflare_cbd74acc.plan.md) — schema deploy, Worker env/secrets + deploy, PWA env (`VITE_*`), RLS aligned with Worker queries, smoke test (auth + measurements + alerts). *Out of scope for that plan:* Flask `/api/*` parity, Sheets backup, SQLite data migration.
 
-**Last updated:** April 13, 2026
+**Last updated:** April 15, 2026
 
 ---
 
@@ -13,11 +13,20 @@
 | Area | Status |
 |------|--------|
 | Flask + SQLite + AquaDash | Operational (local); exports & admin tooling |
-| React PWA | **Hybrid:** Worker base URL (`VITE_API_URL`) for auth, measurements, plants, parameters, standards, alerts; some calls still use Flask-style `/api/*` paths (validation, reports, data tools) — point `VITE_API_URL` at Flask (`:5000`) for full legacy behavior, or Workers for cloud core flows |
+| React PWA | **Hybrid but improved:** capability-driven API routing with normalized DTOs; Worker path now covers more legacy parity routes while retaining explicit fallbacks |
 | Supabase | **Connected (per plan):** schema applied, RLS/policies in place for Worker usage; migrations under `supabase/migrations/` |
-| Cloudflare Workers API | **Deployed & configured** (`SUPABASE_URL`, `SUPABASE_ANON_KEY`, `ALLOWED_ORIGINS`); routes in `api/src/index.js` |
+| Cloudflare Workers API | **Deployed & expanded** (`SUPABASE_URL`, `SUPABASE_ANON_KEY`, `ALLOWED_ORIGINS`); includes added parity routes for validation, report metrics, alerts dashboard, data count/clear, and user list/create |
 | Auth (PWA → Worker) | Supabase Auth via `POST /auth/login`, `POST /auth/register`; JWT in `localStorage` |
 | Google Sheets backup | Guide only; **not implemented** |
+
+### Checkpoint (April 15, 2026)
+
+- Completed roadmap items around security hardening, runtime schema safety, offline queue stability, report hot-path optimization, and DTO normalization.
+- Expanded Worker parity endpoints and frontend capability flags to reduce Flask-only requirements in day-to-day PWA flows.
+- Current high-priority remaining parity items:
+  - Worker PDF/report artifact parity.
+  - Worker user delete parity (requires safer lifecycle strategy).
+  - Observability/release safety milestone (#12 in sprint-ready plan).
 
 ---
 

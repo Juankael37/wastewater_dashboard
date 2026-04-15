@@ -5,7 +5,26 @@
 ### Connect plan vs rest of migration
 The [connect plan](.cursor/plans/connect_supabase_+_cloudflare_cbd74acc.plan.md) scoped **wiring** this repo to Supabase + a deployed Worker + PWA env + minimal RLS + E2E checks. **Outside that plan** (still tracked below): Flask `/api/*` parity for some PWA screens, optional SQLite → Postgres migration, Google Sheets backup, email automation, multi-tenant, full camera→Storage QA.
 
-## 📊 Current Implementation Status (April 13, 2026)
+## 📊 Current Implementation Status (April 15, 2026)
+
+### 🔖 Checkpoint — April 15, 2026
+
+**Completed in this checkpoint**
+- Security hardening completed: env-based secrets/bootstrap admin, RBAC enforcement (Flask + Worker + RLS), and strict CORS behavior.
+- Frontend/Worker contract stabilization completed: capability endpoints + capability-driven gating in `frontend/src/services/api.ts` and Settings UI.
+- Offline sync reliability improvements completed: real API replay for queued creates, single-flight queue processing, delete queue bug fix.
+- Reporting/performance improvements completed: lightweight CSV export path, report summary/performance caching, heavy PDF kept on dedicated endpoint.
+- Schema/runtime safety completed: removed runtime `ALTER TABLE` behavior in request handlers and added migration script for legacy SQLite `users.role`.
+- DTO normalization completed for dashboard/alerts via centralized mapping in service layer.
+
+**In progress**
+- Worker parity expansion for legacy `/api/*` routes (major item #11) is actively in progress.
+- Worker now supports compatibility endpoints for validation, report metrics (`/api/reports/*` non-PDF), alerts dashboard, data count/clear, and user list/create.
+
+**Remaining next actions / blockers**
+- Worker user delete parity remains intentionally disabled (capability flag false) pending safe account lifecycle strategy.
+- Worker PDF parity remains open (`supportsLegacyReportPdfApi=false`); choose implementation strategy or keep explicit non-support.
+- Observability and release safety rails (plan item #12) are not started yet.
 
 ### ✅ Completed Features (Enhanced Legacy + New Infrastructure)
 
@@ -261,3 +280,103 @@ The system is fully functional with two interfaces:
 - Report Settings tab in Settings page
 
 **Next focus:** Google Sheets backup, optional SQLite migration, Worker parity for PWA-only Flask routes, production device testing.
+
+## Sprint-ready execution plan (from analysis steps 1-3)
+
+Numbered backlog below is ordered by priority and grouped as quick wins, medium improvements, and major refactors.
+
+1. **Quick win (P0) — Remove hardcoded secrets/default credentials**
+   - **Owner:** Backend
+   - **Estimate:** 0.5 day
+   - **Dependencies:** Access to runtime secret manager/env configuration
+   - **Files:** `app/__init__.py`, `app/models/__init__.py`, `config/deployment.env.example`
+   - **Change:** Replace hardcoded Flask secret and default admin bootstrap with environment-driven settings and secure bootstrap guards.
+   - **Acceptance criteria:** No hardcoded secrets/credentials in repo; app fails fast when required secrets are missing in non-dev.
+
+2. **Quick win (P0) — Enforce RBAC on destructive/admin APIs**
+   - **Owner:** Backend
+   - **Estimate:** 1 day
+   - **Dependencies:** Role mapping agreement (`admin` vs Supabase roles)
+   - **Files:** `app/routes_refactored.py`, `api/src/index.js`, `supabase/migrations/20260413120000_worker_seed_rls_and_profiles.sql`
+   - **Change:** Add explicit server-side role checks for user management and data-clear endpoints in Flask and Worker; align with RLS.
+   - **Acceptance criteria:** Non-admin users receive `403` for protected endpoints; admin flows still pass.
+
+3. **Quick win (P0/P1) — Correct CORS behavior**
+   - **Owner:** Backend/Platform
+   - **Estimate:** 0.5 day
+   - **Dependencies:** Final allowed origins list for each environment
+   - **Files:** `api/src/index.js`, `app/__init__.py`, `api/.dev.vars.example`
+   - **Change:** Reject unknown origins explicitly; remove fallback-to-first-origin behavior.
+   - **Acceptance criteria:** Requests from unlisted origins are blocked; valid origins work across local/dev/prod.
+
+4. **Quick win (P1) — Remove/gate unsupported legacy `/api/*` calls in PWA cloud mode**
+   - **Owner:** Frontend
+   - **Estimate:** 1 day
+   - **Dependencies:** Backend capability map contract
+   - **Files:** `frontend/src/services/api.ts`, `frontend/src/pages/settings/SettingsPage.tsx`
+   - **Change:** Feature-flag Flask-only calls when running against Worker; gate UI actions based on backend capabilities.
+   - **Acceptance criteria:** No runtime 404s from unsupported `/api/*` calls in Worker mode.
+
+5. **Quick win (P1) — Fix offline delete/sync queue logic**
+   - **Owner:** Frontend
+   - **Estimate:** 1 day
+   - **Dependencies:** Stable measurement API contract
+   - **Files:** `frontend/src/services/offline/database.ts`, `frontend/src/contexts/OfflineContext.tsx`
+   - **Change:** Read record before deletion, queue delete action correctly, and process sync queue with a single-flight guard.
+   - **Acceptance criteria:** Offline create/update/delete actions replay correctly once online; no duplicate queue processing.
+
+6. **Quick win (P1) — Add Worker contract smoke tests**
+   - **Owner:** QA/Backend
+   - **Estimate:** 1 day
+   - **Dependencies:** Test credentials and environment URLs
+   - **Files:** `scripts/smoke-test-worker.ps1`, `test_frontend_api.js` (or dedicated contract test file)
+   - **Change:** Verify all endpoints used by frontend service layer, including role-restricted behavior.
+   - **Acceptance criteria:** Smoke suite fails on contract drift and auth regressions.
+
+7. **Medium improvement (P1) — Unify auth/session source of truth**
+   - **Owner:** Backend + Frontend
+   - **Estimate:** 1-2 days
+   - **Dependencies:** Worker auth endpoint extension
+   - **Files:** `api/src/index.js`, `frontend/src/services/api.ts`, `frontend/src/contexts/AuthContext.tsx`
+   - **Change:** Add `/auth/me` on Worker and stop relying on decode-only JWT payload on frontend for identity state.
+   - **Acceptance criteria:** Auth state is server-validated; expired/invalid tokens are handled consistently.
+
+8. **Medium improvement (P1/P2) — Optimize report path**
+   - **Owner:** Backend
+   - **Estimate:** 2-3 days
+   - **Dependencies:** Decision on async job mechanism
+   - **Files:** `app/routes_refactored.py` and report service module(s)
+   - **Change:** Split summary endpoints from heavy PDF generation; move heavy generation off hot request path.
+   - **Acceptance criteria:** Report endpoints remain responsive under load; large export flow is stable.
+
+9. **Medium improvement (P1/P2) — Move schema mutations to migrations only**
+   - **Owner:** Backend/DB
+   - **Estimate:** 1 day
+   - **Dependencies:** Migration rollout procedure
+   - **Files:** `app/routes_refactored.py`, migration files in `supabase/migrations` (or app migration system)
+   - **Change:** Remove runtime schema-altering SQL from request handlers.
+   - **Acceptance criteria:** No `ALTER TABLE` statements executed from runtime API handlers.
+
+10. **Medium improvement (P2) — Normalize DTO contracts**
+   - **Owner:** Frontend + Backend
+   - **Estimate:** 1-2 days
+   - **Dependencies:** Contract review between API/UI
+   - **Files:** `api/src/index.js`, `frontend/src/services/api.ts`, `frontend/src/pages/dashboard/DashboardPage.tsx`, `frontend/src/pages/alerts/AlertsPage.tsx`
+   - **Change:** Define canonical measurement/alert/parameter DTOs and centralize mapping in service layer.
+   - **Acceptance criteria:** Pages consume typed normalized models with minimal per-page transformation.
+
+11. **Major refactor (P1/P2) — Complete Worker parity and retire PWA dependence on Flask `/api/*`**
+   - **Owner:** Backend + Frontend
+   - **Estimate:** 1-2 sprints
+   - **Dependencies:** Product decision on legacy AquaDash scope
+   - **Files:** `api/src/index.js`, `frontend/src/services/api.ts`, affected `frontend/src/pages/*`
+   - **Change:** Implement missing Worker endpoints and migrate frontend fully to Worker contracts.
+   - **Acceptance criteria:** PWA can run fully against Worker + Supabase without Flask API dependency.
+
+12. **Major refactor (P2) — Add observability and release safety**
+   - **Owner:** Platform/Backend
+   - **Estimate:** 1 sprint
+   - **Dependencies:** CI/CD workflow updates
+   - **Files:** `api/src/index.js`, CI workflow files, `scripts/smoke-test-worker.ps1`
+   - **Change:** Add structured request/error logs, route-level metrics, pre-deploy smoke checks, and rollback checklist.
+   - **Acceptance criteria:** Deployments include automated validation and actionable runtime diagnostics.
