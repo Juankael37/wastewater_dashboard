@@ -16,6 +16,30 @@ const parseAllowedOrigins = (raw) =>
 
 app.use('*', logger())
 
+app.use('*', async (c, next) => {
+  const start = Date.now()
+  const requestId = crypto?.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`
+  c.set('requestId', requestId)
+
+  try {
+    await next()
+  } finally {
+    const durationMs = Date.now() - start
+    const status = c.res.status || 0
+    const user = c.get('user')
+    const entry = {
+      level: 'info',
+      request_id: requestId,
+      method: c.req.method,
+      path: c.req.path,
+      status,
+      duration_ms: durationMs,
+      user_id: user?.id || null,
+    }
+    console.log(JSON.stringify(entry))
+  }
+})
+
 app.use('*', cors({
   origin: (origin, c) => {
     const allowed = parseAllowedOrigins(c.env.ALLOWED_ORIGINS)
@@ -109,33 +133,101 @@ const alertResolveSchema = z.object({
   resolved: z.boolean(),
 })
 
-const workerCapabilities = {
+const getWorkerCapabilities = (env) => ({
   mode: 'worker',
   supportsLegacyAdminApi: false,
   supportsLegacyDataCountApi: true,
   supportsLegacyDataClearApi: true,
   supportsLegacyUserListApi: true,
   supportsLegacyUserCreateApi: true,
-  supportsLegacyUserDeleteApi: false,
+  supportsLegacyUserDeleteApi: Boolean(env?.SUPABASE_SERVICE_ROLE_KEY),
   supportsLegacyReportsApi: false,
   supportsLegacyReportMetricsApi: true,
-  supportsLegacyReportPdfApi: false,
+  supportsLegacyReportPdfApi: true,
   supportsLegacyValidationApi: true,
+})
+
+const escapePdfText = (value) =>
+  String(value ?? '')
+    .replace(/\\/g, '\\\\')
+    .replace(/\(/g, '\\(')
+    .replace(/\)/g, '\\)')
+
+const buildSimplePdfBuffer = (lines) => {
+  const safeLines = lines.map(escapePdfText)
+  const maxLinesPerPage = 42
+  const pages = []
+
+  for (let i = 0; i < safeLines.length; i += maxLinesPerPage) {
+    pages.push(safeLines.slice(i, i + maxLinesPerPage))
+  }
+  if (pages.length === 0) pages.push(['No report data available'])
+
+  const objects = []
+  const addObject = (content) => {
+    objects.push(content)
+    return objects.length
+  }
+
+  const fontId = addObject('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>')
+
+  const pageIds = []
+  for (const pageLines of pages) {
+    let y = 800
+    const textBody = pageLines
+      .map((line) => {
+        const chunk = `1 0 0 1 50 ${y} Tm (${line}) Tj`
+        y -= 16
+        return chunk
+      })
+      .join('\n')
+
+    const streamContent = `BT\n/F1 12 Tf\n${textBody}\nET`
+    const contentId = addObject(`<< /Length ${streamContent.length} >>\nstream\n${streamContent}\nendstream`)
+    const pageId = addObject(`<< /Type /Page /Parent __PAGES_ID__ 0 R /MediaBox [0 0 612 842] /Resources << /Font << /F1 ${fontId} 0 R >> >> /Contents ${contentId} 0 R >>`)
+    pageIds.push(pageId)
+  }
+
+  const kidsRefs = pageIds.map((id) => `${id} 0 R`).join(' ')
+  const pagesId = addObject(`<< /Type /Pages /Kids [ ${kidsRefs} ] /Count ${pageIds.length} >>`)
+  objects[0] = objects[0]
+  for (const pageId of pageIds) {
+    objects[pageId - 1] = objects[pageId - 1].replace('__PAGES_ID__', pagesId)
+  }
+  const catalogId = addObject(`<< /Type /Catalog /Pages ${pagesId} 0 R >>`)
+
+  let pdf = '%PDF-1.4\n'
+  const offsets = [0]
+  for (let i = 0; i < objects.length; i += 1) {
+    offsets.push(pdf.length)
+    pdf += `${i + 1} 0 obj\n${objects[i]}\nendobj\n`
+  }
+
+  const xrefOffset = pdf.length
+  pdf += `xref\n0 ${objects.length + 1}\n`
+  pdf += '0000000000 65535 f \n'
+  for (let i = 1; i < offsets.length; i += 1) {
+    pdf += `${String(offsets[i]).padStart(10, '0')} 00000 n \n`
+  }
+  pdf += `trailer\n<< /Size ${objects.length + 1} /Root ${catalogId} 0 R >>\nstartxref\n${xrefOffset}\n%%EOF`
+
+  return new TextEncoder().encode(pdf)
 }
 
 app.get('/', (c) => {
   const configured = Boolean(c.env.SUPABASE_URL && c.env.SUPABASE_ANON_KEY)
+  const capabilities = getWorkerCapabilities(c.env)
   return c.json({
     message: 'Wastewater Monitoring API',
     version: '1.0.0',
     status: 'healthy',
     supabase_configured: configured,
     sheets_backup_configured: isSheetsBackupConfigured(c.env),
-    capabilities: workerCapabilities,
+    capabilities,
   })
 })
 
-app.get('/capabilities', (c) => c.json(workerCapabilities))
+app.get('/capabilities', (c) => c.json(getWorkerCapabilities(c.env)))
 
 app.post('/auth/login', async (c) => {
   const supabase = c.get('supabase')
@@ -329,6 +421,81 @@ app.get('/api/reports/daily', authMiddleware, async (c) => {
   })
 })
 
+app.get('/api/reports/pdf', authMiddleware, async (c) => {
+  const supabase = c.get('supabase')
+  const start = c.req.query('start')
+  const end = c.req.query('end')
+  const rawParameters = c.req.query('parameters') || ''
+  const selectedParameters = rawParameters
+    .split(',')
+    .map((p) => p.trim().toLowerCase())
+    .filter(Boolean)
+  const selectedSet = new Set(selectedParameters)
+
+  const now = new Date()
+  const defaultStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
+  const defaultEnd = now.toISOString()
+
+  const { data, error } = await supabase
+    .from('measurements')
+    .select(`
+      value,
+      type,
+      timestamp,
+      parameters!inner(name, display_name, unit),
+      plants!inner(name)
+    `)
+    .gte('timestamp', start || defaultStart)
+    .lte('timestamp', end || defaultEnd)
+    .order('timestamp', { ascending: false })
+    .limit(1500)
+
+  if (error) {
+    return c.json({ error: error.message }, 500)
+  }
+
+  const filtered = (data || []).filter((row) => {
+    if (selectedSet.size === 0) return true
+    const key = String(row.parameters?.name || '').toLowerCase()
+    return selectedSet.has(key)
+  })
+
+  const headerStart = (start || defaultStart).slice(0, 10)
+  const headerEnd = (end || defaultEnd).slice(0, 10)
+  const lines = [
+    'Wastewater Monitoring Report',
+    `Period: ${headerStart} to ${headerEnd}`,
+    `Generated: ${new Date().toISOString()}`,
+    `Total rows: ${filtered.length}`,
+    selectedSet.size > 0 ? `Filters: ${[...selectedSet].join(', ')}` : 'Filters: none',
+    '------------------------------------------------------------',
+  ]
+
+  const previewRows = filtered.slice(0, 250)
+  for (const row of previewRows) {
+    const parameter = row.parameters?.display_name || row.parameters?.name || 'Unknown'
+    const unit = row.parameters?.unit || ''
+    const plant = row.plants?.name || 'Unknown plant'
+    const value = Number(row.value)
+    const ts = String(row.timestamp || '').replace('T', ' ').slice(0, 19)
+    lines.push(`${ts} | ${plant} | ${parameter} ${Number.isFinite(value) ? value : '-'} ${unit} | ${row.type || 'effluent'}`)
+  }
+
+  if (filtered.length > previewRows.length) {
+    lines.push(`... ${filtered.length - previewRows.length} additional rows omitted for compact export ...`)
+  }
+
+  const pdfBytes = buildSimplePdfBuffer(lines)
+  const filename = `wastewater_report_${headerStart}_to_${headerEnd}.pdf`
+  return new Response(pdfBytes, {
+    headers: {
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': `attachment; filename="${filename}"`,
+      'Cache-Control': 'no-store',
+    },
+  })
+})
+
 app.get('/api/data/count', authMiddleware, requireAdminRole, async (c) => {
   const supabase = c.get('supabase')
   const { count, error } = await supabase
@@ -415,6 +582,53 @@ app.post('/api/users', authMiddleware, requireAdminRole, async (c) => {
     username,
     role,
   }, 201)
+})
+
+app.delete('/api/users/:id', authMiddleware, requireAdminRole, async (c) => {
+  const supabase = c.get('supabase')
+  const requester = c.get('user')
+  const { id } = c.req.param()
+
+  if (!id) {
+    return c.json({ error: 'User id is required' }, 400)
+  }
+  if (requester?.id === id) {
+    return c.json({ error: 'You cannot delete your own account from this endpoint' }, 400)
+  }
+
+  const { data: targetProfile, error: profileError } = await supabase
+    .from('profiles')
+    .select('id, role, full_name')
+    .eq('id', id)
+    .single()
+
+  if (profileError || !targetProfile) {
+    return c.json({ error: 'User profile not found' }, 404)
+  }
+  if (['company_admin', 'super_admin'].includes(targetProfile.role)) {
+    return c.json({ error: 'Admin accounts are protected and cannot be deleted from this endpoint' }, 403)
+  }
+
+  const serviceRoleKey = c.env.SUPABASE_SERVICE_ROLE_KEY
+  if (!serviceRoleKey) {
+    return c.json({
+      error: 'User delete requires SUPABASE_SERVICE_ROLE_KEY in Worker environment',
+    }, 501)
+  }
+
+  const adminSupabase = createClient(c.env.SUPABASE_URL || '', serviceRoleKey, {
+    auth: { persistSession: false },
+  })
+  const { error: deleteError } = await adminSupabase.auth.admin.deleteUser(id)
+  if (deleteError) {
+    return c.json({ error: deleteError.message }, 500)
+  }
+
+  return c.json({
+    success: true,
+    id,
+    message: `Deleted user ${targetProfile.full_name || id}`,
+  })
 })
 
 app.delete('/api/data/clear', authMiddleware, requireAdminRole, async (c) => {
@@ -790,7 +1004,15 @@ app.get('/plants', authMiddleware, async (c) => {
 })
 
 app.onError((err, c) => {
-  console.error(err)
+  const requestId = c.get('requestId') || null
+  console.error(JSON.stringify({
+    level: 'error',
+    request_id: requestId,
+    method: c.req.method,
+    path: c.req.path,
+    message: err?.message || String(err),
+    stack: err?.stack || null,
+  }))
   return c.json({ error: 'Internal server error' }, 500)
 })
 

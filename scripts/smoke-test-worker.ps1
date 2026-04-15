@@ -50,10 +50,12 @@ Assert-Ok "GET / worker marker" (($h.message -eq "Wastewater Monitoring API") -o
 try {
   $caps = Invoke-RestMethod -Uri "$WorkerUrl/capabilities" -Method Get
   Assert-Ok "GET /capabilities" ($caps.mode -eq "worker")
-  Assert-Ok "/capabilities legacy flags" (
+  Assert-Ok "/capabilities legacy flags (baseline)" (
     $caps.supportsLegacyAdminApi -eq $false -and
     $caps.supportsLegacyReportsApi -eq $false -and
-    $caps.supportsLegacyValidationApi -eq $false
+    $caps.supportsLegacyReportMetricsApi -eq $true -and
+    $caps.supportsLegacyReportPdfApi -eq $true -and
+    $caps.supportsLegacyValidationApi -eq $true
   )
 } catch {
   Write-Host "Skip /capabilities strict checks (endpoint not deployed yet on target Worker)."

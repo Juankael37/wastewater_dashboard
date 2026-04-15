@@ -68,7 +68,7 @@ const fallbackBackendCapabilities = (): BackendCapabilities => {
       supportsLegacyUserDeleteApi: false,
       supportsLegacyReportsApi: false,
       supportsLegacyReportMetricsApi: true,
-      supportsLegacyReportPdfApi: false,
+      supportsLegacyReportPdfApi: true,
       supportsLegacyValidationApi: false,
     };
   }
@@ -121,6 +121,7 @@ export async function getBackendCapabilities(): Promise<BackendCapabilities> {
           mode: 'worker',
           supportsLegacyAdminApi: false,
           supportsLegacyReportsApi: false,
+          supportsLegacyReportPdfApi: true,
           supportsLegacyValidationApi: false,
         };
         return cachedCapabilities;
@@ -789,8 +790,10 @@ export const reportsApi = {
       ? `/api/reports/pdf?parameters=${parameters.join(',')}`
       : '/api/reports/pdf';
     
+    const token = getAccessToken();
     const response = await fetch(`${API_BASE_URL}${url}`, {
       credentials: 'include',
+      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
     });
     
     if (!response.ok) {
