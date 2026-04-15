@@ -1,5 +1,6 @@
-import React, { createContext, useContext, useEffect, useState, useCallback } from 'react'
+import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react'
 import { initDatabase, measurementService, syncService, Measurement } from '../services/offline/database'
+import { measurementsApi } from '../services/api'
 
 interface OfflineContextType {
   isOnline: boolean
@@ -22,6 +23,7 @@ export const OfflineProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [pendingSyncCount, setPendingSyncCount] = useState(0)
   const [measurements, setMeasurements] = useState<Measurement[]>([])
   const [databaseInitialized, setDatabaseInitialized] = useState(false)
+  const isSyncingRef = useRef(false)
 
   // Initialize database
   useEffect(() => {
@@ -64,7 +66,7 @@ export const OfflineProvider: React.FC<{ children: React.ReactNode }> = ({ child
     if (isOnline && databaseInitialized && pendingSyncCount > 0) {
       processSyncQueue()
     }
-  }, [isOnline, databaseInitialized])
+  }, [isOnline, databaseInitialized, pendingSyncCount])
 
   // Update sync queue count when queue changes
   useEffect(() => {
@@ -77,6 +79,17 @@ export const OfflineProvider: React.FC<{ children: React.ReactNode }> = ({ child
     }
     
     updateQueue()
+  }, [databaseInitialized])
+
+  const refreshOfflineState = useCallback(async () => {
+    if (!databaseInitialized) return
+    const [pendingItems, updatedMeasurements] = await Promise.all([
+      syncService.getPendingSyncItems(),
+      measurementService.getAllMeasurements(50),
+    ])
+    setSyncQueue(pendingItems)
+    setPendingSyncCount(pendingItems.length)
+    setMeasurements(updatedMeasurements)
   }, [databaseInitialized])
 
   const addMeasurement = useCallback(async (data: Omit<Measurement, 'id' | 'synced' | 'createdAt' | 'updatedAt'>): Promise<number> => {
@@ -98,10 +111,7 @@ export const OfflineProvider: React.FC<{ children: React.ReactNode }> = ({ child
       
       setMeasurements(prev => [newMeasurement, ...prev])
       
-      // Update sync queue
-      const pendingItems = await syncService.getPendingSyncItems()
-      setSyncQueue(pendingItems)
-      setPendingSyncCount(pendingItems.length)
+      await refreshOfflineState()
       
       // If online, try to sync immediately
       if (isOnline) {
@@ -113,7 +123,7 @@ export const OfflineProvider: React.FC<{ children: React.ReactNode }> = ({ child
       console.error('Failed to save measurement:', error)
       throw error
     }
-  }, [databaseInitialized, isOnline])
+  }, [databaseInitialized, isOnline, refreshOfflineState])
 
   const getMeasurements = useCallback(async (): Promise<Measurement[]> => {
     if (!databaseInitialized) {
@@ -126,47 +136,85 @@ export const OfflineProvider: React.FC<{ children: React.ReactNode }> = ({ child
   }, [databaseInitialized])
 
   const processSyncQueue = useCallback(async () => {
-    if (!databaseInitialized || syncQueue.length === 0) return
+    if (!databaseInitialized || !isOnline || isSyncingRef.current) return
 
+    isSyncingRef.current = true
     console.log('Processing sync queue...')
-    
-    const pendingItems = await syncService.getPendingSyncItems()
-    
-    for (const item of pendingItems) {
-      try {
-        // Mark as processing
-        await syncService.markAsProcessing(item.id!)
-        
-        // In a real implementation, this would send data to your API
-        // Simulate API call
-        await new Promise(resolve => setTimeout(resolve, 500))
-        
-        // Simulate successful sync
-        if (item.action === 'create' && item.measurementId) {
-          await measurementService.markAsSynced(item.measurementId)
-        }
-        
-        // Mark as completed
-        await syncService.markAsCompleted(item.id!)
-        
-        console.log(`Successfully synced item ${item.id}`)
-      } catch (error) {
-        console.error(`Failed to sync item ${item.id}:`, error)
-        await syncService.markAsFailed(item.id!)
-      }
+
+    const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
+    const toNumberOrNull = (value: unknown) => {
+      if (value === null || value === undefined || value === '') return null
+      const parsed = Number(value)
+      return Number.isFinite(parsed) ? parsed : null
     }
-    
-    // Update state
-    const updatedPendingItems = await syncService.getPendingSyncItems()
-    setSyncQueue(updatedPendingItems)
-    setPendingSyncCount(updatedPendingItems.length)
-    
-    // Refresh measurements
-    const updatedMeasurements = await measurementService.getAllMeasurements(50)
-    setMeasurements(updatedMeasurements)
-    
-    console.log('Sync queue processing completed')
-  }, [databaseInitialized, syncQueue.length])
+
+    try {
+      let pendingItems = await syncService.getPendingSyncItems()
+
+      for (const item of pendingItems) {
+        try {
+          await syncService.markAsProcessing(item.id!)
+
+          if (item.action === 'create') {
+            const measurement = await measurementService.getMeasurement(item.measurementId)
+            if (!measurement) {
+              await syncService.markAsCompleted(item.id!)
+              continue
+            }
+
+            // Replay offline payload through the same API contract used by the form.
+            await measurementsApi.create({
+              timestamp: measurement.timestamp,
+              ph: toNumberOrNull(measurement.ph),
+              cod: toNumberOrNull(measurement.cod),
+              bod: toNumberOrNull(measurement.bod),
+              tss: toNumberOrNull(measurement.tss),
+              ammonia: toNumberOrNull(measurement.ammonia),
+              nitrate: toNumberOrNull(measurement.nitrate),
+              phosphate: toNumberOrNull(measurement.phosphate),
+              temperature: toNumberOrNull(measurement.temperature),
+              flow: toNumberOrNull(measurement.flow),
+              type: measurement.type || 'effluent',
+              plant_id: String(
+                (measurement as any).plant_id ||
+                (measurement as any).plantId ||
+                measurement.plant ||
+                ''
+              ),
+              notes: (measurement as any).notes || 'Synced from offline queue',
+            })
+
+            await measurementService.markAsSynced(item.measurementId)
+          } else if (item.action === 'delete') {
+            // Delete replay is not implemented yet in Worker API.
+            throw new Error('Delete sync action is not supported by current API')
+          } else {
+            // Unsupported action for this build - mark completed to avoid deadlock.
+            await syncService.markAsCompleted(item.id!)
+            continue
+          }
+
+          await syncService.markAsCompleted(item.id!)
+          console.log(`Successfully synced item ${item.id}`)
+        } catch (error) {
+          console.error(`Failed to sync item ${item.id}:`, error)
+          await syncService.markAsFailed(item.id!)
+
+          // Basic exponential backoff to avoid burst retries.
+          const retriesSoFar = (item.retries || 0) + 1
+          const backoffMs = Math.min(1000 * (2 ** (retriesSoFar - 1)), 8000)
+          await sleep(backoffMs)
+        }
+
+        // Refresh queue snapshot after each item to reflect latest statuses.
+        pendingItems = await syncService.getPendingSyncItems()
+      }
+    } finally {
+      isSyncingRef.current = false
+      await refreshOfflineState()
+      console.log('Sync queue processing completed')
+    }
+  }, [databaseInitialized, isOnline, refreshOfflineState])
 
   const clearSyncQueue = useCallback(async () => {
     if (!databaseInitialized) return
@@ -175,25 +223,21 @@ export const OfflineProvider: React.FC<{ children: React.ReactNode }> = ({ child
     // For now, we'll just clear completed items
     await syncService.clearCompletedItems()
     
-    const pendingItems = await syncService.getPendingSyncItems()
-    setSyncQueue(pendingItems)
-    setPendingSyncCount(pendingItems.length)
-  }, [databaseInitialized])
+    await refreshOfflineState()
+  }, [databaseInitialized, refreshOfflineState])
 
   const retryFailedSyncs = useCallback(async () => {
     if (!databaseInitialized) return
     
     await syncService.retryFailedItems()
     
-    const pendingItems = await syncService.getPendingSyncItems()
-    setSyncQueue(pendingItems)
-    setPendingSyncCount(pendingItems.length)
+    await refreshOfflineState()
     
     // Process the retried items
     if (isOnline) {
       processSyncQueue()
     }
-  }, [databaseInitialized, isOnline, processSyncQueue])
+  }, [databaseInitialized, isOnline, processSyncQueue, refreshOfflineState])
 
   const value = {
     isOnline,

@@ -99,11 +99,21 @@ CREATE POLICY "Authenticated users can read alerts"
   USING (true);
 
 DROP POLICY IF EXISTS "Authenticated users can update alerts" ON public.alerts;
-CREATE POLICY "Authenticated users can update alerts"
+CREATE POLICY "Admins can update alerts"
   ON public.alerts FOR UPDATE
   TO authenticated
-  USING (true)
-  WITH CHECK (true);
+  USING (
+    auth.uid() IN (
+      SELECT id FROM public.profiles
+      WHERE role IN ('company_admin', 'super_admin')
+    )
+  )
+  WITH CHECK (
+    auth.uid() IN (
+      SELECT id FROM public.profiles
+      WHERE role IN ('company_admin', 'super_admin')
+    )
+  );
 
 -- ---------------------------------------------------------------------------
 -- 6) RLS: measurements — enforce operator_id = auth.uid() on insert

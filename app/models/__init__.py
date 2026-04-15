@@ -4,6 +4,7 @@ Simplified for Class C standards only.
 """
 
 import sqlite3
+import os
 from datetime import datetime
 from typing import Dict, List, Optional, Any
 
@@ -97,7 +98,8 @@ def init_db():
     CREATE TABLE IF NOT EXISTS users (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         username TEXT UNIQUE,
-        password TEXT
+        password TEXT,
+        role TEXT DEFAULT 'operator'
     )
     """)
 
@@ -465,18 +467,30 @@ class User:
 
 
 def create_admin():
-    """Create default admin user if not exists."""
+    """Optionally create bootstrap admin user when explicitly enabled."""
+    enabled = (os.getenv("ADMIN_BOOTSTRAP_ENABLED", "false").strip().lower()
+               in {"1", "true", "yes", "on"})
+    if not enabled:
+        return
+
+    username = os.getenv("ADMIN_BOOTSTRAP_USERNAME", "admin").strip()
+    password = os.getenv("ADMIN_BOOTSTRAP_PASSWORD", "")
+    if not username or not password:
+        raise RuntimeError(
+            "ADMIN_BOOTSTRAP_ENABLED is true, but ADMIN_BOOTSTRAP_USERNAME/PASSWORD are not configured."
+        )
+
     from werkzeug.security import generate_password_hash
     conn = get_db_connection()
     c = conn.cursor()
     
     try:
         c.execute(
-            "INSERT INTO users (username, password) VALUES (?, ?)",
-            ("admin", generate_password_hash("admin123"))
+            "INSERT INTO users (username, password, role) VALUES (?, ?, ?)",
+            (username, generate_password_hash(password), 'admin')
         )
     except sqlite3.IntegrityError:
-        pass  # Admin user already exists
+        pass  # Bootstrap user already exists
     
     conn.commit()
     conn.close()

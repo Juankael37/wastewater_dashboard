@@ -13,15 +13,133 @@ const getApiBaseUrl = () => {
 const API_BASE_URL = getApiBaseUrl();
 const ACCESS_TOKEN_KEY = 'ww_access_token';
 
+type BackendMode = 'worker' | 'flask' | 'unknown';
+interface BackendCapabilities {
+  mode: BackendMode;
+  supportsLegacyAdminApi: boolean;
+  supportsLegacyDataCountApi?: boolean;
+  supportsLegacyDataClearApi?: boolean;
+  supportsLegacyUserListApi?: boolean;
+  supportsLegacyUserCreateApi?: boolean;
+  supportsLegacyUserDeleteApi?: boolean;
+  supportsLegacyReportsApi: boolean;
+  supportsLegacyReportMetricsApi?: boolean;
+  supportsLegacyReportPdfApi?: boolean;
+  supportsLegacyValidationApi: boolean;
+}
+
 const getAccessToken = () => localStorage.getItem(ACCESS_TOKEN_KEY);
 const setAccessToken = (token: string) => localStorage.setItem(ACCESS_TOKEN_KEY, token);
 const clearAccessToken = () => localStorage.removeItem(ACCESS_TOKEN_KEY);
+
+const decodeJwtPayload = (token: string): any => {
+  try {
+    return JSON.parse(atob(token.split('.')[1] || 'e30='));
+  } catch {
+    return {};
+  }
+};
+
+const fallbackBackendCapabilities = (): BackendCapabilities => {
+  const base = API_BASE_URL.toLowerCase();
+  if (base.includes('localhost:5000') || base.includes('127.0.0.1:5000')) {
+    return {
+      mode: 'flask',
+      supportsLegacyAdminApi: true,
+      supportsLegacyDataCountApi: true,
+      supportsLegacyDataClearApi: true,
+      supportsLegacyUserListApi: true,
+      supportsLegacyUserCreateApi: true,
+      supportsLegacyUserDeleteApi: true,
+      supportsLegacyReportsApi: true,
+      supportsLegacyReportMetricsApi: true,
+      supportsLegacyReportPdfApi: true,
+      supportsLegacyValidationApi: true,
+    };
+  }
+  if (base.includes('workers.dev') || base.includes('localhost:8787') || base.includes('127.0.0.1:8787')) {
+    return {
+      mode: 'worker',
+      supportsLegacyAdminApi: false,
+      supportsLegacyDataCountApi: true,
+      supportsLegacyDataClearApi: true,
+      supportsLegacyUserListApi: true,
+      supportsLegacyUserCreateApi: true,
+      supportsLegacyUserDeleteApi: false,
+      supportsLegacyReportsApi: false,
+      supportsLegacyReportMetricsApi: true,
+      supportsLegacyReportPdfApi: false,
+      supportsLegacyValidationApi: false,
+    };
+  }
+  return {
+    mode: 'unknown',
+    supportsLegacyAdminApi: false,
+    supportsLegacyDataCountApi: false,
+    supportsLegacyDataClearApi: false,
+    supportsLegacyUserListApi: false,
+    supportsLegacyUserCreateApi: false,
+    supportsLegacyUserDeleteApi: false,
+    supportsLegacyReportsApi: false,
+    supportsLegacyReportMetricsApi: false,
+    supportsLegacyReportPdfApi: false,
+    supportsLegacyValidationApi: false,
+  };
+};
+
+let cachedCapabilities: BackendCapabilities | null = null;
+
+export async function getBackendCapabilities(): Promise<BackendCapabilities> {
+  if (cachedCapabilities) return cachedCapabilities;
+
+  try {
+    const endpointCandidates = ['/capabilities', '/api/capabilities', '/'];
+    for (const endpoint of endpointCandidates) {
+      const response = await fetch(`${API_BASE_URL}${endpoint}`, { method: 'GET' });
+      if (!response.ok) continue;
+
+      const contentType = response.headers.get('content-type') || '';
+      if (!contentType.includes('application/json')) continue;
+
+      const payload = await response.json();
+
+      // Preferred explicit capabilities shape.
+      if (payload?.mode && typeof payload?.supportsLegacyAdminApi === 'boolean') {
+        cachedCapabilities = payload as BackendCapabilities;
+        return cachedCapabilities;
+      }
+
+      // Worker health payload includes capabilities in root.
+      if (payload?.capabilities?.mode && typeof payload?.capabilities?.supportsLegacyAdminApi === 'boolean') {
+        cachedCapabilities = payload.capabilities as BackendCapabilities;
+        return cachedCapabilities;
+      }
+
+      // Backward-compat Worker detection if capabilities are absent.
+      if (payload?.message === 'Wastewater Monitoring API' && payload?.version) {
+        cachedCapabilities = {
+          mode: 'worker',
+          supportsLegacyAdminApi: false,
+          supportsLegacyReportsApi: false,
+          supportsLegacyValidationApi: false,
+        };
+        return cachedCapabilities;
+      }
+    }
+  } catch {
+    // Fall through to URL-based fallback.
+  }
+
+  cachedCapabilities = fallbackBackendCapabilities();
+  return cachedCapabilities;
+}
 
 // Types
 export interface Measurement {
   id: string;
   plant_id: string;
   parameter_id: string;
+  parameter_key?: string;
   value: number;
   type: 'influent' | 'effluent';
   timestamp: string;
@@ -37,6 +155,10 @@ export interface Alert {
   parameter: string;
   value: number;
   status: string;
+  severity?: 'critical' | 'warning' | 'info';
+  message?: string;
+  plant?: string;
+  time?: string;
   state: string;
   timestamp: string;
   resolved_at: string | null;
@@ -73,6 +195,30 @@ export interface DashboardData {
     temperature: { min: number; max: number };
     flow: { max: number };
   };
+}
+
+export interface ParameterStatusDTO {
+  key: string;
+  name: string;
+  value: number;
+  unit: string;
+  status: 'good' | 'warning' | 'critical';
+  standard: string;
+  color: string;
+}
+
+export interface ChartSeriesDTO {
+  labels: string[];
+  influent: number[];
+  effluent: number[];
+}
+
+export interface DashboardSnapshotDTO {
+  parameterStatuses: ParameterStatusDTO[];
+  chartSeries: Record<string, ChartSeriesDTO>;
+  recentAlerts: Alert[];
+  complianceRate: number;
+  totalReadings: number;
 }
 
 // Helper function for API requests
@@ -116,6 +262,18 @@ async function apiRequest<T>(
     throw error;
   }
 }
+
+const formatTimeAgo = (timestamp?: string): string => {
+  if (!timestamp) return 'Unknown';
+  const now = new Date();
+  const eventTime = new Date(timestamp);
+  const diffMs = now.getTime() - eventTime.getTime();
+  const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+  const diffDays = Math.floor(diffHours / 24);
+  if (diffDays > 0) return `${diffDays}d ago`;
+  if (diffHours > 0) return `${diffHours}h ago`;
+  return 'Just now';
+};
 
 // Authentication API
 export const authApi = {
@@ -175,7 +333,40 @@ export const authApi = {
   getProfile: async (): Promise<{ user: any }> => {
     const token = getAccessToken();
     if (!token) throw new Error('No access token');
-    const payload = JSON.parse(atob(token.split('.')[1] || 'e30='));
+
+    const capabilities = await getBackendCapabilities();
+
+    // Prefer server-validated identity when backend supports it.
+    if (capabilities.mode === 'worker') {
+      try {
+        const profile = await apiRequest<{ user: any; profile?: any | null }>('/auth/me');
+        const mappedRole = profile?.profile?.role === 'company_admin'
+          ? 'admin'
+          : profile?.profile?.role === 'viewer'
+            ? 'client'
+            : profile?.profile?.role || profile?.user?.user_metadata?.role;
+
+        return {
+          user: {
+            ...profile.user,
+            user_metadata: {
+              ...(profile.user?.user_metadata || {}),
+              ...(mappedRole ? { role: mappedRole } : {}),
+            },
+            profile: profile.profile || null,
+          },
+        };
+      } catch {
+        // Fall back to token decode if /auth/me is temporarily unavailable.
+      }
+    }
+
+    const payload = decodeJwtPayload(token);
+    const exp = typeof payload.exp === 'number' ? payload.exp : 0;
+    if (exp > 0 && Date.now() >= exp * 1000) {
+      throw new Error('Access token expired');
+    }
+
     return {
       user: {
         id: payload.sub,
@@ -194,6 +385,7 @@ export const measurementsApi = {
       id: item.id,
       plant_id: item.plant_id,
       parameter_id: item.parameter_id,
+      parameter_key: String(item.parameters?.name || '').toLowerCase(),
       value: item.value,
       type: item.type,
       timestamp: item.timestamp,
@@ -210,6 +402,7 @@ export const measurementsApi = {
       id: item.id,
       plant_id: item.plant_id,
       parameter_id: item.parameter_id,
+      parameter_key: String(item.parameters?.name || '').toLowerCase(),
       value: item.value,
       type: item.type,
       timestamp: item.timestamp,
@@ -217,7 +410,6 @@ export const measurementsApi = {
       parameter_name: item.parameters?.display_name || item.parameters?.name,
       plant_name: item.plants?.name,
       unit: item.parameters?.unit,
-      [item.parameters?.name || 'value']: item.value,
     }));
   },
   
@@ -292,6 +484,10 @@ export const measurementsApi = {
     message?: string;
     warning?: string;
   }> => {
+    const capabilities = await getBackendCapabilities();
+    if (!capabilities.supportsLegacyValidationApi) {
+      return { valid: true, warning: 'Server-side validation endpoint is not available on current backend.' };
+    }
     return apiRequest('/api/validation/check', {
       method: 'POST',
       body: JSON.stringify({
@@ -310,11 +506,17 @@ export const alertsApi = {
     return (response.data || []).map((item) => {
       const measurement = item.measurements || {};
       const parameter = measurement.parameters?.display_name || measurement.parameters?.name || 'Unknown';
+      const severity = item.severity || (item.resolved ? 'info' : 'warning');
+      const message = `${parameter}: ${severity} (${measurement.value ?? '-'})`;
       return {
         id: item.id,
         parameter,
         value: measurement.value,
-        status: item.severity || (item.resolved ? 'resolved' : 'warning'),
+        status: severity,
+        severity,
+        message,
+        plant: measurement.plants?.name || '',
+        time: formatTimeAgo(item.created_at || measurement.timestamp),
         state: item.resolved ? 'resolved' : 'active',
         timestamp: item.created_at || measurement.timestamp,
         resolved_at: item.resolved_at || null,
@@ -323,7 +525,26 @@ export const alertsApi = {
   },
   
   getDashboard: async (): Promise<Alert[]> => {
-    return apiRequest<Alert[]>('/api/alerts/dashboard');
+    const capabilities = await getBackendCapabilities();
+    if (!capabilities.supportsLegacyReportMetricsApi) {
+      return alertsApi.getAll();
+    }
+
+    const payload = await apiRequest<any>('/api/alerts/dashboard');
+    const rows = Array.isArray(payload) ? payload : (payload.alerts || []);
+    return rows.map((item: any) => ({
+      id: item.id,
+      parameter: item.parameter || 'Unknown',
+      value: item.value ?? 0,
+      status: item.status || item.severity || 'warning',
+      severity: item.severity || item.status || 'warning',
+      message: item.message || `${item.parameter || 'Parameter'}: ${item.status || item.severity || 'warning'} (${item.value ?? '-'})`,
+      plant: item.plant || '',
+      time: item.time || formatTimeAgo(item.timestamp),
+      state: item.state || (item.resolved ? 'resolved' : 'active'),
+      timestamp: item.timestamp,
+      resolved_at: item.resolved_at || null,
+    }));
   },
   
   resolve: async (alertId: number): Promise<void> => {
@@ -371,16 +592,38 @@ export const parametersApi = {
     });
   },
   
-  create: async (_parameter: string, _min_limit: number, _max_limit: number): Promise<Parameter> => {
-    throw new Error('Parameter creation is not implemented on the Worker API yet.');
+  create: async (parameter: string, min_limit: number, max_limit: number): Promise<Parameter> => {
+    const capabilities = await getBackendCapabilities();
+    if (!capabilities.supportsLegacyAdminApi) {
+      throw new Error('Parameter creation is not available on the Worker API yet.');
+    }
+    const response = await apiRequest<Parameter>('/api/parameters', {
+      method: 'POST',
+      body: JSON.stringify({ parameter, min_limit, max_limit }),
+    });
+    return response;
   },
   
-  update: async (parameterName: string, _data: Partial<Parameter>): Promise<Parameter> => {
-    throw new Error(`Parameter update for "${parameterName}" is not implemented on the Worker API yet.`);
+  update: async (parameterName: string, data: Partial<Parameter>): Promise<Parameter> => {
+    const capabilities = await getBackendCapabilities();
+    if (!capabilities.supportsLegacyAdminApi) {
+      throw new Error(`Parameter update for "${parameterName}" is not available on the Worker API yet.`);
+    }
+    const response = await apiRequest<Parameter>(`/api/parameters/${parameterName}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+    return response;
   },
   
   delete: async (parameterName: string): Promise<{success: boolean}> => {
-    throw new Error(`Parameter delete for "${parameterName}" is not implemented on the Worker API yet.`);
+    const capabilities = await getBackendCapabilities();
+    if (!capabilities.supportsLegacyAdminApi) {
+      throw new Error(`Parameter delete for "${parameterName}" is not available on the Worker API yet.`);
+    }
+    return apiRequest<{ success: boolean }>(`/api/parameters/${parameterName}`, {
+      method: 'DELETE',
+    });
   },
 };
 
@@ -433,12 +676,96 @@ export const dashboardApi = {
       },
     };
   },
+
+  getSnapshot: async (): Promise<DashboardSnapshotDTO> => {
+    const [measurements, alerts] = await Promise.all([
+      measurementsApi.getRecent(300),
+      alertsApi.getAll(),
+    ]);
+
+    const paramConfig: Record<string, { label: string; unit: string; min: number; max: number; color: string }> = {
+      ph: { label: 'pH', unit: '', min: 6.0, max: 9.5, color: '#3b82f6' },
+      cod: { label: 'COD', unit: 'mg/L', min: 0, max: 100, color: '#ef4444' },
+      bod: { label: 'BOD', unit: 'mg/L', min: 0, max: 50, color: '#f97316' },
+      tss: { label: 'TSS', unit: 'mg/L', min: 0, max: 100, color: '#8b5cf6' },
+      ammonia: { label: 'Ammonia', unit: 'mg/L', min: 0, max: 0.5, color: '#06b6d4' },
+      nitrate: { label: 'Nitrate', unit: 'mg/L', min: 0, max: 14, color: '#10b981' },
+      phosphate: { label: 'Phosphate', unit: 'mg/L', min: 0, max: 1, color: '#84cc16' },
+      temperature: { label: 'Temperature', unit: '°C', min: 10, max: 40, color: '#f43f5e' },
+      flow: { label: 'Flow', unit: 'm³/h', min: 0, max: 5000, color: '#6366f1' },
+    };
+
+    const grouped: Record<string, Record<string, { influent?: number; effluent?: number }>> = {};
+    let compliantCount = 0;
+    let totalCount = 0;
+
+    for (const m of measurements) {
+      const key = String(m.parameter_key || '').toLowerCase();
+      if (!paramConfig[key]) continue;
+      const date = new Date(m.timestamp).toISOString().slice(0, 10);
+      grouped[date] ||= {};
+      grouped[date][key] ||= {};
+      grouped[date][key][m.type] = Number(m.value);
+
+      totalCount += 1;
+      if (m.value >= paramConfig[key].min && m.value <= paramConfig[key].max) {
+        compliantCount += 1;
+      }
+    }
+
+    const dates = Object.keys(grouped).sort();
+    const parameterStatuses: ParameterStatusDTO[] = Object.keys(paramConfig).map((key) => {
+      const latest = [...measurements]
+        .find((m) => String(m.parameter_key || '').toLowerCase() === key && m.type === 'effluent')
+        || [...measurements].find((m) => String(m.parameter_key || '').toLowerCase() === key);
+      const value = Number(latest?.value || 0);
+      const cfg = paramConfig[key];
+      const margin = (cfg.max - cfg.min) * 0.1;
+      let status: 'good' | 'warning' | 'critical' = 'good';
+      if (value < cfg.min || value > cfg.max) status = 'critical';
+      else if (value < cfg.min + margin || value > cfg.max - margin) status = 'warning';
+      return {
+        key,
+        name: cfg.label,
+        value,
+        unit: cfg.unit,
+        status,
+        standard: `${cfg.min}-${cfg.max}`,
+        color: cfg.color,
+      };
+    });
+
+    const chartSeries: Record<string, ChartSeriesDTO> = {};
+    Object.keys(paramConfig).forEach((key) => {
+      chartSeries[key] = {
+        labels: dates.slice(-10),
+        influent: dates.slice(-10).map((d) => grouped[d]?.[key]?.influent ?? 0),
+        effluent: dates.slice(-10).map((d) => grouped[d]?.[key]?.effluent ?? grouped[d]?.[key]?.influent ?? 0),
+      };
+    });
+
+    return {
+      parameterStatuses,
+      chartSeries,
+      recentAlerts: alerts.slice(0, 5),
+      complianceRate: totalCount > 0 ? Math.round((compliantCount / totalCount) * 100) : 100,
+      totalReadings: measurements.length,
+    };
+  },
   
   getSummary: async (): Promise<any> => {
+    const capabilities = await getBackendCapabilities();
+    if (!capabilities.supportsLegacyReportMetricsApi) {
+      throw new Error('Report summary endpoint is not available on Worker API yet.');
+    }
     return apiRequest('/api/reports/summary');
   },
   
   getPerformance: async (): Promise<any> => {
+    const capabilities = await getBackendCapabilities();
+    if (!capabilities.supportsLegacyReportMetricsApi) {
+      throw new Error('Performance report endpoint is not available on Worker API yet.');
+    }
     return apiRequest('/api/reports/performance');
   },
 };
@@ -446,10 +773,18 @@ export const dashboardApi = {
 // Reports API
 export const reportsApi = {
   generateDaily: async (): Promise<any> => {
+    const capabilities = await getBackendCapabilities();
+    if (!capabilities.supportsLegacyReportMetricsApi) {
+      throw new Error('Daily report endpoint is not available on Worker API yet.');
+    }
     return apiRequest('/api/reports/daily');
   },
   
   generatePDF: async (parameters?: string[]): Promise<Blob> => {
+    const capabilities = await getBackendCapabilities();
+    if (!capabilities.supportsLegacyReportPdfApi) {
+      throw new Error('PDF report endpoint is not available on Worker API yet.');
+    }
     const url = parameters && parameters.length > 0 
       ? `/api/reports/pdf?parameters=${parameters.join(',')}`
       : '/api/reports/pdf';
@@ -469,6 +804,10 @@ export const reportsApi = {
 // Data Import/Export API
 export const dataApi = {
   import: async (file: File): Promise<any> => {
+    const capabilities = await getBackendCapabilities();
+    if (!capabilities.supportsLegacyAdminApi) {
+      throw new Error('CSV import endpoint is not available on Worker API yet.');
+    }
     const formData = new FormData();
     formData.append('file', file);
     
@@ -482,6 +821,10 @@ export const dataApi = {
   },
   
   export: async (): Promise<Blob> => {
+    const capabilities = await getBackendCapabilities();
+    if (!capabilities.supportsLegacyAdminApi) {
+      throw new Error('CSV export endpoint is not available on Worker API yet.');
+    }
     const response = await fetch(`${API_BASE_URL}/api/data/export`, {
       credentials: 'include',
     });
@@ -497,16 +840,28 @@ export const dataApi = {
 // Data Management API
 export const dataManagementApi = {
   getCount: async (): Promise<{ count: number; message: string }> => {
+    const capabilities = await getBackendCapabilities();
+    if (!capabilities.supportsLegacyDataCountApi) {
+      throw new Error('Data count endpoint is not available on Worker API yet.');
+    }
     return apiRequest<{ count: number; message: string }>('/api/data/count');
   },
   
   clearAll: async (): Promise<{ success: boolean; message: string; count: number }> => {
+    const capabilities = await getBackendCapabilities();
+    if (!capabilities.supportsLegacyDataClearApi) {
+      throw new Error('Data clear endpoint is not available on Worker API yet.');
+    }
     return apiRequest<{ success: boolean; message: string; count: number }>('/api/data/clear', {
       method: 'DELETE',
     });
   },
   
   clearByDateRange: async (startDate: string, endDate: string): Promise<{ success: boolean; message: string; count: number }> => {
+    const capabilities = await getBackendCapabilities();
+    if (!capabilities.supportsLegacyDataClearApi) {
+      throw new Error('Date-range clear endpoint is not available on Worker API yet.');
+    }
     return apiRequest<{ success: boolean; message: string; count: number }>(`/api/data/clear/${startDate}/${endDate}`, {
       method: 'DELETE',
     });
@@ -534,14 +889,31 @@ export interface User {
 
 export const usersApi = {
   getAll: async (): Promise<User[]> => {
-    throw new Error('User management endpoints are not implemented on the Worker API yet.');
+    const capabilities = await getBackendCapabilities();
+    if (!capabilities.supportsLegacyUserListApi) {
+      throw new Error('User listing is not available on the Worker API yet.');
+    }
+    return apiRequest<User[]>('/api/users');
   },
   
-  create: async (_username: string, _password: string, _role: string): Promise<{success: boolean; id: string; username: string; role: string}> => {
-    throw new Error('User creation is not implemented on the Worker API yet.');
+  create: async (username: string, password: string, role: string): Promise<{success: boolean; id: string; username: string; role: string}> => {
+    const capabilities = await getBackendCapabilities();
+    if (!capabilities.supportsLegacyUserCreateApi) {
+      throw new Error('User creation is not available on the Worker API yet.');
+    }
+    return apiRequest<{ success: boolean; id: string; username: string; role: string }>('/api/users', {
+      method: 'POST',
+      body: JSON.stringify({ username, password, role }),
+    });
   },
   
-  delete: async (_userId: string): Promise<{success: boolean}> => {
-    throw new Error('User deletion is not implemented on the Worker API yet.');
+  delete: async (userId: string): Promise<{success: boolean}> => {
+    const capabilities = await getBackendCapabilities();
+    if (!capabilities.supportsLegacyUserDeleteApi) {
+      throw new Error('User deletion is not available on the Worker API yet.');
+    }
+    return apiRequest<{ success: boolean }>(`/api/users/${userId}`, {
+      method: 'DELETE',
+    });
   },
 };

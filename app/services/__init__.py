@@ -7,6 +7,24 @@ from datetime import datetime
 from typing import Dict, List, Optional, Tuple
 from app.models import Parameter, Measurement, Alert, Report
 
+_REPORT_CACHE: Dict[str, Tuple[datetime, Dict[str, any]]] = {}
+
+
+def _get_cached_report(key: str, ttl_seconds: int = 60) -> Optional[Dict[str, any]]:
+    entry = _REPORT_CACHE.get(key)
+    if not entry:
+        return None
+    cached_at, payload = entry
+    age_seconds = (datetime.now() - cached_at).total_seconds()
+    if age_seconds > ttl_seconds:
+        _REPORT_CACHE.pop(key, None)
+        return None
+    return payload
+
+
+def _set_cached_report(key: str, payload: Dict[str, any]) -> None:
+    _REPORT_CACHE[key] = (datetime.now(), payload)
+
 
 class ValidationService:
     """Service for validating measurements against standards."""
@@ -167,9 +185,24 @@ class ReportService:
     """Service for generating reports and analytics."""
     
     @staticmethod
+    def get_summary(start_date: str, end_date: str) -> Dict[str, any]:
+        """Get report summary with short-lived cache for dashboard usage."""
+        cache_key = f"summary:{start_date}:{end_date}"
+        cached = _get_cached_report(cache_key, ttl_seconds=60)
+        if cached is not None:
+            return cached
+        summary = Report.get_summary(start_date, end_date)
+        _set_cached_report(cache_key, summary)
+        return summary
+
+    @staticmethod
     def generate_daily_report() -> Dict[str, any]:
         """Generate a daily report with statistics."""
         today = datetime.now().strftime("%Y-%m-%d")
+        cache_key = f"daily:{today}"
+        cached = _get_cached_report(cache_key, ttl_seconds=60)
+        if cached is not None:
+            return cached
         
         # Get today's measurements
         measurements = Measurement.get_recent(days=1)
@@ -196,7 +229,7 @@ class ReportService:
             else:
                 param_stats[param] = {"avg": 0, "min": 0, "max": 0, "count": 0}
         
-        return {
+        report = {
             "date": today,
             "measurement_count": len(measurements),
             "compliance_rate": round(compliance_rate, 2),
@@ -206,20 +239,29 @@ class ReportService:
                       f"{round(compliance_rate, 2)}% compliance, "
                       f"{alerts_summary['total']} active alerts."
         }
+        _set_cached_report(cache_key, report)
+        return report
     
     @staticmethod
     def generate_performance_metrics(days: int = 30) -> Dict[str, any]:
         """Generate performance metrics for the specified period."""
+        cache_key = f"performance:{days}"
+        cached = _get_cached_report(cache_key, ttl_seconds=60)
+        if cached is not None:
+            return cached
+
         measurements = Measurement.get_recent(days=days)
         
         if not measurements:
-            return {
+            result = {
                 "period_days": days,
                 "total_measurements": 0,
                 "avg_daily_measurements": 0,
                 "compliance_trend": "no_data",
                 "alert_frequency": 0
             }
+            _set_cached_report(cache_key, result)
+            return result
         
         # Group by day
         daily_counts = {}
@@ -236,7 +278,7 @@ class ReportService:
         active_alerts = Alert.get_active()
         alert_frequency = len(active_alerts) / days if days > 0 else 0
         
-        return {
+        result = {
             "period_days": days,
             "total_measurements": len(measurements),
             "avg_daily_measurements": round(avg_daily, 2),
@@ -245,6 +287,8 @@ class ReportService:
             "alert_frequency": round(alert_frequency, 2),
             "days_with_data": len(daily_counts)
         }
+        _set_cached_report(cache_key, result)
+        return result
 
 
 class DataImportService:

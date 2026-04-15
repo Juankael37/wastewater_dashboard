@@ -21,7 +21,7 @@ import {
   Legend,
   Filler
 } from 'chart.js'
-import { dashboardApi, alertsApi, measurementsApi } from '../../services/api'
+import { dashboardApi, type Alert as AlertDTO } from '../../services/api'
 
 // Register Chart.js components
 ChartJS.register(
@@ -98,103 +98,40 @@ const DashboardPage: React.FC = () => {
       try {
         setLoading(true)
         
-        // Fetch dashboard data
-        const dashboardData = await dashboardApi.getData()
-        
-        // Fetch alerts
-        const alertsData = await alertsApi.getAll()
-        
-        // Fetch measurements for detailed data
-        const measurementsData = await measurementsApi.getRecent(100)
-        
-        // Process dashboard data
-        if (dashboardData.data && dashboardData.dates) {
-          const latestData = dashboardData.data
-          const dates = dashboardData.dates
-          
-          // Calculate compliance rate
-          let compliantCount = 0
-          let totalCount = 0
-          
-          const processedParams: ParameterData[] = []
-          
-          Object.keys(paramConfig).forEach(key => {
-            const config = paramConfig[key]
-            const values = latestData[key as keyof typeof latestData] as number[] || []
-            const latestValue = values.length > 0 ? values[values.length - 1] : 0
-            
-            // Calculate compliance
-            values.forEach(val => {
-              if (val !== null && val !== undefined) {
-                totalCount++
-                if (val >= config.min && val <= config.max) {
-                  compliantCount++
-                }
-              }
-            })
-            
-            // Determine status
-            let status: 'good' | 'warning' | 'critical' = 'good'
-            if (latestValue < config.min || latestValue > config.max) {
-              status = 'critical'
-            } else {
-              const margin = (config.max - config.min) * 0.1
-              if (latestValue < config.min + margin || latestValue > config.max - margin) {
-                status = 'warning'
-              }
-            }
-            
-            processedParams.push({
-              name: paramLabels[key],
-              value: latestValue,
-              unit: config.unit,
-              status,
-              standard: `${config.min}-${config.max}`,
-              icon: config.icon,
-              color: config.color
-            })
-            
-            // Build chart data for each parameter
-            // Filter measurements by parameter
-            measurementsData.filter((m: any) => {
-              const paramName = key === 'ph' ? 'ph' :
-                               key === 'cod' ? 'cod' :
-                               key === 'bod' ? 'bod' :
-                               key === 'tss' ? 'tss' :
-                               key === 'ammonia' ? 'ammonia' :
-                               key === 'nitrate' ? 'nitrate' :
-                               key === 'phosphate' ? 'phosphate' :
-                               key === 'temperature' ? 'temperature' : 'flow'
-              return m[paramName] !== null && m[paramName] !== undefined
-            })
-            
-            // Use dates as labels and values from dashboard data
-            setChartData(prev => ({
-              ...prev,
-              [key]: {
-                labels: dates.slice(-10),
-                influent: values.slice(-10).map((v: number) => v * (0.9 + Math.random() * 0.2)), // Simulated influent
-                effluent: values.slice(-10)
-              }
-            }))
-          })
-          
-          setParameters(processedParams)
-          setComplianceRate(totalCount > 0 ? Math.round((compliantCount / totalCount) * 100) : 100)
-        }
-        
-        // Process alerts
-        const processedAlerts: Alert[] = alertsData.slice(0, 5).map((alert: any) => ({
-          id: alert.id,
-          parameter: alert.parameter,
-          message: `${alert.parameter}: ${alert.status} (${alert.value})`,
-          time: formatTime(alert.timestamp),
-          severity: alert.status === 'critical' ? 'critical' : 
-                   alert.status === 'warning' ? 'warning' : 'info'
+        const snapshot = await dashboardApi.getSnapshot()
+
+        const processedParams: ParameterData[] = snapshot.parameterStatuses.map((param) => ({
+          name: param.name,
+          value: param.value,
+          unit: param.unit,
+          status: param.status,
+          standard: param.standard,
+          icon: paramConfig[param.key]?.icon || <Activity className="w-5 h-5" />,
+          color: param.color,
         }))
-        
+
+        const processedChartData: Record<string, ChartData> = {}
+        Object.entries(snapshot.chartSeries).forEach(([key, series]) => {
+          processedChartData[key] = {
+            labels: series.labels,
+            influent: series.influent,
+            effluent: series.effluent,
+          }
+        })
+
+        const processedAlerts: Alert[] = (snapshot.recentAlerts as AlertDTO[]).map((alert) => ({
+          id: Number(alert.id),
+          parameter: alert.parameter,
+          message: alert.message || `${alert.parameter}: ${alert.status} (${alert.value})`,
+          time: alert.time || 'Just now',
+          severity: (alert.severity as 'warning' | 'critical' | 'info') || 'info'
+        }))
+
+        setParameters(processedParams)
+        setChartData(processedChartData)
         setRecentAlerts(processedAlerts)
-        setTotalReadings(measurementsData.length)
+        setComplianceRate(snapshot.complianceRate)
+        setTotalReadings(snapshot.totalReadings)
         
       } catch (error) {
         console.error('Failed to fetch dashboard data:', error)
@@ -205,18 +142,6 @@ const DashboardPage: React.FC = () => {
     
     fetchData()
   }, [])
-
-  const formatTime = (timestamp: string): string => {
-    const now = new Date()
-    const alertTime = new Date(timestamp)
-    const diffMs = now.getTime() - alertTime.getTime()
-    const diffHours = Math.floor(diffMs / (1000 * 60 * 60))
-    const diffDays = Math.floor(diffHours / 24)
-    
-    if (diffDays > 0) return `${diffDays}d ago`
-    if (diffHours > 0) return `${diffHours}h ago`
-    return 'Just now'
-  }
 
   const getStatusIcon = (status: string) => {
     switch (status) {

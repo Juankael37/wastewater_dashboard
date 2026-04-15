@@ -1,4 +1,4 @@
-﻿# Cursor / agent: limit default indexing noise (explicit @-mentions still work).
+# Cursor / agent: limit default indexing noise (explicit @-mentions still work).
 .git
 venv
 .venv
@@ -17,13 +17,12 @@ build
 coverage
 .env
 *.log
-*.png
-*.jpg
-*.jpeg
-*.gif
-*.webp
-*.mp4
-*.ico
+# Keep source assets visible; ignore only generated/common media outputs.
+screenshots
+artifacts
+reports
+playwright-report
+test-results
+*.webm
 .DS_Store
 Thumbs.db
-project_index.txt

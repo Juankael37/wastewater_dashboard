@@ -141,10 +141,10 @@ export const measurementService = {
   },
   
   async deleteMeasurement(id: number): Promise<void> {
-    await db.measurements.delete(id)
-    
-    // Add delete action to sync queue if it was synced
     const measurement = await db.measurements.get(id)
+    await db.measurements.delete(id)
+
+    // Add delete action to sync queue only if the record was previously synced.
     if (measurement?.synced) {
       await db.syncQueue.add({
         measurementId: id,

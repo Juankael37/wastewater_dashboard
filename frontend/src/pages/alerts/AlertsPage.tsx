@@ -1,14 +1,29 @@
 import React from 'react'
 import { AlertTriangle, CheckCircle, XCircle, Bell } from 'lucide-react'
+import { alertsApi, type Alert } from '../../services/api'
 
 const AlertsPage: React.FC = () => {
-  const alerts = [
-    { id: 1, parameter: 'pH', value: 5.8, status: 'warning', message: 'pH below minimum threshold (6.0)', timestamp: '2026-04-01 14:30', plant: 'Plant A' },
-    { id: 2, parameter: 'COD', value: 120, status: 'critical', message: 'COD exceeds effluent standard (100 mg/L)', timestamp: '2026-04-01 13:45', plant: 'Plant B' },
-    { id: 3, parameter: 'Ammonia', value: 0.6, status: 'warning', message: 'Ammonia exceeds limit (0.5 mg/L)', timestamp: '2026-04-01 12:15', plant: 'Plant A' },
-    { id: 4, parameter: 'TSS', value: 85, status: 'info', message: 'TSS approaching limit (100 mg/L)', timestamp: '2026-04-01 11:30', plant: 'Plant C' },
-    { id: 5, parameter: 'Temperature', value: 32.5, status: 'warning', message: 'Temperature above optimal range', timestamp: '2026-04-01 10:45', plant: 'Plant B' },
-  ]
+  const [alerts, setAlerts] = React.useState<Alert[]>([])
+  const [loading, setLoading] = React.useState(true)
+
+  React.useEffect(() => {
+    const fetchAlerts = async () => {
+      try {
+        setLoading(true)
+        const data = await alertsApi.getAll()
+        setAlerts(data)
+      } catch (error) {
+        console.error('Failed to fetch alerts:', error)
+      } finally {
+        setLoading(false)
+      }
+    }
+    fetchAlerts()
+  }, [])
+
+  const criticalCount = alerts.filter((a) => (a.severity || a.status) === 'critical').length
+  const warningCount = alerts.filter((a) => (a.severity || a.status) === 'warning').length
+  const infoCount = alerts.filter((a) => (a.severity || a.status) === 'info').length
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -40,7 +55,7 @@ const AlertsPage: React.FC = () => {
             <div className="flex items-center gap-4">
               <div className="px-4 py-2 bg-slate-800 rounded-lg">
                 <span className="text-slate-300">Active Alerts: </span>
-                <span className="font-semibold text-white">5</span>
+                <span className="font-semibold text-white">{alerts.length}</span>
               </div>
               <button className="px-4 py-2 bg-teal-500 hover:bg-teal-600 text-white rounded-lg font-semibold transition">
                 Mark All as Read
@@ -56,7 +71,7 @@ const AlertsPage: React.FC = () => {
               <div className="p-3 bg-red-500/10 rounded-lg">
                 <XCircle className="w-8 h-8 text-red-500" />
               </div>
-              <span className="text-3xl font-bold text-white">2</span>
+              <span className="text-3xl font-bold text-white">{criticalCount}</span>
             </div>
             <h3 className="text-lg font-semibold text-white mb-2">Critical Alerts</h3>
             <p className="text-slate-300 text-sm">Requires immediate attention</p>
@@ -67,7 +82,7 @@ const AlertsPage: React.FC = () => {
               <div className="p-3 bg-amber-500/10 rounded-lg">
                 <AlertTriangle className="w-8 h-8 text-amber-500" />
               </div>
-              <span className="text-3xl font-bold text-white">3</span>
+              <span className="text-3xl font-bold text-white">{warningCount}</span>
             </div>
             <h3 className="text-lg font-semibold text-white mb-2">Warnings</h3>
             <p className="text-slate-300 text-sm">Approaching limits</p>
@@ -78,7 +93,7 @@ const AlertsPage: React.FC = () => {
               <div className="p-3 bg-blue-500/10 rounded-lg">
                 <Bell className="w-8 h-8 text-blue-500" />
               </div>
-              <span className="text-3xl font-bold text-white">1</span>
+              <span className="text-3xl font-bold text-white">{infoCount}</span>
             </div>
             <h3 className="text-lg font-semibold text-white mb-2">Informational</h3>
             <p className="text-slate-300 text-sm">Monitoring alerts</p>
@@ -119,9 +134,9 @@ const AlertsPage: React.FC = () => {
                 {alerts.map(alert => (
                   <tr key={alert.id} className="border-b border-slate-700/50 hover:bg-slate-700/20 transition">
                     <td className="py-4 px-6">
-                      <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full border ${getStatusColor(alert.status)}`}>
-                        {getStatusIcon(alert.status)}
-                        <span className="text-sm font-medium capitalize">{alert.status}</span>
+                      <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full border ${getStatusColor(alert.severity || alert.status)}`}>
+                        {getStatusIcon(alert.severity || alert.status)}
+                        <span className="text-sm font-medium capitalize">{alert.severity || alert.status}</span>
                       </div>
                     </td>
                     <td className="py-4 px-6">
@@ -134,13 +149,13 @@ const AlertsPage: React.FC = () => {
                       </span>
                     </td>
                     <td className="py-4 px-6">
-                      <span className="text-slate-300">{alert.message}</span>
+                      <span className="text-slate-300">{alert.message || `${alert.parameter}: ${alert.status}`}</span>
                     </td>
                     <td className="py-4 px-6">
-                      <span className="text-white">{alert.plant}</span>
+                      <span className="text-white">{alert.plant || '-'}</span>
                     </td>
                     <td className="py-4 px-6">
-                      <span className="text-slate-300">{alert.timestamp}</span>
+                      <span className="text-slate-300">{alert.time || alert.timestamp}</span>
                     </td>
                     <td className="py-4 px-6">
                       <div className="flex gap-2">
@@ -156,6 +171,9 @@ const AlertsPage: React.FC = () => {
                 ))}
               </tbody>
             </table>
+            {loading && (
+              <div className="px-6 py-4 text-slate-300">Loading alerts...</div>
+            )}
           </div>
 
           <div className="p-6 border-t border-slate-700">

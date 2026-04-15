@@ -26,6 +26,44 @@ from reportlab.lib.styles import getSampleStyleSheet
 main = Blueprint('main', __name__)
 
 
+def _get_current_user_role():
+    """Resolve current user's role from DB with admin fallback for legacy user id=1."""
+    if not current_user.is_authenticated:
+        return None
+
+    conn = get_connection()
+    try:
+        try:
+            user = conn.execute(
+                "SELECT id, role FROM users WHERE id = ?",
+                (current_user.id,)
+            ).fetchone()
+        except Exception:
+            # Fallback for older DBs that do not yet have users.role.
+            user = conn.execute(
+                "SELECT id FROM users WHERE id = ?",
+                (current_user.id,)
+            ).fetchone()
+    finally:
+        conn.close()
+
+    if not user:
+        return None
+    if "role" in user.keys() and user["role"]:
+        return user["role"]
+    if str(user["id"]) == "1":
+        return "admin"
+    return "operator"
+
+
+def _require_admin_json():
+    """Return a JSON error response when current user is not admin."""
+    role = _get_current_user_role()
+    if role != "admin":
+        return jsonify({"error": "Admin access required"}), 403
+    return None
+
+
 # ================= AUTHENTICATION ROUTES =================
 @main.route('/login', methods=['GET', 'POST'])
 def login():
@@ -201,7 +239,7 @@ def dashboard():
 @login_required
 def settings_page():
     """Render the settings page (admin only)."""
-    if current_user.id != 1 and current_user.id != '1':
+    if _get_current_user_role() != "admin":
         return redirect('/')
     return render_template('settings.html')
 
@@ -294,6 +332,24 @@ def alerts_page():
 
 
 # ================= API ENDPOINTS =================
+@main.route('/api/capabilities')
+def api_capabilities():
+    """Expose backend capabilities for frontend feature gating."""
+    return jsonify({
+        "mode": "flask",
+        "supportsLegacyAdminApi": True,
+        "supportsLegacyDataCountApi": True,
+        "supportsLegacyDataClearApi": True,
+        "supportsLegacyUserListApi": True,
+        "supportsLegacyUserCreateApi": True,
+        "supportsLegacyUserDeleteApi": True,
+        "supportsLegacyReportsApi": True,
+        "supportsLegacyReportMetricsApi": True,
+        "supportsLegacyReportPdfApi": True,
+        "supportsLegacyValidationApi": True
+    })
+
+
 @main.route('/api/login', methods=['POST'])
 def api_login():
     """API endpoint for login - returns JSON response."""
@@ -441,9 +497,9 @@ def api_dashboard_alerts():
 def api_clear_all_data():
     """Clear all measurement data (admin only)."""
     try:
-        # Check if user is admin
-        if not current_user.is_authenticated:
-            return jsonify({"error": "Authentication required"}), 401
+        forbidden = _require_admin_json()
+        if forbidden:
+            return forbidden
         
         # Clear all data
         deleted_count = clear_all_data()
@@ -462,8 +518,9 @@ def api_clear_all_data():
 def api_clear_data_range():
     """Clear data within date range (admin only)."""
     try:
-        if not current_user.is_authenticated:
-            return jsonify({"error": "Authentication required"}), 401
+        forbidden = _require_admin_json()
+        if forbidden:
+            return forbidden
             
         start_date = request.view_args['start_date']
         end_date = request.view_args['end_date']
@@ -517,6 +574,10 @@ def api_parameters():
 @login_required
 def api_update_parameter(parameter_name):
     """Update parameter standards."""
+    forbidden = _require_admin_json()
+    if forbidden:
+        return forbidden
+
     data = request.json
     
     if 'min_limit' not in data or 'max_limit' not in data:
@@ -538,6 +599,10 @@ def api_update_parameter(parameter_name):
 @login_required
 def api_create_parameter():
     """Create a new parameter."""
+    forbidden = _require_admin_json()
+    if forbidden:
+        return forbidden
+
     data = request.json
     
     if not data.get('parameter') or data.get('min_limit') is None or data.get('max_limit') is None:
@@ -572,6 +637,10 @@ def api_create_parameter():
 @login_required
 def api_delete_parameter(parameter_name):
     """Delete a parameter."""
+    forbidden = _require_admin_json()
+    if forbidden:
+        return forbidden
+
     # Prevent deleting core parameters
     core_params = ['ph', 'cod', 'bod', 'tss', 'ammonia', 'nitrate', 'phosphate', 'temperature', 'flow']
     if parameter_name.lower() in core_params:
@@ -601,7 +670,7 @@ def api_report_summary():
     start_date = request.args.get('start', datetime.datetime.now().strftime('%Y-%m-01'))
     end_date = request.args.get('end', datetime.datetime.now().strftime('%Y-%m-%d'))
     
-    summary = Report.get_summary(start_date, end_date)
+    summary = ReportService.get_summary(start_date, end_date)
     return jsonify(summary)
 
 
@@ -640,6 +709,10 @@ def api_validate_measurement():
 @login_required
 def api_import_data():
     """Import data from CSV."""
+    forbidden = _require_admin_json()
+    if forbidden:
+        return forbidden
+
     if 'file' not in request.files:
         return jsonify({"error": "No file provided"}), 400
     
@@ -659,15 +732,7 @@ def api_import_data():
 @main.route('/api/data/export')
 @login_required
 def api_export_data():
-    """Export data as CSV with date range support."""
-    import matplotlib
-    matplotlib.use('Agg')
-    import matplotlib.pyplot as plt
-    from reportlab.lib.units import inch
-    from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Image as RLImage
-    from reportlab.lib.styles import getSampleStyleSheet
-    from reportlab.lib import colors
-    
+    """Export data as CSV with date range support (lightweight path)."""
     # Get date range from query params
     end_date = datetime.datetime.now()
     start_date = end_date - datetime.timedelta(days=7)
@@ -688,189 +753,44 @@ def api_export_data():
     
     # Get measurements in date range
     measurements = Measurement.get_by_date_range(start_str, end_str)
-    standards = Parameter.get_all()
-    standards_dict = {s['parameter']: s for s in standards}
-    
-    # Check if user wants PDF with graphs or CSV
-    format_type = request.args.get('format', 'csv')
-    
-    if format_type == 'pdf':
-        # Generate professional PDF report with graphs
-        buffer = io.BytesIO()
-        doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=0.5*inch, leftMargin=0.5*inch)
-        elements = []
-        styles = getSampleStyleSheet()
-        
-        # Title
-        elements.append(Paragraph("Wastewater Treatment Report", styles['Title']))
-        elements.append(Paragraph(f"Period: {start_str} to {end_str}", styles['Normal']))
-        elements.append(Paragraph(f"Generated: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", styles['Normal']))
-        elements.append(Paragraph(" ", styles['Normal']))
-        
-        # Summary
-        total = len(measurements)
-        compliant = 0
-        for m in measurements:
-            is_compliant = True
-            for param in ['ph', 'cod', 'bod', 'tss', 'ammonia', 'nitrate', 'phosphate', 'temperature', 'flow']:
-                val = m.get(param)
-                if val is not None and param in standards_dict:
-                    std = standards_dict[param]
-                    if val < float(std['min_limit']) or val > float(std['max_limit']):
-                        is_compliant = False
-                        break
-            if is_compliant:
-                compliant += 1
-        
-        compliance_rate = (compliant / total * 100) if total > 0 else 0
-        
-        elements.append(Paragraph("Summary", styles['Heading2']))
-        summary_data = [
-            ['Metric', 'Value'],
-            ['Total Measurements', str(total)],
-            ['Compliant Measurements', str(compliant)],
-            ['Compliance Rate', f"{compliance_rate:.1f}%"]
-        ]
-        summary_table = Table(summary_data, colWidths=[2.5*inch, 2*inch])
-        summary_table.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
-            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, 0), (-1, 0), 10),
-            ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
-            ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
-            ('GRID', (0, 0), (-1, -1), 1, colors.black)
-        ]))
-        elements.append(summary_table)
-        elements.append(Paragraph(" ", styles['Normal']))
-        
-        # Generate graphs for each parameter
-        elements.append(Paragraph("Weekly Parameter Trends", styles['Heading2']))
-        
-        params = [
-            ('ph', 'pH', '#3b82f6'),
-            ('cod', 'COD (mg/L)', '#ef4444'),
-            ('bod', 'BOD (mg/L)', '#f97316'),
-            ('tss', 'TSS (mg/L)', '#8b5cf6'),
-            ('ammonia', 'Ammonia (mg/L)', '#06b6d4'),
-            ('nitrate', 'Nitrate (mg/L)', '#10b981'),
-            ('phosphate', 'Phosphate (mg/L)', '#84cc16'),
-            ('temperature', 'Temperature (°C)', '#f43f5e'),
-            ('flow', 'Flow (m³/h)', '#6366f1')
-        ]
-        
-        for param_key, param_name, color in params:
-            dates = []
-            values = []
-            for m in measurements:
-                val = m.get(param_key)
-                if val is not None:
-                    dates.append(m.get('timestamp', '')[:10])
-                    values.append(float(val))
-            
-            if values:
-                fig, ax = plt.subplots(figsize=(6, 3))
-                ax.plot(range(len(values)), values, color=color, marker='o', markersize=4, linewidth=2)
-                ax.set_title(param_name, fontsize=10, fontweight='bold')
-                ax.set_ylabel(param_name, fontsize=8)
-                ax.set_xlabel('Date', fontsize=8)
-                ax.set_xticks(range(len(dates)))
-                ax.set_xticklabels(dates, rotation=45, ha='right', fontsize=6)
-                ax.tick_params(axis='y', labelsize=7)
-                ax.grid(True, alpha=0.3)
-                
-                if param_key in standards_dict:
-                    std = standards_dict[param_key]
-                    ax.axhline(y=float(std['max_limit']), color='red', linestyle='--', linewidth=1, label=f'Max: {std["max_limit"]}')
-                    if float(std['min_limit']) > 0:
-                        ax.axhline(y=float(std['min_limit']), color='orange', linestyle='--', linewidth=1, label=f'Min: {std["min_limit"]}')
-                    ax.legend(fontsize=6)
-                
-                plt.tight_layout()
-                img_buffer = io.BytesIO()
-                fig.savefig(img_buffer, format='png', dpi=100, bbox_inches='tight')
-                img_buffer.seek(0)
-                plt.close(fig)
-                elements.append(RLImage(img_buffer, width=6*inch, height=2.5*inch))
-                elements.append(Paragraph(" ", styles['Normal']))
-        
-        # Data Table
-        elements.append(Paragraph("Measurement Data", styles['Heading2']))
-        if measurements:
-            headers = ['Date', 'pH', 'COD', 'BOD', 'TSS', 'NH3', 'NO3', 'PO4', 'Temp', 'Flow']
-            data = [headers]
-            for m in measurements:
-                data.append([
-                    str(m.get('timestamp', ''))[:10],
-                    f"{m.get('ph', '-') or '-'}",
-                    f"{m.get('cod', '-') or '-'}",
-                    f"{m.get('bod', '-') or '-'}",
-                    f"{m.get('tss', '-') or '-'}",
-                    f"{m.get('ammonia', '-') or '-'}",
-                    f"{m.get('nitrate', '-') or '-'}",
-                    f"{m.get('phosphate', '-') or '-'}",
-                    f"{m.get('temperature', '-') or '-'}",
-                    f"{m.get('flow', '-') or '-'}"
-                ])
-            col_widths = [0.7*inch] + [0.5*inch] * 9
-            table = Table(data, colWidths=col_widths)
-            table.setStyle(TableStyle([
-                ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
-                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-                ('FONTSIZE', (0, 0), (-1, 0), 7),
-                ('BOTTOMPADDING', (0, 0), (-1, 0), 4),
-                ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
-                ('GRID', (0, 0), (-1, -1), 0.5, colors.black),
-                ('FONTSIZE', (0, 1), (-1, -1), 6)
-            ]))
-            elements.append(table)
-        
-        doc.build(elements)
-        buffer.seek(0)
-        
-        return send_file(
-            buffer,
-            mimetype='application/pdf',
-            as_attachment=True,
-            download_name=f'wastewater_report_{start_str}_to_{end_str}.pdf'
+
+    if request.args.get('format') == 'pdf':
+        return jsonify({
+            "error": "PDF export moved to /api/reports/pdf to keep /api/data/export lightweight."
+        }), 400
+
+    now_str = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    csv_lines = ["Wastewater Treatment Plant - Measurement Data"]
+    csv_lines.append("Report Period: " + start_str + " to " + end_str)
+    csv_lines.append("Generated: " + now_str)
+    csv_lines.append("")
+    csv_lines.append("timestamp,ph,cod,bod,tss,ammonia,nitrate,phosphate,temperature,flow")
+
+    for m in measurements:
+        csv_lines.append(
+            f"{m.get('timestamp', '') or ''},"
+            f"{m.get('ph', '') or ''},"
+            f"{m.get('cod', '') or ''},"
+            f"{m.get('bod', '') or ''},"
+            f"{m.get('tss', '') or ''},"
+            f"{m.get('ammonia', '') or ''},"
+            f"{m.get('nitrate', '') or ''},"
+            f"{m.get('phosphate', '') or ''},"
+            f"{m.get('temperature', '') or ''},"
+            f"{m.get('flow', '') or ''}"
         )
-    else:
-        # Export as CSV
-        now_str = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        csv_lines = ["Wastewater Treatment Plant - Measurement Data"]
-        csv_lines.append("Report Period: " + start_str + " to " + end_str)
-        csv_lines.append("Generated: " + now_str)
-        csv_lines.append("")
-        csv_lines.append("timestamp,ph,cod,bod,tss,ammonia,nitrate,phosphate,temperature,flow")
-        
-        for m in measurements:
-            csv_lines.append(
-                f"{m.get('timestamp', '') or ''},"
-                f"{m.get('ph', '') or ''},"
-                f"{m.get('cod', '') or ''},"
-                f"{m.get('bod', '') or ''},"
-                f"{m.get('tss', '') or ''},"
-                f"{m.get('ammonia', '') or ''},"
-                f"{m.get('nitrate', '') or ''},"
-                f"{m.get('phosphate', '') or ''},"
-                f"{m.get('temperature', '') or ''},"
-                f"{m.get('flow', '') or ''}"
-            )
-        
-        csv_data = "\n".join(csv_lines)
-        output = io.BytesIO()
-        output.write(csv_data.encode('utf-8'))
-        output.seek(0)
-        
-        return send_file(
-            output,
-            mimetype='text/csv',
-            as_attachment=True,
-            download_name=f'wastewater_data_{start_str}_to_{end_str}.csv'
-        )
+
+    csv_data = "\n".join(csv_lines)
+    output = io.BytesIO()
+    output.write(csv_data.encode('utf-8'))
+    output.seek(0)
+
+    return send_file(
+        output,
+        mimetype='text/csv',
+        as_attachment=True,
+        download_name=f'wastewater_data_{start_str}_to_{end_str}.csv'
+    )
 
 
 # ================= PDF REPORT GENERATION =================
@@ -1109,28 +1029,21 @@ def unauthorized(error):
 @login_required
 def api_get_users():
     """Get all users."""
+    forbidden = _require_admin_json()
+    if forbidden:
+        return forbidden
+
     conn = get_connection()
-    # Add role column if it doesn't exist
     try:
-        conn.execute("ALTER TABLE users ADD COLUMN role TEXT DEFAULT 'operator'")
-        conn.commit()
-    except:
-        pass  # Column already exists
-    
-    # Ensure admin user (id=1) has admin role
-    try:
-        conn.execute("UPDATE users SET role = 'admin' WHERE id = 1 AND (role IS NULL OR role != 'admin')")
-        conn.commit()
-    except:
-        pass
-    
-    users = conn.execute("SELECT id, username, role FROM users").fetchall()
+        users = conn.execute("SELECT id, username, role FROM users").fetchall()
+    except Exception:
+        users = conn.execute("SELECT id, username FROM users").fetchall()
     conn.close()
     
     return jsonify([{
         "id": u["id"],
         "username": u["username"],
-        "role": u["role"] if u["role"] else ("admin" if u["id"] == 1 else "operator")
+        "role": (u["role"] if "role" in u.keys() and u["role"] else ("admin" if u["id"] == 1 else "operator"))
     } for u in users])
 
 
@@ -1138,6 +1051,10 @@ def api_get_users():
 @login_required
 def api_create_user():
     """Create a new user."""
+    forbidden = _require_admin_json()
+    if forbidden:
+        return forbidden
+
     data = request.json
     
     if not data.get('username') or not data.get('password'):
@@ -1155,13 +1072,6 @@ def api_create_user():
     hashed_password = generate_password_hash(password)
     
     conn = get_connection()
-    # Add role column if it doesn't exist
-    try:
-        conn.execute("ALTER TABLE users ADD COLUMN role TEXT DEFAULT 'operator'")
-        conn.commit()
-    except:
-        pass  # Column already exists
-    
     try:
         conn.execute(
             "INSERT INTO users (username, password, role) VALUES (?, ?, ?)",
@@ -1171,6 +1081,8 @@ def api_create_user():
         user_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
         return jsonify({"success": True, "id": user_id, "username": username, "role": role}), 201
     except Exception as e:
+        if "role" in str(e).lower() and "column" in str(e).lower():
+            return jsonify({"error": "Database schema missing users.role. Run scripts/migrations/001_add_users_role.sql."}), 500
         return jsonify({"error": f"Username already exists: {str(e)}"}), 400
     finally:
         conn.close()
@@ -1180,6 +1092,10 @@ def api_create_user():
 @login_required
 def api_delete_user(user_id):
     """Delete a user."""
+    forbidden = _require_admin_json()
+    if forbidden:
+        return forbidden
+
     if user_id == 1:
         return jsonify({"error": "Cannot delete admin user"}), 400
     

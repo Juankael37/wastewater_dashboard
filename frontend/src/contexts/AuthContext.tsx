@@ -7,6 +7,7 @@ interface User {
   id: string
   username: string
   email?: string
+  full_name?: string
   role: 'admin' | 'operator' | 'client'
 }
 
@@ -29,11 +30,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isLoading, setIsLoading] = useState(true)
 
   const getRoleFromUser = (apiUser: any): 'admin' | 'operator' | 'client' => {
-    const rawRole = apiUser?.user_metadata?.role || 'operator'
+    const rawRole = apiUser?.user_metadata?.role || apiUser?.profile?.role || 'operator'
     if (rawRole === 'admin' || rawRole === 'client' || rawRole === 'operator') {
       return rawRole
     }
     return 'operator'
+  }
+
+  const getDisplayName = (apiUser: any): string => {
+    return (
+      apiUser?.profile?.full_name ||
+      apiUser?.user_metadata?.full_name ||
+      apiUser?.email ||
+      'user'
+    )
   }
 
   // Check for existing session on mount
@@ -46,10 +56,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (authStatus.authenticated && authStatus.user) {
           const role = getRoleFromUser(authStatus.user)
           const email = authStatus.user.email || ''
+          const fullName = getDisplayName(authStatus.user)
           setUser({
             id: authStatus.user.id,
-            username: email || 'user',
+            username: fullName,
             email,
+            full_name: fullName,
             role: role as 'admin' | 'operator' | 'client'
           })
         } else {
@@ -80,10 +92,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const response = await authApi.login(usernameOrEmail, password)
       const role = getRoleFromUser(response.user)
       const email = response.user?.email || usernameOrEmail
+      const fullName = getDisplayName(response.user)
       setUser({
         id: response.user?.id,
-        username: email,
+        username: fullName,
         email,
+        full_name: fullName,
         role,
       })
       toast.success('Signed in successfully')
@@ -150,10 +164,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (authStatus.authenticated && authStatus.user && !user) {
         const role = getRoleFromUser(authStatus.user)
         const email = authStatus.user.email || ''
+        const fullName = getDisplayName(authStatus.user)
         setUser({
           id: authStatus.user.id,
-          username: email || 'user',
+          username: fullName,
           email,
+          full_name: fullName,
           role
         })
       } else if (!authStatus.authenticated && user) {

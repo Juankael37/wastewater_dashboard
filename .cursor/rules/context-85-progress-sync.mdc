@@ -1,0 +1,30 @@
+---
+description: At high context usage, checkpoint project tracking docs and sync to GitHub
+alwaysApply: true
+---
+
+# Context 85% checkpoint rule
+
+When chat context usage is around 85% or higher, initiate a progress checkpoint before continuing major work.
+
+## Required checkpoint actions
+
+1. Update these tracking files with current, accurate status:
+   - `project.md`
+   - `PROJECT_PLAN.md`
+   - `IMPLEMENTATION_ROADMAP.md`
+   - `PROGRESS_SUMMARY.md`
+2. Keep updates concise and factual:
+   - completed work
+   - in-progress work
+   - next actions and blockers
+3. Save changes to git and sync to GitHub:
+   - `git add project.md PROJECT_PLAN.md IMPLEMENTATION_ROADMAP.md PROGRESS_SUMMARY.md`
+   - `git commit -m "docs: checkpoint project progress at high context usage"`
+   - `git push`
+
+## Guardrails
+
+- Do not invent progress; reflect only real repository/task state.
+- If one of the files does not exist, create it using the same reporting structure.
+- If push is not possible (no remote/auth), still commit locally and report what is pending.

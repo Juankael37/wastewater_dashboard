@@ -18,12 +18,15 @@ import {
   Droplets
 } from 'lucide-react'
 import toast from 'react-hot-toast'
-import { dataManagementApi, usersApi, parametersApi, type User, type Parameter } from '../../services/api'
+import { dataManagementApi, usersApi, parametersApi, getBackendCapabilities, type User, type Parameter } from '../../services/api'
 
-/** Local Flask app (legacy full admin API). Cloudflare Worker uses Supabase for auth and partial CRUD. */
-function isFlaskBackend(): boolean {
-  const base = import.meta.env.VITE_API_URL ?? ''
-  return base.includes('localhost:5000') || base.includes('127.0.0.1:5000')
+interface SettingsCapabilities {
+  supportsUserList: boolean
+  supportsUserCreate: boolean
+  supportsUserDelete: boolean
+  supportsParameterWrite: boolean
+  supportsDataCount: boolean
+  supportsDataClear: boolean
 }
 
 const CloudSettingsNotice: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => (
@@ -34,7 +37,7 @@ const CloudSettingsNotice: React.FC<{ title: string; children: React.ReactNode }
 )
 
 // User Management Component
-const UserManagementSection: React.FC = () => {
+const UserManagementSection: React.FC<{ capabilities: SettingsCapabilities }> = ({ capabilities }) => {
   const [users, setUsers] = useState<User[]>([])
   const [loading, setLoading] = useState(true)
   const [showAddUser, setShowAddUser] = useState(false)
@@ -42,12 +45,12 @@ const UserManagementSection: React.FC = () => {
   const [addingUser, setAddingUser] = useState(false)
 
   useEffect(() => {
-    if (!isFlaskBackend()) {
+    if (!capabilities.supportsUserList) {
       setLoading(false)
       return
     }
     fetchUsers()
-  }, [])
+  }, [capabilities.supportsUserList])
 
   const fetchUsers = async () => {
     try {
@@ -62,7 +65,7 @@ const UserManagementSection: React.FC = () => {
     }
   }
 
-  if (!isFlaskBackend()) {
+  if (!capabilities.supportsUserList) {
     return (
       <div className="space-y-6">
         <div>
@@ -129,8 +132,9 @@ const UserManagementSection: React.FC = () => {
           <p className="text-slate-400">Manage system users and their permissions</p>
         </div>
         <button 
+          disabled={!capabilities.supportsUserCreate}
           onClick={() => setShowAddUser(!showAddUser)}
-          className="px-4 py-2 bg-teal-500 hover:bg-teal-600 text-white rounded-lg font-semibold transition flex items-center gap-2"
+          className="px-4 py-2 bg-teal-500 hover:bg-teal-600 disabled:opacity-50 text-white rounded-lg font-semibold transition flex items-center gap-2"
         >
           <Plus className="w-4 h-4" />
           Add New User
@@ -138,7 +142,7 @@ const UserManagementSection: React.FC = () => {
       </div>
 
       {/* Add User Form */}
-      {showAddUser && (
+      {capabilities.supportsUserCreate && showAddUser && (
         <div className="bg-slate-700/50 rounded-lg p-6 border border-slate-600">
           <h3 className="text-lg font-semibold text-white mb-4">Add New User</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -264,7 +268,7 @@ const UserManagementSection: React.FC = () => {
                   </td>
                   <td className="py-3 px-4">
                     <div className="flex gap-2">
-                      {user.role !== 'admin' ? (
+                      {user.role !== 'admin' && capabilities.supportsUserDelete ? (
                         <button
                           onClick={() => handleDeleteUser(user.id, user.username)}
                           className="px-3 py-1 bg-red-500/20 hover:bg-red-500/30 text-red-400 rounded text-sm transition flex items-center gap-1"
@@ -288,8 +292,8 @@ const UserManagementSection: React.FC = () => {
 }
 
 // Parameter Management Component
-const ParameterManagementSection: React.FC = () => {
-  const flaskBackend = isFlaskBackend()
+const ParameterManagementSection: React.FC<{ capabilities: SettingsCapabilities }> = ({ capabilities }) => {
+  const canWriteParameters = capabilities.supportsParameterWrite
   const [parameters, setParameters] = useState<Parameter[]>([])
   const [loading, setLoading] = useState(true)
   const [editingParam, setEditingParam] = useState<string | null>(null)
@@ -388,7 +392,7 @@ const ParameterManagementSection: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      {!flaskBackend && (
+      {!canWriteParameters && (
         <CloudSettingsNotice title="Read-only on cloud API">
           <p>
             Parameters and standards are loaded from Supabase. Add, edit, and delete here still use the legacy Flask API and are hidden until equivalent Worker endpoints exist.
@@ -400,7 +404,7 @@ const ParameterManagementSection: React.FC = () => {
           <h2 className="text-2xl font-semibold text-white">Parameter Management</h2>
           <p className="text-slate-400">Configure water quality standards for all parameters</p>
         </div>
-        {flaskBackend && (
+        {canWriteParameters && (
           <button
             onClick={() => setShowAddParam(!showAddParam)}
             className="px-4 py-2 bg-teal-500 hover:bg-teal-600 text-white rounded-lg font-semibold transition flex items-center gap-2"
@@ -412,7 +416,7 @@ const ParameterManagementSection: React.FC = () => {
       </div>
 
       {/* Add Parameter Form */}
-      {flaskBackend && showAddParam && (
+      {canWriteParameters && showAddParam && (
         <div className="bg-slate-700/50 rounded-lg p-6 border border-slate-600">
           <h3 className="text-lg font-semibold text-white mb-4">Add New Parameter</h3>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -478,7 +482,7 @@ const ParameterManagementSection: React.FC = () => {
                   {paramIcons[param.parameter] || <Beaker className="w-5 h-5" />}
                   <span className="font-semibold text-white capitalize">{param.parameter}</span>
                 </div>
-                {flaskBackend && (
+                {canWriteParameters && (
                   editingParam === param.parameter ? (
                     <button onClick={() => setEditingParam(null)} className="text-slate-400 hover:text-white">
                       <X className="w-4 h-4" />
@@ -530,7 +534,7 @@ const ParameterManagementSection: React.FC = () => {
               )}
               
               {/* Delete button for custom parameters */}
-              {flaskBackend && !['ph', 'cod', 'bod', 'tss', 'ammonia', 'nitrate', 'phosphate', 'temperature', 'flow'].includes(param.parameter.toLowerCase()) && (
+              {canWriteParameters && !['ph', 'cod', 'bod', 'tss', 'ammonia', 'nitrate', 'phosphate', 'temperature', 'flow'].includes(param.parameter.toLowerCase()) && (
                 <button
                   onClick={() => handleDeleteParameter(param.parameter)}
                   className="mt-2 w-full px-2 py-1 bg-red-500/20 hover:bg-red-500/30 text-red-400 rounded text-xs transition flex items-center justify-center gap-1"
@@ -548,16 +552,18 @@ const ParameterManagementSection: React.FC = () => {
 }
 
 // Data Management Component
-const DataManagementSection: React.FC = () => {
-  const flaskBackend = isFlaskBackend()
+const DataManagementSection: React.FC<{ capabilities: SettingsCapabilities }> = ({ capabilities }) => {
+  const canCount = capabilities.supportsDataCount
+  const canClear = capabilities.supportsDataClear
+  const enabled = canCount || canClear
   const [dataCount, setDataCount] = useState<number | null>(null)
   const [loading, setLoading] = useState(false)
   const [showClearConfirm, setShowClearConfirm] = useState(false)
 
   useEffect(() => {
-    if (!flaskBackend) return
+    if (!canCount) return
     fetchDataCount()
-  }, [])
+  }, [canCount])
 
   const fetchDataCount = async () => {
     try {
@@ -568,7 +574,7 @@ const DataManagementSection: React.FC = () => {
     }
   }
 
-  if (!flaskBackend) {
+  if (!enabled) {
     return (
       <div className="space-y-6">
         <div>
@@ -641,7 +647,7 @@ const DataManagementSection: React.FC = () => {
             {!showClearConfirm ? (
               <button
                 onClick={() => setShowClearConfirm(true)}
-                disabled={loading || !dataCount || dataCount === 0}
+                disabled={loading || !canClear || !dataCount || dataCount === 0}
                 className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg disabled:opacity-50 transition flex items-center gap-2"
               >
                 <Trash2 className="w-4 h-4" />
@@ -676,6 +682,34 @@ type SettingsTab = 'users' | 'parameters' | 'data' | 'notifications' | 'security
 
 const SettingsPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<SettingsTab>('users')
+  const showCapabilitiesDebug = Boolean(import.meta.env.DEV)
+  const [capabilities, setCapabilities] = useState<SettingsCapabilities>({
+    supportsUserList: false,
+    supportsUserCreate: false,
+    supportsUserDelete: false,
+    supportsParameterWrite: false,
+    supportsDataCount: false,
+    supportsDataClear: false,
+  })
+
+  useEffect(() => {
+    const loadCapabilities = async () => {
+      try {
+        const caps = await getBackendCapabilities()
+        setCapabilities({
+          supportsUserList: Boolean(caps.supportsLegacyUserListApi),
+          supportsUserCreate: Boolean(caps.supportsLegacyUserCreateApi),
+          supportsUserDelete: Boolean(caps.supportsLegacyUserDeleteApi),
+          supportsParameterWrite: Boolean(caps.supportsLegacyAdminApi),
+          supportsDataCount: Boolean(caps.supportsLegacyDataCountApi),
+          supportsDataClear: Boolean(caps.supportsLegacyDataClearApi),
+        })
+      } catch (error) {
+        console.error('Failed to load backend capabilities:', error)
+      }
+    }
+    loadCapabilities()
+  }, [])
 
   const tabs = [
     { id: 'users' as SettingsTab, label: 'User Management', icon: <Users className="w-5 h-5" /> },
@@ -688,11 +722,11 @@ const SettingsPage: React.FC = () => {
   const renderContent = () => {
     switch (activeTab) {
       case 'users':
-        return <UserManagementSection />
+        return <UserManagementSection capabilities={capabilities} />
       case 'parameters':
-        return <ParameterManagementSection />
+        return <ParameterManagementSection capabilities={capabilities} />
       case 'data':
-        return <DataManagementSection />
+        return <DataManagementSection capabilities={capabilities} />
       case 'notifications':
         return (
           <div className="text-center py-12">
@@ -723,6 +757,20 @@ const SettingsPage: React.FC = () => {
           <h1 className="text-3xl font-bold text-white mb-2">Settings</h1>
           <p className="text-slate-400">Configure system settings and manage users</p>
         </div>
+
+        {showCapabilitiesDebug && (
+          <div className="mb-6 rounded-lg border border-teal-500/30 bg-teal-500/10 p-4">
+            <h2 className="text-sm font-semibold text-teal-300 mb-2">Backend Capabilities (dev)</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm text-slate-300">
+              <div>User list: <span className={capabilities.supportsUserList ? 'text-emerald-300' : 'text-slate-400'}>{String(capabilities.supportsUserList)}</span></div>
+              <div>User create: <span className={capabilities.supportsUserCreate ? 'text-emerald-300' : 'text-slate-400'}>{String(capabilities.supportsUserCreate)}</span></div>
+              <div>User delete: <span className={capabilities.supportsUserDelete ? 'text-emerald-300' : 'text-slate-400'}>{String(capabilities.supportsUserDelete)}</span></div>
+              <div>Parameter write: <span className={capabilities.supportsParameterWrite ? 'text-emerald-300' : 'text-slate-400'}>{String(capabilities.supportsParameterWrite)}</span></div>
+              <div>Data count: <span className={capabilities.supportsDataCount ? 'text-emerald-300' : 'text-slate-400'}>{String(capabilities.supportsDataCount)}</span></div>
+              <div>Data clear: <span className={capabilities.supportsDataClear ? 'text-emerald-300' : 'text-slate-400'}>{String(capabilities.supportsDataClear)}</span></div>
+            </div>
+          </div>
+        )}
 
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
           {/* Sidebar Navigation */}

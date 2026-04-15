@@ -1,28 +1,40 @@
-// Test frontend API call directly
-const testMeasurement = {
-  timestamp: new Date().toISOString(),
-  ph: '7.2',
-  cod: '45.0',
-  bod: '25.0',
-  tss: '35.0',
-  ammonia: '0.3',
-  nitrate: '8.0',
-  phosphate: '0.5',
-  temperature: '22.0',
-  flow: '2500.0',
-  type: 'effluent',
-  plant_id: 1,
-  notes: 'Test from frontend'
-};
+/**
+ * Lightweight contract probe for Worker root endpoints used by frontend bootstrapping.
+ * Usage:
+ *   node test_frontend_api.js
+ *   WORKER_URL=https://... node test_frontend_api.js
+ */
 
-fetch('http://localhost:5000/api/measurements', {
-  method: 'POST',
-  headers: {
-    'Content-Type': 'application/json',
-    'Cookie': 'session=test' // You'll need actual session cookie
-  },
-  body: JSON.stringify(testMeasurement)
-})
-.then(response => response.json())
-.then(data => console.log('Success:', data))
-.catch(error => console.error('Error:', error));
+const workerUrl = (process.env.WORKER_URL || 'https://wastewater-api.juankael37.workers.dev').replace(/\/$/, '');
+
+async function run() {
+  const root = await fetch(`${workerUrl}/`);
+  if (!root.ok) {
+    throw new Error(`GET / failed with status ${root.status}`);
+  }
+  const rootBody = await root.json();
+  if (rootBody?.capabilities?.mode) {
+    if (rootBody.capabilities.mode !== 'worker') {
+      throw new Error(`Unexpected capabilities mode: ${rootBody.capabilities.mode}`);
+    }
+  } else if (rootBody?.message !== 'Wastewater Monitoring API') {
+    throw new Error('Root payload missing expected worker marker');
+  }
+
+  const capabilities = await fetch(`${workerUrl}/capabilities`);
+  if (capabilities.ok) {
+    const capBody = await capabilities.json();
+    if (capBody.mode !== 'worker') {
+      throw new Error(`Unexpected mode from /capabilities: ${capBody.mode}`);
+    }
+  } else {
+    console.log(`WARN: /capabilities not available yet (status ${capabilities.status})`);
+  }
+
+  console.log('OK: Worker contract probe passed');
+}
+
+run().catch((err) => {
+  console.error('FAIL:', err.message || err);
+  process.exit(1);
+});
