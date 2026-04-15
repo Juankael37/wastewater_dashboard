@@ -113,7 +113,7 @@ Real‑time warnings when values exceed valid ranges (see detailed table in orig
 - In progress: Worker parity migration for legacy Flask `/api/*` contracts used by the PWA.
 - Worker parity now includes: validation check, report metric endpoints, **PDF export** (`/api/reports/pdf`), alerts dashboard summary, data count/clear, and user list/create/**delete** (delete is enabled only when Worker has `SUPABASE_SERVICE_ROLE_KEY` configured; admin accounts are protected from deletion).
 - Release safety started: structured JSON request/error logs in Worker, updated smoke test, GitHub Actions smoke workflow, and local predeploy gate script.
-- Remaining focus: finalize any remaining Flask-only `/api/*` dependencies for the PWA (or document dual-backend mode), Google Sheets backup, and real-device PWA testing (install/camera/offline).
+- Remaining focus: Google Sheets backup implementation, real-device PWA testing (install/camera/offline), and optional SQLite historical data migration validation. Worker parity now covers Settings parameter-management APIs and data import/export.
 
 ## Key Constraints
 - Zero‑cost deployment (Cloudflare + Supabase)

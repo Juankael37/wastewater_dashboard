@@ -19,12 +19,12 @@ The [connect plan](.cursor/plans/connect_supabase_+_cloudflare_cbd74acc.plan.md)
 
 **In progress**
 - Worker parity expansion for legacy `/api/*` routes (major item #11) is actively in progress.
-- Worker now supports compatibility endpoints for validation, report metrics (`/api/reports/*` non-PDF), alerts dashboard, data count/clear, and user list/create.
+- Worker now supports compatibility endpoints for validation, report metrics (`/api/reports/*` non-PDF), alerts dashboard, data count/clear, user list/create, and CSV data import/export (`/api/data/import`, `/api/data/export`).
 
 **Remaining next actions / blockers**
-- Worker user delete parity remains intentionally disabled (capability flag false) pending safe account lifecycle strategy.
-- Worker PDF parity remains open (`supportsLegacyReportPdfApi=false`); choose implementation strategy or keep explicit non-support.
-- Observability and release safety rails (plan item #12) are not started yet.
+- Worker parity now includes Settings parameter write endpoints (`/api/parameters*`) and CSV data import/export in addition to prior compatibility routes.
+- Google Sheets backup implementation and real-device PWA verification remain pending.
+- Keep observability and release safety rails (plan item #12) enforced in CI/deploy flow.
 
 ### ✅ Completed Features (Enhanced Legacy + New Infrastructure)
 
@@ -69,7 +69,7 @@ The [connect plan](.cursor/plans/connect_supabase_+_cloudflare_cbd74acc.plan.md)
 - **Documentation**: Created `AUTHENTICATION_FIX.md` troubleshooting guide
 
 ### ⚠️ Remaining Migration Tasks
-- **Feature parity**: Port or replace Flask-only `/api/*` usage in the PWA (validation, reports, data import/export) on the Worker — or run a documented dual-backend setup
+- **Feature parity**: Validate remaining Flask-only `/api/*` references in the PWA and keep capability-gated fallbacks only where intentionally retained
 - **Data Migration**: Optional — SQLite → Postgres if you need historical data in Supabase
 - **Storage**: Supabase Storage wired for camera images end-to-end (verify uploads + RLS)
 - **Backup / email**: Google Sheets backup; scheduled email reports (future)
@@ -144,7 +144,7 @@ Local Flask + React integration is done. The PWA can use **Supabase + Workers** 
 - [x] Deploy Supabase database (your project)
 - [x] Deploy Cloudflare Workers API (your account)
 - [ ] Implement Google Sheets backup
-- [ ] Close gaps: Worker vs Flask feature parity for PWA (see `IMPLEMENTATION_ROADMAP.md`)
+- [x] Close final gaps: Worker vs Flask feature parity for PWA Settings parameter-write routes (see `IMPLEMENTATION_ROADMAP.md`)
 
 ### Phase 5: Advanced Features (UPCOMING)
 - [ ] Implement Google Sheets backup (guide created)
@@ -266,7 +266,7 @@ Migration is complete when **all** of the following are true:
 
 - **Overall Progress**: Product feature-rich locally; **cloud operator path** live; **parity + backup + device QA** remain
 - **Frontend**: Strong; resolve hybrid API for a single clear production story
-- **Backend**: Flask complete for exports/admin; Worker covers core CRUD + auth
+- **Backend**: Flask complete for exports/admin; Worker covers core CRUD + auth plus CSV data import/export parity
 - **Documentation**: Roadmap/progress aligned as of April 2026
 - **Testing**: Exercise smoke tests (`scripts/smoke-test-worker.ps1`) and `PWA_TESTING_GUIDE.md` on real devices
 
@@ -279,7 +279,7 @@ The system is fully functional with two interfaces:
 - Export PDF with trend graphs for all 9 parameters (Flask / AquaDash)
 - Report Settings tab in Settings page
 
-**Next focus:** Google Sheets backup, optional SQLite migration, Worker parity for PWA-only Flask routes, production device testing.
+**Next focus:** Google Sheets backup, optional SQLite migration, production device testing, and release-safety hardening in CI.
 
 ## Sprint-ready execution plan (from analysis steps 1-3)
 

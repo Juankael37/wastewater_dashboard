@@ -136,8 +136,11 @@ const alertResolveSchema = z.object({
 const getWorkerCapabilities = (env) => ({
   mode: 'worker',
   supportsLegacyAdminApi: false,
+  supportsLegacyParameterWriteApi: true,
   supportsLegacyDataCountApi: true,
   supportsLegacyDataClearApi: true,
+  supportsLegacyDataImportApi: true,
+  supportsLegacyDataExportApi: true,
   supportsLegacyUserListApi: true,
   supportsLegacyUserCreateApi: true,
   supportsLegacyUserDeleteApi: Boolean(env?.SUPABASE_SERVICE_ROLE_KEY),
@@ -145,6 +148,55 @@ const getWorkerCapabilities = (env) => ({
   supportsLegacyReportMetricsApi: true,
   supportsLegacyReportPdfApi: true,
   supportsLegacyValidationApi: true,
+})
+
+const csvRowToObject = (line, headers) => {
+  const values = []
+  let current = ''
+  let inQuotes = false
+
+  for (let i = 0; i < line.length; i += 1) {
+    const ch = line[i]
+    if (ch === '"') {
+      if (inQuotes && line[i + 1] === '"') {
+        current += '"'
+        i += 1
+      } else {
+        inQuotes = !inQuotes
+      }
+      continue
+    }
+
+    if (ch === ',' && !inQuotes) {
+      values.push(current.trim())
+      current = ''
+      continue
+    }
+
+    current += ch
+  }
+  values.push(current.trim())
+
+  const row = {}
+  headers.forEach((h, idx) => {
+    row[h] = values[idx] || ''
+  })
+  return row
+}
+
+const toCsvCell = (value) => {
+  const str = String(value ?? '')
+  if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+    return `"${str.replace(/"/g, '""')}"`
+  }
+  return str
+}
+
+const toParameterPayload = (name, standardRow) => ({
+  id: standardRow?.id || standardRow?.parameter_id || name,
+  parameter: name,
+  min_limit: Number(standardRow?.min_limit ?? 0),
+  max_limit: Number(standardRow?.max_limit ?? 0),
 })
 
 const escapePdfText = (value) =>
@@ -513,6 +565,423 @@ app.get('/api/data/count', authMiddleware, requireAdminRole, async (c) => {
   })
 })
 
+app.get('/api/parameters', authMiddleware, async (c) => {
+  const supabase = c.get('supabase')
+  const { data, error } = await supabase
+    .from('standards')
+    .select('id, parameter_id, min_limit, max_limit, class, parameters!inner(name)')
+    .eq('class', 'C')
+    .order('parameters(name)', { ascending: true })
+
+  if (error) {
+    return c.json({ error: error.message }, 500)
+  }
+
+  const payload = (data || []).map((row) => {
+    const name = String(row.parameters?.name || '').toLowerCase()
+    return toParameterPayload(name, row)
+  })
+
+  return c.json(payload)
+})
+
+app.post('/api/parameters', authMiddleware, requireAdminRole, async (c) => {
+  const supabase = c.get('supabase')
+  const payload = await c.req.json()
+  const parameterName = String(payload?.parameter || '').trim().toLowerCase()
+  const minLimit = Number(payload?.min_limit)
+  const maxLimit = Number(payload?.max_limit)
+
+  if (!parameterName || !Number.isFinite(minLimit) || !Number.isFinite(maxLimit)) {
+    return c.json({ error: 'Parameter name, min_limit, and max_limit are required' }, 400)
+  }
+
+  const { data: existingParameter } = await supabase
+    .from('parameters')
+    .select('id')
+    .eq('name', parameterName)
+    .maybeSingle()
+
+  if (existingParameter) {
+    return c.json({ error: 'Parameter already exists' }, 400)
+  }
+
+  const displayName = String(payload?.display_name || parameterName.replace(/_/g, ' ')).replace(/\b\w/g, (ch) => ch.toUpperCase())
+  const unit = String(payload?.unit || '-').trim() || '-'
+  const { data: createdParam, error: createParamError } = await supabase
+    .from('parameters')
+    .insert({
+      name: parameterName,
+      display_name: displayName,
+      unit,
+      min_value: minLimit,
+      max_value: maxLimit,
+      is_active: true,
+    })
+    .select('id,name')
+    .single()
+
+  if (createParamError || !createdParam) {
+    return c.json({ error: createParamError?.message || 'Failed to create parameter' }, 500)
+  }
+
+  const { data: standard, error: standardError } = await supabase
+    .from('standards')
+    .insert({
+      parameter_id: createdParam.id,
+      class: 'C',
+      min_limit: minLimit,
+      max_limit: maxLimit,
+      unit,
+    })
+    .select('id,parameter_id,min_limit,max_limit')
+    .single()
+
+  if (standardError || !standard) {
+    return c.json({ error: standardError?.message || 'Failed to create parameter standard' }, 500)
+  }
+
+  return c.json(toParameterPayload(createdParam.name, standard), 201)
+})
+
+app.put('/api/parameters/:parameterName', authMiddleware, requireAdminRole, async (c) => {
+  const supabase = c.get('supabase')
+  const parameterName = String(c.req.param('parameterName') || '').trim().toLowerCase()
+  const payload = await c.req.json()
+  const minLimit = Number(payload?.min_limit)
+  const maxLimit = Number(payload?.max_limit)
+
+  if (!parameterName) {
+    return c.json({ error: 'Parameter name is required' }, 400)
+  }
+  if (!Number.isFinite(minLimit) || !Number.isFinite(maxLimit)) {
+    return c.json({ error: 'Missing min_limit or max_limit' }, 400)
+  }
+
+  const { data: parameterRow, error: parameterError } = await supabase
+    .from('parameters')
+    .select('id,name')
+    .eq('name', parameterName)
+    .maybeSingle()
+  if (parameterError || !parameterRow) {
+    return c.json({ error: 'Parameter not found' }, 404)
+  }
+
+  const { data: updatedStandard, error: standardError } = await supabase
+    .from('standards')
+    .update({ min_limit: minLimit, max_limit: maxLimit, updated_at: new Date().toISOString() })
+    .eq('parameter_id', parameterRow.id)
+    .eq('class', 'C')
+    .select('id,parameter_id,min_limit,max_limit')
+    .maybeSingle()
+  if (standardError) {
+    return c.json({ error: standardError.message }, 500)
+  }
+
+  if (!updatedStandard) {
+    const { data: insertedStandard, error: insertStandardError } = await supabase
+      .from('standards')
+      .insert({
+        parameter_id: parameterRow.id,
+        class: 'C',
+        min_limit: minLimit,
+        max_limit: maxLimit,
+      })
+      .select('id,parameter_id,min_limit,max_limit')
+      .single()
+    if (insertStandardError || !insertedStandard) {
+      return c.json({ error: insertStandardError?.message || 'Unable to create missing class C standard' }, 500)
+    }
+    await supabase
+      .from('parameters')
+      .update({ min_value: minLimit, max_value: maxLimit, is_active: true, updated_at: new Date().toISOString() })
+      .eq('id', parameterRow.id)
+    return c.json(toParameterPayload(parameterName, insertedStandard))
+  }
+
+  await supabase
+    .from('parameters')
+    .update({ min_value: minLimit, max_value: maxLimit, updated_at: new Date().toISOString() })
+    .eq('id', parameterRow.id)
+
+  return c.json(toParameterPayload(parameterName, updatedStandard))
+})
+
+app.delete('/api/parameters/:parameterName', authMiddleware, requireAdminRole, async (c) => {
+  const supabase = c.get('supabase')
+  const parameterName = String(c.req.param('parameterName') || '').trim().toLowerCase()
+  const coreParams = new Set(['ph', 'cod', 'bod', 'tss', 'ammonia', 'nitrate', 'phosphate', 'temperature', 'flow'])
+
+  if (!parameterName) {
+    return c.json({ error: 'Parameter name is required' }, 400)
+  }
+  if (coreParams.has(parameterName)) {
+    return c.json({ error: 'Cannot delete core parameters' }, 400)
+  }
+
+  const { data: parameterRow, error: parameterError } = await supabase
+    .from('parameters')
+    .select('id,name')
+    .eq('name', parameterName)
+    .maybeSingle()
+  if (parameterError || !parameterRow) {
+    return c.json({ error: 'Parameter not found' }, 404)
+  }
+
+  const { count: measurementCount, error: countError } = await supabase
+    .from('measurements')
+    .select('*', { count: 'exact', head: true })
+    .eq('parameter_id', parameterRow.id)
+  if (countError) {
+    return c.json({ error: countError.message }, 500)
+  }
+  if (Number(measurementCount || 0) > 0) {
+    return c.json({ error: 'Cannot delete parameter with existing measurements' }, 400)
+  }
+
+  const { error: standardDeleteError } = await supabase
+    .from('standards')
+    .delete()
+    .eq('parameter_id', parameterRow.id)
+  if (standardDeleteError) {
+    return c.json({ error: standardDeleteError.message }, 500)
+  }
+
+  const { error: parameterDeleteError } = await supabase
+    .from('parameters')
+    .delete()
+    .eq('id', parameterRow.id)
+  if (parameterDeleteError) {
+    return c.json({ error: parameterDeleteError.message }, 500)
+  }
+
+  return c.json({ success: true })
+})
+
+app.post('/api/data/import', authMiddleware, requireAdminRole, async (c) => {
+  let csvText = ''
+  let usedMultipart = false
+
+  try {
+    const form = await c.req.parseBody()
+    const upload = form?.file
+    if (upload && typeof upload !== 'string') {
+      usedMultipart = true
+      const filename = String(upload.name || '').toLowerCase()
+      if (filename && !filename.endsWith('.csv')) {
+        return c.json({ error: 'File must be CSV' }, 400)
+      }
+      csvText = await upload.text()
+    }
+  } catch {
+    // Fall through to raw body.
+  }
+
+  if (!csvText) {
+    // Support raw CSV body for clients that can't send multipart.
+    try {
+      csvText = await c.req.text()
+    } catch {
+      csvText = ''
+    }
+  }
+
+  if (!csvText || !csvText.toLowerCase().includes('timestamp,')) {
+    return c.json({ error: usedMultipart ? 'Invalid multipart form data' : 'CSV payload is required' }, 400)
+  }
+  const rawLines = csvText
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+
+  const headerIndex = rawLines.findIndex((line) =>
+    line.toLowerCase().startsWith('timestamp,')
+  )
+  if (headerIndex === -1 || headerIndex >= rawLines.length - 1) {
+    return c.json({ error: 'CSV must include a header starting with timestamp and at least one data row' }, 400)
+  }
+
+  const headers = rawLines[headerIndex]
+    .split(',')
+    .map((h) => h.trim().toLowerCase())
+  const expected = ['timestamp', 'ph', 'cod', 'bod', 'tss', 'ammonia', 'nitrate', 'phosphate', 'temperature', 'flow']
+  const missing = expected.filter((key) => !headers.includes(key))
+  if (missing.length > 0) {
+    return c.json({ error: `CSV missing required columns: ${missing.join(', ')}` }, 400)
+  }
+
+  const supabase = c.get('supabase')
+  const { data: parameters, error: parametersError } = await supabase
+    .from('parameters')
+    .select('id,name')
+  if (parametersError) {
+    return c.json({ error: parametersError.message }, 500)
+  }
+
+  const parameterByName = new Map(
+    (parameters || []).map((p) => [String(p.name || '').toLowerCase(), p.id])
+  )
+  const missingParams = expected
+    .filter((key) => key !== 'timestamp')
+    .filter((key) => !parameterByName.has(key))
+  if (missingParams.length > 0) {
+    return c.json({ error: `Parameters missing in database: ${missingParams.join(', ')}` }, 400)
+  }
+
+  const { data: plants, error: plantsError } = await supabase
+    .from('plants')
+    .select('id')
+    .order('name', { ascending: true })
+    .limit(1)
+  if (plantsError) {
+    return c.json({ error: plantsError.message }, 500)
+  }
+  if (!plants || plants.length === 0) {
+    return c.json({ error: 'No plants configured. Seed at least one plant before importing.' }, 400)
+  }
+  const plantId = plants[0].id
+  const user = c.get('user')
+  const rows = rawLines.slice(headerIndex + 1).map((line) => csvRowToObject(line, headers))
+  const inserts = []
+
+  for (const row of rows) {
+    const tsCandidate = String(row.timestamp || '').trim()
+    const parsedTs = tsCandidate ? new Date(tsCandidate) : null
+    const timestamp = parsedTs && !Number.isNaN(parsedTs.getTime())
+      ? parsedTs.toISOString()
+      : new Date().toISOString()
+    for (const key of expected) {
+      if (key === 'timestamp') continue
+      const rawValue = String(row[key] || '').trim()
+      if (!rawValue) continue
+      const numeric = Number(rawValue)
+      if (!Number.isFinite(numeric)) continue
+      inserts.push({
+        plant_id: plantId,
+        parameter_id: parameterByName.get(key),
+        value: numeric,
+        type: 'effluent',
+        timestamp,
+        operator_id: user.id,
+      })
+    }
+  }
+
+  if (inserts.length === 0) {
+    return c.json({ success: false, imported_rows: 0, created_measurements: 0, message: 'No numeric measurement values found in CSV' }, 400)
+  }
+
+  const { error: insertError } = await supabase
+    .from('measurements')
+    .insert(inserts)
+  if (insertError) {
+    return c.json({ error: insertError.message }, 500)
+  }
+
+  return c.json({
+    success: true,
+    imported_rows: rows.length,
+    created_measurements: inserts.length,
+    message: `Imported ${rows.length} CSV row(s) and created ${inserts.length} measurement record(s).`,
+  })
+})
+
+app.get('/api/data/export', authMiddleware, requireAdminRole, async (c) => {
+  if (c.req.query('format') === 'pdf') {
+    return c.json({
+      error: 'PDF export moved to /api/reports/pdf to keep /api/data/export lightweight.',
+    }, 400)
+  }
+
+  const endDate = c.req.query('end') || new Date().toISOString().slice(0, 10)
+  const startDate = c.req.query('start')
+    || new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
+  const startIso = new Date(`${startDate}T00:00:00.000Z`).toISOString()
+  const endIso = new Date(`${endDate}T23:59:59.999Z`).toISOString()
+
+  const supabase = c.get('supabase')
+  const maxRows = 5000
+  const { data: params, error: paramsError } = await supabase
+    .from('parameters')
+    .select('id,name')
+  if (paramsError) {
+    return c.json({ error: paramsError.message }, 500)
+  }
+  const parameterNameById = new Map((params || []).map((p) => [p.id, String(p.name || '').toLowerCase()]))
+
+  const { data: rows, error } = await supabase
+    .from('measurements')
+    .select('timestamp,value,parameter_id')
+    .gte('timestamp', startIso)
+    .lte('timestamp', endIso)
+    .order('timestamp', { ascending: true })
+    .limit(maxRows)
+  if (error) {
+    return c.json({ error: error.message }, 500)
+  }
+
+  const orderedParams = ['ph', 'cod', 'bod', 'tss', 'ammonia', 'nitrate', 'phosphate', 'temperature', 'flow']
+  const grouped = new Map()
+  for (const item of rows || []) {
+    const timeKey = String(item.timestamp || '')
+    if (!grouped.has(timeKey)) {
+      grouped.set(timeKey, {
+        timestamp: timeKey,
+        ph: '',
+        cod: '',
+        bod: '',
+        tss: '',
+        ammonia: '',
+        nitrate: '',
+        phosphate: '',
+        temperature: '',
+        flow: '',
+      })
+    }
+    const name = parameterNameById.get(item.parameter_id) || ''
+    if (orderedParams.includes(name)) {
+      grouped.get(timeKey)[name] = item.value
+    }
+  }
+
+  const now = new Date().toISOString().replace('T', ' ').slice(0, 19)
+  const csvLines = [
+    'Wastewater Treatment Plant - Measurement Data',
+    `Report Period: ${startDate} to ${endDate}`,
+    `Generated: ${now}`,
+    `Max rows exported: ${maxRows}`,
+    '',
+    'timestamp,ph,cod,bod,tss,ammonia,nitrate,phosphate,temperature,flow',
+  ]
+  for (const row of grouped.values()) {
+    const line = [
+      row.timestamp,
+      row.ph,
+      row.cod,
+      row.bod,
+      row.tss,
+      row.ammonia,
+      row.nitrate,
+      row.phosphate,
+      row.temperature,
+      row.flow,
+    ]
+      .map(toCsvCell)
+      .join(',')
+    csvLines.push(line)
+  }
+
+  const csvData = `${csvLines.join('\n')}\n`
+  const filename = `wastewater_data_${startDate}_to_${endDate}.csv`
+  return new Response(csvData, {
+    headers: {
+      'Content-Type': 'text/csv; charset=utf-8',
+      'Content-Disposition': `attachment; filename="${filename}"`,
+      'Cache-Control': 'no-store',
+    },
+  })
+})
+
 app.get('/api/users', authMiddleware, requireAdminRole, async (c) => {
   const supabase = c.get('supabase')
   const { data, error } = await supabase
@@ -784,11 +1253,9 @@ app.post('/measurements', authMiddleware, zValidator('json', measurementSchema),
       operator_id: user.id,
       timestamp: measurement.timestamp || new Date().toISOString(),
     })
-    .select(`
-      *,
-      plants!inner(name),
-      parameters!inner(name, display_name, unit)
-    `)
+    // Avoid embedded selects here to keep response robust across PostgREST versions.
+    // Client can hydrate related entities via separate reads if needed.
+    .select('id, plant_id, parameter_id, value, type, timestamp, operator_id, notes')
     .single()
 
   if (error) {

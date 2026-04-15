@@ -9,7 +9,7 @@
 ## What works
 
 - **AquaDash (Flask):** dashboard, reports, exports (PDF with charts, CSV), alerts, settings — local / LAN.
-- **React PWA:** login/register, dashboard, input, alerts, settings; **API base** from `VITE_API_URL`. When pointed at the **Cloudflare Worker**, core flows use **Supabase Auth** (JWT) and Worker routes (`/auth/*`, `/measurements`, `/plants`, `/parameters`, `/standards`, `/alerts`). Some features still call **Flask-style** `/api/*` paths (validation, reports, data tools); use Flask (`:5000`) as `VITE_API_URL` if you need those without the Worker implementing them yet.
+- **React PWA:** login/register, dashboard, input, alerts, settings; **API base** from `VITE_API_URL`. When pointed at the **Cloudflare Worker**, core flows use **Supabase Auth** (JWT) and Worker routes (`/auth/*`, `/measurements`, `/plants`, `/parameters`, `/standards`, `/alerts`) plus parity routes for validation/reports, CSV data import/export, and Settings parameter writes (`/api/parameters*`).
 - **LAN testing:** Vite dev server + LAN IP; for phone testing, ensure the API host you configure is reachable and CORS/`ALLOWED_ORIGINS` includes your origin.
 
 ## Checkpoint updates (Apr 15)
@@ -18,13 +18,15 @@
 - Worker parity (#11) is actively in progress and now includes compatibility routes for validation, report metrics, alerts dashboard, data count/clear, user list/create, **PDF export** (`/api/reports/pdf`), and guarded **user delete** (`DELETE /api/users/:id`, enabled only when Worker has `SUPABASE_SERVICE_ROLE_KEY` configured; admin accounts protected).
 - Settings now uses capability flags instead of backend URL heuristics; dev mode includes a backend-capabilities debug panel.
 - Release safety rails started: structured JSON request/error logs in Worker, smoke test updated to match current capability flags, and a GitHub Actions smoke workflow added (plus local `scripts/predeploy-worker.ps1` gate).
-- Remaining parity gaps: CSV import/export endpoints and any remaining Flask-only `/api/*` routes referenced by the PWA.
+- Remaining parity gaps: validate any residual Flask-only `/api/*` references in the PWA and keep only intentional dual-backend fallbacks.
+- Rollout helper added: `supabase/APPLY_PARAMETER_WRITE_RLS_AND_VERIFY.sql` to apply admin write policies for `parameters`/`standards` and verify policy state in one SQL run.
+- **Live verification (Worker + Supabase):** smoke test now passes end-to-end (auth, core CRUD reads, POST /measurements, RBAC resolve, CSV export/import, and parameter write lifecycle). Follow-up: commit the Supabase RLS/trigger fixes used during verification.
 
 ---
 
 ## Architecture (one line)
 
-**Dual stack:** Flask + SQLite + AquaDash remain for rich exports and legacy admin APIs. **Target path for operators:** React PWA → **Cloudflare Worker** → **Supabase** (see `api/src/index.js`, `frontend/src/services/api.ts`). **Not done:** full parity on Worker for every Flask `/api/*` route; SQLite → Postgres migration; Google Sheets backup.
+**Dual stack:** Flask + SQLite + AquaDash remain for rich exports and legacy admin APIs. **Target path for operators:** React PWA → **Cloudflare Worker** → **Supabase** (see `api/src/index.js`, `frontend/src/services/api.ts`). **Not done:** SQLite → Postgres migration (if needed), Google Sheets backup, and full device QA.
 
 ---
 
@@ -44,7 +46,7 @@
 ## Technical debt (short)
 
 - Tighten TypeScript types where still loose.
-- Resolve **hybrid API**: implement missing routes on Worker, split env vars, or document dual-backend setup clearly.
+- Resolve final **hybrid API** edge: trim stale Flask fallbacks where Worker parity already exists, and document any intentional dual-backend behavior.
 - Camera + image upload vs Supabase Storage — validate E2E on production.
 - Run E2E and mobile/offline tests from `PWA_TESTING_GUIDE.md`.
 

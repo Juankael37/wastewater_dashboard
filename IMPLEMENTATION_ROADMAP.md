@@ -24,7 +24,7 @@
 - Completed roadmap items around security hardening, runtime schema safety, offline queue stability, report hot-path optimization, and DTO normalization.
 - Expanded Worker parity endpoints and frontend capability flags to reduce Flask-only requirements in day-to-day PWA flows.
 - Current high-priority remaining parity items:
-  - Finish Worker parity for any remaining Flask-only `/api/*` routes used by the PWA (CSV import/export, any remaining data tools).
+  - Validate and remove any stale Flask-only references in PWA where Worker parity is already available.
   - Observability/release safety milestone (#12 in sprint-ready plan): CI smoke checks + deploy gate + actionable logs.
 
 ---
@@ -66,7 +66,7 @@
 **Still open:**
 
 - [ ] Migrate SQLite → Postgres (optional; if you have production SQLite data)
-- [ ] Port or duplicate Flask-only `/api/*` features on the Worker (or document dual-backend dev)
+- [x] Port or duplicate remaining Flask-only `/api/*` features on the Worker (parameter write routes)
 - [ ] Implement Sheets backup
 - [ ] Supabase Storage end-to-end for camera images (if not finished)
 
@@ -120,13 +120,17 @@ PATCH      /alerts/:id/resolve
 GET        /parameters, /standards, /plants
 GET        /api/reports/summary, /api/reports/performance, /api/reports/daily
 GET        /api/reports/pdf
+GET/POST   /api/parameters
+PUT/DELETE /api/parameters/:parameterName
 GET/POST   /api/users
 DELETE     /api/users/:id   (enabled only if `SUPABASE_SERVICE_ROLE_KEY` configured)
 GET        /api/data/count
+POST       /api/data/import
+GET        /api/data/export
 DELETE     /api/data/clear, /api/data/clear/:start/:end
 ```
 
-Flask-only (not on Worker yet): CSV import/export (`/api/data/import`, `/api/data/export`) and any legacy `/api/*` routes not covered above — see `frontend/src/services/api.ts`.
+Flask-only (not on Worker yet): only legacy `/api/*` routes intentionally retained for AquaDash-specific behavior (if any) — see `frontend/src/services/api.ts`.
 
 ### Frontend layout *(implemented)*
 

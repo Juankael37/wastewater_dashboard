@@ -700,7 +700,7 @@ const SettingsPage: React.FC = () => {
           supportsUserList: Boolean(caps.supportsLegacyUserListApi),
           supportsUserCreate: Boolean(caps.supportsLegacyUserCreateApi),
           supportsUserDelete: Boolean(caps.supportsLegacyUserDeleteApi),
-          supportsParameterWrite: Boolean(caps.supportsLegacyAdminApi),
+          supportsParameterWrite: Boolean(caps.supportsLegacyParameterWriteApi),
           supportsDataCount: Boolean(caps.supportsLegacyDataCountApi),
           supportsDataClear: Boolean(caps.supportsLegacyDataClearApi),
         })

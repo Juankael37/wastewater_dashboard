@@ -17,8 +17,11 @@ type BackendMode = 'worker' | 'flask' | 'unknown';
 interface BackendCapabilities {
   mode: BackendMode;
   supportsLegacyAdminApi: boolean;
+  supportsLegacyParameterWriteApi?: boolean;
   supportsLegacyDataCountApi?: boolean;
   supportsLegacyDataClearApi?: boolean;
+  supportsLegacyDataImportApi?: boolean;
+  supportsLegacyDataExportApi?: boolean;
   supportsLegacyUserListApi?: boolean;
   supportsLegacyUserCreateApi?: boolean;
   supportsLegacyUserDeleteApi?: boolean;
@@ -46,8 +49,11 @@ const fallbackBackendCapabilities = (): BackendCapabilities => {
     return {
       mode: 'flask',
       supportsLegacyAdminApi: true,
+      supportsLegacyParameterWriteApi: true,
       supportsLegacyDataCountApi: true,
       supportsLegacyDataClearApi: true,
+      supportsLegacyDataImportApi: true,
+      supportsLegacyDataExportApi: true,
       supportsLegacyUserListApi: true,
       supportsLegacyUserCreateApi: true,
       supportsLegacyUserDeleteApi: true,
@@ -61,6 +67,7 @@ const fallbackBackendCapabilities = (): BackendCapabilities => {
     return {
       mode: 'worker',
       supportsLegacyAdminApi: false,
+      supportsLegacyParameterWriteApi: true,
       supportsLegacyDataCountApi: true,
       supportsLegacyDataClearApi: true,
       supportsLegacyUserListApi: true,
@@ -123,6 +130,9 @@ export async function getBackendCapabilities(): Promise<BackendCapabilities> {
           supportsLegacyReportsApi: false,
           supportsLegacyReportPdfApi: true,
           supportsLegacyValidationApi: false,
+          supportsLegacyParameterWriteApi: false,
+          supportsLegacyDataImportApi: false,
+          supportsLegacyDataExportApi: false,
         };
         return cachedCapabilities;
       }
@@ -595,7 +605,7 @@ export const parametersApi = {
   
   create: async (parameter: string, min_limit: number, max_limit: number): Promise<Parameter> => {
     const capabilities = await getBackendCapabilities();
-    if (!capabilities.supportsLegacyAdminApi) {
+    if (!capabilities.supportsLegacyParameterWriteApi) {
       throw new Error('Parameter creation is not available on the Worker API yet.');
     }
     const response = await apiRequest<Parameter>('/api/parameters', {
@@ -607,7 +617,7 @@ export const parametersApi = {
   
   update: async (parameterName: string, data: Partial<Parameter>): Promise<Parameter> => {
     const capabilities = await getBackendCapabilities();
-    if (!capabilities.supportsLegacyAdminApi) {
+    if (!capabilities.supportsLegacyParameterWriteApi) {
       throw new Error(`Parameter update for "${parameterName}" is not available on the Worker API yet.`);
     }
     const response = await apiRequest<Parameter>(`/api/parameters/${parameterName}`, {
@@ -619,7 +629,7 @@ export const parametersApi = {
   
   delete: async (parameterName: string): Promise<{success: boolean}> => {
     const capabilities = await getBackendCapabilities();
-    if (!capabilities.supportsLegacyAdminApi) {
+    if (!capabilities.supportsLegacyParameterWriteApi) {
       throw new Error(`Parameter delete for "${parameterName}" is not available on the Worker API yet.`);
     }
     return apiRequest<{ success: boolean }>(`/api/parameters/${parameterName}`, {
@@ -808,7 +818,7 @@ export const reportsApi = {
 export const dataApi = {
   import: async (file: File): Promise<any> => {
     const capabilities = await getBackendCapabilities();
-    if (!capabilities.supportsLegacyAdminApi) {
+    if (!capabilities.supportsLegacyDataImportApi) {
       throw new Error('CSV import endpoint is not available on Worker API yet.');
     }
     const formData = new FormData();
@@ -825,11 +835,13 @@ export const dataApi = {
   
   export: async (): Promise<Blob> => {
     const capabilities = await getBackendCapabilities();
-    if (!capabilities.supportsLegacyAdminApi) {
+    if (!capabilities.supportsLegacyDataExportApi) {
       throw new Error('CSV export endpoint is not available on Worker API yet.');
     }
+    const token = getAccessToken();
     const response = await fetch(`${API_BASE_URL}/api/data/export`, {
       credentials: 'include',
+      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
     });
     
     if (!response.ok) {

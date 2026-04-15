@@ -11,6 +11,8 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+$null = Add-Type -AssemblyName System.Net.Http -ErrorAction SilentlyContinue
+
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $repoRoot = Split-Path -Parent $scriptDir
 $smokeEnv = Join-Path $scriptDir "smoke.env"
@@ -42,6 +44,69 @@ function Assert-Ok {
   Write-Host "OK: $Step"
 }
 
+$RequestTimeoutSec = 30
+
+function Invoke-HttpText {
+  param(
+    [string] $Url,
+    [string] $Method = "GET",
+    [hashtable] $Headers = @{}
+  )
+
+  $handler = New-Object System.Net.Http.HttpClientHandler
+  $client = New-Object System.Net.Http.HttpClient($handler)
+  $client.Timeout = [TimeSpan]::FromSeconds($RequestTimeoutSec)
+
+  try {
+    $request = New-Object System.Net.Http.HttpRequestMessage([System.Net.Http.HttpMethod]::$Method, $Url)
+    foreach ($k in $Headers.Keys) {
+      $request.Headers.TryAddWithoutValidation($k, [string]$Headers[$k]) | Out-Null
+    }
+
+    $response = $client.SendAsync($request).GetAwaiter().GetResult()
+    $content = $response.Content.ReadAsStringAsync().GetAwaiter().GetResult()
+    return @{
+      StatusCode = [int]$response.StatusCode
+      Content    = $content
+    }
+  } finally {
+    $client.Dispose()
+    $handler.Dispose()
+  }
+}
+
+function Invoke-HttpCsvPost {
+  param(
+    [string] $Url,
+    [hashtable] $Headers = @{},
+    [string] $CsvText
+  )
+
+  $handler = New-Object System.Net.Http.HttpClientHandler
+  $client = New-Object System.Net.Http.HttpClient($handler)
+  $client.Timeout = [TimeSpan]::FromSeconds($RequestTimeoutSec)
+
+  try {
+    $request = New-Object System.Net.Http.HttpRequestMessage([System.Net.Http.HttpMethod]::Post, $Url)
+    foreach ($k in $Headers.Keys) {
+      $request.Headers.TryAddWithoutValidation($k, [string]$Headers[$k]) | Out-Null
+    }
+
+    $body = New-Object System.Net.Http.StringContent($CsvText, [System.Text.Encoding]::UTF8, "text/csv")
+    $request.Content = $body
+
+    $response = $client.SendAsync($request).GetAwaiter().GetResult()
+    $text = $response.Content.ReadAsStringAsync().GetAwaiter().GetResult()
+    return @{
+      StatusCode = [int]$response.StatusCode
+      Content    = $text
+    }
+  } finally {
+    $client.Dispose()
+    $handler.Dispose()
+  }
+}
+
 # 1) Health (plan: confirm supabase_configured)
 $h = Invoke-RestMethod -Uri "$WorkerUrl/" -Method Get
 Assert-Ok "GET /" ($h.supabase_configured -eq $true) "supabase_configured should be true"
@@ -52,10 +117,13 @@ try {
   Assert-Ok "GET /capabilities" ($caps.mode -eq "worker")
   Assert-Ok "/capabilities legacy flags (baseline)" (
     $caps.supportsLegacyAdminApi -eq $false -and
+    $caps.supportsLegacyParameterWriteApi -eq $true -and
     $caps.supportsLegacyReportsApi -eq $false -and
     $caps.supportsLegacyReportMetricsApi -eq $true -and
     $caps.supportsLegacyReportPdfApi -eq $true -and
-    $caps.supportsLegacyValidationApi -eq $true
+    $caps.supportsLegacyValidationApi -eq $true -and
+    $caps.supportsLegacyDataImportApi -eq $true -and
+    $caps.supportsLegacyDataExportApi -eq $true
   )
 } catch {
   Write-Host "Skip /capabilities strict checks (endpoint not deployed yet on target Worker)."
@@ -156,6 +224,61 @@ if (-not $SkipRbacChecks) {
       $adminResolved = Invoke-RestMethod -Uri "$WorkerUrl/alerts/$alertId/resolve" -Method Patch -ContentType "application/json" -Headers $adminHeaders -Body $resolveBody
       Assert-Ok "PATCH /alerts/:id/resolve allowed for admin" ($null -ne $adminResolved.data.id -and $adminResolved.data.resolved -eq $true)
     }
+
+    Write-Host "INFO: Testing GET /api/data/export (admin)..."
+    $adminExport = Invoke-HttpText -Url "$WorkerUrl/api/data/export" -Method "GET" -Headers $adminHeaders
+    Assert-Ok "GET /api/data/export allowed for admin" ($adminExport.StatusCode -eq 200 -and $adminExport.Content -match "timestamp,ph,cod,bod,tss,ammonia,nitrate,phosphate,temperature,flow")
+
+    $operatorDeniedExport = $false
+    try {
+      Write-Host "INFO: Testing GET /api/data/export (operator denied)..."
+      $opExport = Invoke-HttpText -Url "$WorkerUrl/api/data/export" -Method "GET" -Headers $operatorHeaders
+      if ($opExport.StatusCode -eq 403) {
+        $operatorDeniedExport = $true
+      } else {
+        throw "Expected 403 for operator export, got $($opExport.StatusCode)"
+      }
+    } catch {
+      throw
+    }
+    Assert-Ok "GET /api/data/export denied for operator" $operatorDeniedExport
+
+    $sampleCsvPath = Join-Path $scriptDir "tmp-smoke-import.csv"
+    @(
+      "timestamp,ph,cod,bod,tss,ammonia,nitrate,phosphate,temperature,flow",
+      "$(Get-Date -Format 'yyyy-MM-ddTHH:mm:ssZ'),7.1,88,42,67,0.4,11,0.8,27,1800"
+    ) | Set-Content -Path $sampleCsvPath -Encoding UTF8
+
+    try {
+      Write-Host "INFO: Testing POST /api/data/import (admin)..."
+      $csvText = Get-Content $sampleCsvPath -Raw
+      $importRaw = Invoke-HttpCsvPost -Url "$WorkerUrl/api/data/import" -Headers $adminHeaders -CsvText $csvText
+      $importPreview = $importRaw.Content
+      if ($importPreview -and $importPreview.Length -gt 220) { $importPreview = $importPreview.Substring(0, 220) }
+      Assert-Ok "POST /api/data/import allowed for admin" ($importRaw.StatusCode -eq 200 -or $importRaw.StatusCode -eq 201) "status=$($importRaw.StatusCode) body=$importPreview"
+
+      $importResponse = $importRaw.Content | ConvertFrom-Json
+      Assert-Ok "POST /api/data/import response shape" ($importResponse.success -eq $true -and $importResponse.created_measurements -ge 1)
+    } finally {
+      if (Test-Path $sampleCsvPath) { Remove-Item $sampleCsvPath -Force }
+    }
+
+    $tempParam = "smoke_param_$(Get-Date -Format 'yyyyMMddHHmmss')"
+    $createParamBody = @{
+      parameter = $tempParam
+      min_limit = 1
+      max_limit = 10
+    } | ConvertTo-Json
+    Write-Host "INFO: Testing POST/PUT/DELETE /api/parameters (admin)..."
+    $createdParam = Invoke-RestMethod -Uri "$WorkerUrl/api/parameters" -Method Post -ContentType "application/json" -Headers $adminHeaders -Body $createParamBody -TimeoutSec $RequestTimeoutSec
+    Assert-Ok "POST /api/parameters allowed for admin" ($null -ne $createdParam.parameter -and $createdParam.parameter -eq $tempParam)
+
+    $updateParamBody = @{ min_limit = 2; max_limit = 12 } | ConvertTo-Json
+    $updatedParam = Invoke-RestMethod -Uri "$WorkerUrl/api/parameters/$tempParam" -Method Put -ContentType "application/json" -Headers $adminHeaders -Body $updateParamBody -TimeoutSec $RequestTimeoutSec
+    Assert-Ok "PUT /api/parameters/:name allowed for admin" ($updatedParam.min_limit -eq 2 -and $updatedParam.max_limit -eq 12)
+
+    $deletedParam = Invoke-RestMethod -Uri "$WorkerUrl/api/parameters/$tempParam" -Method Delete -Headers $adminHeaders -TimeoutSec $RequestTimeoutSec
+    Assert-Ok "DELETE /api/parameters/:name allowed for admin" ($deletedParam.success -eq $true)
   }
 }
 
