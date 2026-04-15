@@ -1,6 +1,6 @@
 # Wastewater Monitoring System — Implementation Roadmap
 
-**Companion doc:** Use [`project_plan.md`](project_plan.md) for narrative status, percentages, and week-by-week priorities. This file is a **milestone checklist** plus a short **technical reference**.
+**Companion doc:** Use [`PROJECT_PLAN.md`](PROJECT_PLAN.md) for narrative status, percentages, and week-by-week priorities. This file is a **milestone checklist** plus a short **technical reference**.
 
 **Connect Supabase + Cloudflare (completed checklist):** [`.cursor/plans/connect_supabase_+_cloudflare_cbd74acc.plan.md`](.cursor/plans/connect_supabase_+_cloudflare_cbd74acc.plan.md) — schema deploy, Worker env/secrets + deploy, PWA env (`VITE_*`), RLS aligned with Worker queries, smoke test (auth + measurements + alerts). *Out of scope for that plan:* Flask `/api/*` parity, Sheets backup, SQLite data migration.
 
@@ -15,7 +15,7 @@
 | Flask + SQLite + AquaDash | Operational (local); exports & admin tooling |
 | React PWA | **Hybrid but improved:** capability-driven API routing with normalized DTOs; Worker path now covers more legacy parity routes while retaining explicit fallbacks |
 | Supabase | **Connected (per plan):** schema applied, RLS/policies in place for Worker usage; migrations under `supabase/migrations/` |
-| Cloudflare Workers API | **Deployed & expanded** (`SUPABASE_URL`, `SUPABASE_ANON_KEY`, `ALLOWED_ORIGINS`); includes added parity routes for validation, report metrics, alerts dashboard, data count/clear, and user list/create |
+| Cloudflare Workers API | **Deployed & expanded** (`SUPABASE_URL`, `SUPABASE_ANON_KEY`, `ALLOWED_ORIGINS`); includes parity routes for validation, report metrics, **PDF export** (`/api/reports/pdf`), alerts dashboard, data count/clear, and user list/create/delete *(delete requires `SUPABASE_SERVICE_ROLE_KEY`)* |
 | Auth (PWA → Worker) | Supabase Auth via `POST /auth/login`, `POST /auth/register`; JWT in `localStorage` |
 | Google Sheets backup | Guide only; **not implemented** |
 
@@ -24,9 +24,8 @@
 - Completed roadmap items around security hardening, runtime schema safety, offline queue stability, report hot-path optimization, and DTO normalization.
 - Expanded Worker parity endpoints and frontend capability flags to reduce Flask-only requirements in day-to-day PWA flows.
 - Current high-priority remaining parity items:
-  - Worker PDF/report artifact parity.
-  - Worker user delete parity (requires safer lifecycle strategy).
-  - Observability/release safety milestone (#12 in sprint-ready plan).
+  - Finish Worker parity for any remaining Flask-only `/api/*` routes used by the PWA (CSV import/export, any remaining data tools).
+  - Observability/release safety milestone (#12 in sprint-ready plan): CI smoke checks + deploy gate + actionable logs.
 
 ---
 
@@ -79,7 +78,7 @@
 
 - [x] Report Settings tab; schedule UI (daily/weekly/monthly)
 - [x] User / parameter / data management in Settings
-- [x] PDF/CSV enhancements (see `project_plan.md`)
+- [x] PDF/CSV enhancements (see `PROJECT_PLAN.md`)
 
 **Still open:**
 
@@ -112,14 +111,22 @@ measurements, measurement_images, alerts
 
 ```
 GET        /
+GET        /capabilities
 POST       /auth/login, /auth/register
+GET        /auth/me
 GET/POST   /measurements, GET /measurements/:id
 GET        /alerts
 PATCH      /alerts/:id/resolve
 GET        /parameters, /standards, /plants
+GET        /api/reports/summary, /api/reports/performance, /api/reports/daily
+GET        /api/reports/pdf
+GET/POST   /api/users
+DELETE     /api/users/:id   (enabled only if `SUPABASE_SERVICE_ROLE_KEY` configured)
+GET        /api/data/count
+DELETE     /api/data/clear, /api/data/clear/:start/:end
 ```
 
-Flask-only (not on Worker yet): `/api/validation/check`, `/api/reports/*`, `/api/data/*`, parts of alerts dashboard — see `frontend/src/services/api.ts`.
+Flask-only (not on Worker yet): CSV import/export (`/api/data/import`, `/api/data/export`) and any legacy `/api/*` routes not covered above — see `frontend/src/services/api.ts`.
 
 ### Frontend layout *(implemented)*
 
@@ -148,5 +155,5 @@ Flask-only (not on Worker yet): `/api/validation/check`, `/api/reports/*`, `/api
 ## Revision history
 
 - **2026-04-13:** Linked [connect plan](.cursor/plans/connect_supabase_+_cloudflare_cbd74acc.plan.md); snapshot reflects completed connect work (schema, Worker env/deploy, PWA env, RLS, smoke test) plus hybrid `/api/*` and actual Worker routes.
-- **2026-04-10:** Consolidated duplicate “Phase 5” sections; fixed contradictory “done/pending” checkmarks; aligned with `project_plan.md`; removed stale dated “today” block.
+- **2026-04-10:** Consolidated duplicate “Phase 5” sections; fixed contradictory “done/pending” checkmarks; aligned with `PROJECT_PLAN.md`; removed stale dated “today” block.
 - **2026-04-07:** Prior version (phase numbering overlapped; some items marked done while text said pending).

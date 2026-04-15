@@ -7,7 +7,7 @@ A full‑stack web application for monitoring wastewater treatment plants. Opera
 
 **Target Deployment:** Cloudflare + Supabase (zero‑cost approach)
 
-**Implementation status:** [`project_plan.md`](project_plan.md), [`IMPLEMENTATION_ROADMAP.md`](IMPLEMENTATION_ROADMAP.md), and the completed [Connect Supabase + Cloudflare](.cursor/plans/connect_supabase_+_cloudflare_cbd74acc.plan.md) checklist (schema, Worker, PWA env, RLS, smoke test). Broader backlog: hybrid API parity, Sheets backup, optional data migration.
+**Implementation status:** [`PROJECT_PLAN.md`](PROJECT_PLAN.md), [`IMPLEMENTATION_ROADMAP.md`](IMPLEMENTATION_ROADMAP.md), and the completed [Connect Supabase + Cloudflare](.cursor/plans/connect_supabase_+_cloudflare_cbd74acc.plan.md) checklist (schema, Worker, PWA env, RLS, smoke test). Broader backlog: hybrid API parity, Sheets backup, optional data migration.
 
 ## Two Interfaces
 
@@ -111,8 +111,9 @@ Real‑time warnings when values exceed valid ranges (see detailed table in orig
 
 - Completed: security hardening, RBAC/CORS fixes, offline sync stabilization, report hot-path optimization, schema-mutation cleanup, and DTO normalization.
 - In progress: Worker parity migration for legacy Flask `/api/*` contracts used by the PWA.
-- Worker parity now includes: validation check, report metric endpoints, alerts dashboard summary, data count/clear, and user list/create (delete still intentionally disabled).
-- Remaining blockers: Worker PDF/export parity strategy, account deletion lifecycle policy for Worker, observability/release safety implementation.
+- Worker parity now includes: validation check, report metric endpoints, **PDF export** (`/api/reports/pdf`), alerts dashboard summary, data count/clear, and user list/create/**delete** (delete is enabled only when Worker has `SUPABASE_SERVICE_ROLE_KEY` configured; admin accounts are protected from deletion).
+- Release safety started: structured JSON request/error logs in Worker, updated smoke test, GitHub Actions smoke workflow, and local predeploy gate script.
+- Remaining focus: finalize any remaining Flask-only `/api/*` dependencies for the PWA (or document dual-backend mode), Google Sheets backup, and real-device PWA testing (install/camera/offline).
 
 ## Key Constraints
 - Zero‑cost deployment (Cloudflare + Supabase)

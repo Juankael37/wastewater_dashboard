@@ -2,7 +2,7 @@
 
 **Last updated:** April 15, 2026  
 
-**Canonical status & next steps:** [`project_plan.md`](project_plan.md) · **Milestones & technical reference:** [`IMPLEMENTATION_ROADMAP.md`](IMPLEMENTATION_ROADMAP.md) · **Supabase + Cloudflare connect (done):** [`.cursor/plans/connect_supabase_+_cloudflare_cbd74acc.plan.md`](.cursor/plans/connect_supabase_+_cloudflare_cbd74acc.plan.md)
+**Canonical status & next steps:** [`PROJECT_PLAN.md`](PROJECT_PLAN.md) · **Milestones & technical reference:** [`IMPLEMENTATION_ROADMAP.md`](IMPLEMENTATION_ROADMAP.md) · **Supabase + Cloudflare connect (done):** [`.cursor/plans/connect_supabase_+_cloudflare_cbd74acc.plan.md`](.cursor/plans/connect_supabase_+_cloudflare_cbd74acc.plan.md)
 
 ---
 
@@ -15,9 +15,10 @@
 ## Checkpoint updates (Apr 15)
 
 - Completed sprint items: #1 secrets hardening, #2 RBAC, #3 CORS hardening, #4 API capability gating, #5 offline queue fixes, #6 smoke-contract tests, #7 server-validated auth (`/auth/me`), #8 report path optimization, #9 runtime schema mutation removal, #10 DTO normalization.
-- Worker parity (#11) is actively in progress and now includes compatibility routes for validation, report metrics, alerts dashboard, data count/clear, and user list/create.
+- Worker parity (#11) is actively in progress and now includes compatibility routes for validation, report metrics, alerts dashboard, data count/clear, user list/create, **PDF export** (`/api/reports/pdf`), and guarded **user delete** (`DELETE /api/users/:id`, enabled only when Worker has `SUPABASE_SERVICE_ROLE_KEY` configured; admin accounts protected).
 - Settings now uses capability flags instead of backend URL heuristics; dev mode includes a backend-capabilities debug panel.
-- Remaining parity gaps: Worker PDF/report artifact endpoint and safe user-delete workflow.
+- Release safety rails started: structured JSON request/error logs in Worker, smoke test updated to match current capability flags, and a GitHub Actions smoke workflow added (plus local `scripts/predeploy-worker.ps1` gate).
+- Remaining parity gaps: CSV import/export endpoints and any remaining Flask-only `/api/*` routes referenced by the PWA.
 
 ---
 
