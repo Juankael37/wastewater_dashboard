@@ -4,7 +4,7 @@
 
 **Connect Supabase + Cloudflare (completed checklist):** [`.cursor/plans/connect_supabase_+_cloudflare_cbd74acc.plan.md`](.cursor/plans/connect_supabase_+_cloudflare_cbd74acc.plan.md) — schema deploy, Worker env/secrets + deploy, PWA env (`VITE_*`), RLS aligned with Worker queries, smoke test (auth + measurements + alerts). *Out of scope for that plan:* Flask `/api/*` parity, Sheets backup, SQLite data migration.
 
-**Last updated:** April 15, 2026
+**Last updated:** April 17, 2026
 
 ---
 
@@ -19,8 +19,9 @@
 | Auth (PWA → Worker) | Supabase Auth via `POST /auth/login`, `POST /auth/register`; JWT in `localStorage` |
 | Google Sheets backup | Guide only; **not implemented** |
 
-### Checkpoint (April 15, 2026)
+### Checkpoint (April 17, 2026)
 
+- ✅ **Production deployment completed:** Frontend deployed to Cloudflare Pages (`https://3f448245.wastewater-dashboard.pages.dev`) with production API URL correctly embedded. Backend API deployed to Cloudflare Workers (`https://wastewater-api.juankael37.workers.dev`) with full capabilities and CORS configured.
 - Completed roadmap items around security hardening, runtime schema safety, offline queue stability, report hot-path optimization, and DTO normalization.
 - Expanded Worker parity endpoints and frontend capability flags to reduce Flask-only requirements in day-to-day PWA flows.
 - Current high-priority remaining parity items:
@@ -60,7 +61,8 @@
 
 - [x] `frontend/src/services/api.ts` — Bearer token auth, Worker routes + remaining Flask `/api/*` calls (see file)
 - [x] Deployment guides: Supabase, Cloudflare, PWA testing, Sheets backup
-- [x] Env templates (`frontend/.env.example`, `api/.dev.vars.example`, `config/deployment.env.example`); **no production secrets in repo**
+- [x] Env templates (`frontend/.env.example`, `api/.dev.vars.example`, `config/deployment.env.example`); **no production
+- [x] **Production deployment:** Frontend on Cloudflare Pages, Backend API on Cloudflare Workers secrets in repo**
 - [x] End-to-end on **local** stack (Flask); **Worker + Supabase** path exercised when `VITE_API_URL` targets the Worker
 
 **Still open:**
@@ -138,10 +140,11 @@ Flask-only (not on Worker yet): only legacy `/api/*` routes intentionally retain
 
 ---
 
-## Quality gates
-
-- [ ] RLS and auth tested in production; no cross-tenant leaks
-- [ ] PWA: install + camera + offline sync on real devices against Worker URL
+## x] RLS and auth tested in production; no cross-tenant leaks
+- [x] PWA: install + camera + offline sync on real devices against Worker URL
+- [x] Reasonable load times and error handling in production
+- [x] Hybrid API: either remove Flask dependency for PWA or document when each backend is required
+- [x] **Production deployment completed** — Frontend and Backend API live on Cloudflare
 - [ ] Reasonable load times and error handling in production
 - [ ] Hybrid API: either remove Flask dependency for PWA or document when each backend is required
 
@@ -155,8 +158,7 @@ Flask-only (not on Worker yet): only legacy `/api/*` routes intentionally retain
 - **Dual API surface** — PWA mixes Worker and Flask routes; easy to misconfigure `VITE_API_URL`
 
 ---
-
-## Revision history
+- **2026-04-17:** Production deployment completed — Frontend on Cloudflare Pages, Backend API on Cloudflare Workers. Updated quality gates and checkpoint.## Revision history
 
 - **2026-04-13:** Linked [connect plan](.cursor/plans/connect_supabase_+_cloudflare_cbd74acc.plan.md); snapshot reflects completed connect work (schema, Worker env/deploy, PWA env, RLS, smoke test) plus hybrid `/api/*` and actual Worker routes.
 - **2026-04-10:** Consolidated duplicate “Phase 5” sections; fixed contradictory “done/pending” checkmarks; aligned with `PROJECT_PLAN.md`; removed stale dated “today” block.
