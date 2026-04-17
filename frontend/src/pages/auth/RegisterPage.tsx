@@ -9,7 +9,6 @@ const RegisterPage: React.FC = () => {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
-  const [role, setRole] = useState<'admin' | 'operator' | 'client'>('operator')
   const [error, setError] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
 
@@ -32,7 +31,7 @@ const RegisterPage: React.FC = () => {
 
     try {
       setIsSubmitting(true)
-      await signUp(fullName || email, password, email, role)
+      await signUp(fullName || email, password, email)
       navigate('/login')
     } catch (err: any) {
       setError(err?.message || 'Failed to create account')
@@ -98,19 +97,6 @@ const RegisterPage: React.FC = () => {
                 className="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-3 text-white focus:ring-2 focus:ring-teal-500 focus:border-transparent"
                 placeholder="••••••••"
               />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-slate-300 mb-2">Role</label>
-              <select
-                value={role}
-                onChange={(e) => setRole(e.target.value as 'admin' | 'operator' | 'client')}
-                className="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-3 text-white focus:ring-2 focus:ring-teal-500 focus:border-transparent"
-              >
-                <option value="operator">Operator</option>
-                <option value="client">Client/Owner</option>
-                <option value="admin">Administrator</option>
-              </select>
             </div>
 
             <button

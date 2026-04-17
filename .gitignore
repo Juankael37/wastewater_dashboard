@@ -148,4 +148,4 @@ data.db
 frontend/.env.development
 frontend/.env.production
 api/.dev.vars
-scripts/smoke.env
+scripts/smoke.envapi/.wrangler/

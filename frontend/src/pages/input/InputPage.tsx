@@ -165,17 +165,17 @@ const InputPage: React.FC = () => {
     const hasCamera = parametersWithCamera.includes(param)
 
     return (
-      <div key={param} className="space-y-2">
+      <div key={param} className="space-y-3">
         <label className="block text-sm font-medium text-gray-700">
           {label} ({standards[param as keyof typeof standards]?.unit})
         </label>
-        <div className="flex space-x-2">
+        <div className="flex gap-3">
           <div className="flex-1">
             <input
               type="number"
               step="0.01"
               {...register(param, { required: true })}
-              className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 ${
+              className={`w-full px-4 py-3 text-base border rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none ${
                 validation?.valid === false
                   ? 'border-red-500 bg-red-50'
                   : validation?.warning
@@ -185,11 +185,11 @@ const InputPage: React.FC = () => {
               placeholder={`Enter ${label}`}
             />
             {validation && (
-              <div className={`mt-1 text-xs flex items-center ${
+              <div className={`mt-2 text-sm flex items-center ${
                 validation.valid === false ? 'text-red-600' : 'text-yellow-600'
               }`}>
-                <AlertCircle className="w-3 h-3 mr-1" />
-                {validation.message}
+                <AlertCircle className="w-4 h-4 mr-2 flex-shrink-0" />
+                <span>{validation.message}</span>
               </div>
             )}
           </div>
@@ -197,26 +197,26 @@ const InputPage: React.FC = () => {
             <button
               type="button"
               onClick={() => captureImage(param)}
-              className={`px-3 py-2 rounded-lg border ${
+              className={`px-4 py-3 rounded-lg border-2 min-w-[48px] min-h-[48px] flex items-center justify-center ${
                 capturedImages[param]
                   ? 'bg-green-50 border-green-500 text-green-700'
                   : 'bg-gray-50 border-gray-300 text-gray-700 hover:bg-gray-100'
               }`}
             >
               {capturedImages[param] ? (
-                <Eye className="w-5 h-5" />
+                <Eye className="w-6 h-6" />
               ) : (
-                <Camera className="w-5 h-5" />
+                <Camera className="w-6 h-6" />
               )}
             </button>
           )}
         </div>
         {capturedImages[param] && (
-          <div className="mt-2">
+          <div className="mt-3">
             <img
               src={capturedImages[param]}
               alt={`${param} capture`}
-              className="h-20 w-20 object-cover rounded-lg border"
+              className="h-24 w-24 object-cover rounded-lg border-2 border-gray-300"
             />
           </div>
         )}
@@ -226,63 +226,66 @@ const InputPage: React.FC = () => {
 
   if (showPreview && previewData) {
     return (
-      <div className="max-w-4xl mx-auto">
-        <div className="bg-white rounded-lg shadow-lg p-6">
-          <h2 className="text-2xl font-bold mb-6">Preview Submission</h2>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-            <div>
-              <h3 className="font-semibold mb-2">Plant Information</h3>
-              <p><strong>Plant ID:</strong> {previewData.plantId}</p>
-              <p><strong>Type:</strong> {previewData.type}</p>
+      <div className="min-h-screen bg-gray-50 px-4 py-6">
+        <div className="max-w-md mx-auto bg-white rounded-xl shadow-lg p-6">
+          <h2 className="text-xl font-bold mb-6 text-center">Preview Submission</h2>
+
+          <div className="space-y-6 mb-6">
+            <div className="bg-gray-50 rounded-lg p-4">
+              <h3 className="font-semibold mb-3 text-gray-800">Plant Information</h3>
+              <div className="space-y-2 text-sm">
+                <p><strong className="text-gray-600">Plant:</strong> {plants.find(p => p.id === previewData.plantId)?.name || previewData.plantId}</p>
+                <p><strong className="text-gray-600">Type:</strong> <span className="capitalize">{previewData.type}</span></p>
+              </div>
             </div>
-            
-            <div>
-              <h3 className="font-semibold mb-2">Parameter Values</h3>
-              <div className="space-y-1 text-sm">
+
+            <div className="bg-gray-50 rounded-lg p-4">
+              <h3 className="font-semibold mb-3 text-gray-800">Parameter Values</h3>
+              <div className="grid grid-cols-1 gap-2 text-sm">
                 {Object.entries(previewData).map(([key, value]) => {
                   if (key === 'plantId' || key === 'type') return null
                   const standard = standards[key as keyof typeof standards]
                   return (
-                    <p key={key}>
-                      <strong>{key.toUpperCase()}:</strong> {value} {standard?.unit}
-                    </p>
+                    <div key={key} className="flex justify-between">
+                      <span className="text-gray-600 capitalize">{key}:</span>
+                      <span className="font-medium">{value} {standard?.unit}</span>
+                    </div>
                   )
                 })}
               </div>
             </div>
+
+            {Object.keys(capturedImages).length > 0 && (
+              <div className="bg-gray-50 rounded-lg p-4">
+                <h3 className="font-semibold mb-3 text-gray-800">Captured Images</h3>
+                <div className="grid grid-cols-2 gap-3">
+                  {Object.entries(capturedImages).map(([param, image]) => (
+                    <div key={param} className="text-center">
+                      <img
+                        src={image}
+                        alt={param}
+                        className="h-20 w-20 object-cover rounded-lg border-2 border-gray-300 mx-auto"
+                      />
+                      <p className="text-xs mt-2 text-gray-600 capitalize">{param}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
-          {Object.keys(capturedImages).length > 0 && (
-            <div className="mb-6">
-              <h3 className="font-semibold mb-2">Captured Images</h3>
-              <div className="flex space-x-4">
-                {Object.entries(capturedImages).map(([param, image]) => (
-                  <div key={param} className="text-center">
-                    <img
-                      src={image}
-                      alt={param}
-                      className="h-24 w-24 object-cover rounded-lg border"
-                    />
-                    <p className="text-xs mt-1">{param.toUpperCase()}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          <div className="flex space-x-4">
+          <div className="flex flex-col gap-3">
             <button
               onClick={confirmSubmit}
               disabled={isSubmitting}
-              className="flex items-center space-x-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+              className="w-full flex items-center justify-center space-x-2 px-6 py-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 text-lg font-medium"
             >
               <Save className="w-5 h-5" />
               <span>{isSubmitting ? 'Submitting...' : 'Confirm Submit'}</span>
             </button>
             <button
               onClick={() => setShowPreview(false)}
-              className="px-6 py-3 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300"
+              className="w-full px-6 py-4 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 text-lg font-medium"
             >
               Back to Edit
             </button>
@@ -293,20 +296,20 @@ const InputPage: React.FC = () => {
   }
 
   return (
-    <div className="max-w-4xl mx-auto">
-      <div className="bg-white rounded-lg shadow-lg p-6">
-        <h1 className="text-2xl font-bold mb-6">Data Input Form</h1>
-        
+    <div className="min-h-screen bg-gray-50 px-4 py-6">
+      <div className="max-w-md mx-auto bg-white rounded-xl shadow-lg p-6">
+        <h1 className="text-2xl font-bold mb-6 text-center">Data Input</h1>
+
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
           {/* Plant Selection */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="space-y-4">
             <div className="space-y-2">
               <label className="block text-sm font-medium text-gray-700">
                 Plant/Location *
               </label>
               <select
                 {...register('plantId', { required: true })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                className="w-full px-4 py-3 text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
               >
                 <option value="">Select Plant</option>
                 {plants.map((plant) => (
@@ -319,36 +322,38 @@ const InputPage: React.FC = () => {
 
             <div className="space-y-2">
               <label className="block text-sm font-medium text-gray-700">
-                Type *
+                Sample Type *
               </label>
               <select
                 {...register('type', { required: true })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                className="w-full px-4 py-3 text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
               >
                 <option value="">Select Type</option>
-                <option value="influent">Influent</option>
-                <option value="effluent">Effluent</option>
+                <option value="influent">Influent (Raw Wastewater)</option>
+                <option value="effluent">Effluent (Treated Water)</option>
               </select>
             </div>
           </div>
 
           {/* Parameter Inputs */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="space-y-6">
+            <h2 className="text-lg font-semibold text-gray-800 border-b pb-2">Parameters</h2>
+
             {renderParameterInput('ph', 'pH')}
+            {renderParameterInput('temperature', 'Temperature')}
+            {renderParameterInput('flow', 'Flow Rate')}
             {renderParameterInput('cod', 'COD')}
             {renderParameterInput('bod', 'BOD')}
             {renderParameterInput('tss', 'TSS')}
             {renderParameterInput('ammonia', 'Ammonia')}
             {renderParameterInput('nitrate', 'Nitrate')}
             {renderParameterInput('phosphate', 'Phosphate')}
-            {renderParameterInput('temperature', 'Temperature')}
-            {renderParameterInput('flow', 'Flow Rate')}
           </div>
 
-          <div className="flex justify-end">
+          <div className="pt-4">
             <button
               type="submit"
-              className="flex items-center space-x-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+              className="w-full flex items-center justify-center space-x-2 px-6 py-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-lg font-medium"
             >
               <Eye className="w-5 h-5" />
               <span>Preview Submission</span>

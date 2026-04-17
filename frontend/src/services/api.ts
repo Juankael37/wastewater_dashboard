@@ -76,7 +76,7 @@ const fallbackBackendCapabilities = (): BackendCapabilities => {
       supportsLegacyReportsApi: false,
       supportsLegacyReportMetricsApi: true,
       supportsLegacyReportPdfApi: true,
-      supportsLegacyValidationApi: false,
+      supportsLegacyValidationApi: true,
     };
   }
   return {
@@ -129,7 +129,7 @@ export async function getBackendCapabilities(): Promise<BackendCapabilities> {
           supportsLegacyAdminApi: false,
           supportsLegacyReportsApi: false,
           supportsLegacyReportPdfApi: true,
-          supportsLegacyValidationApi: false,
+          supportsLegacyValidationApi: true,
           supportsLegacyParameterWriteApi: false,
           supportsLegacyDataImportApi: false,
           supportsLegacyDataExportApi: false,
@@ -225,7 +225,8 @@ export interface ChartSeriesDTO {
 }
 
 export interface DashboardSnapshotDTO {
-  parameterStatuses: ParameterStatusDTO[];
+  parameterStatusesInfluent: ParameterStatusDTO[];
+  parameterStatusesEffluent: ParameterStatusDTO[];
   chartSeries: Record<string, ChartSeriesDTO>;
   recentAlerts: Alert[];
   complianceRate: number;
@@ -255,7 +256,7 @@ async function apiRequest<T>(
   };
 
   try {
-    const response = await fetch(url, { ...defaultOptions, ...options });
+    const response = await fetch(url, { cache: 'no-store', ...defaultOptions, ...options });
 
     const contentType = response.headers.get('content-type');
     if (!response.ok) {
@@ -707,16 +708,27 @@ export const dashboardApi = {
     };
 
     const grouped: Record<string, Record<string, { influent?: number; effluent?: number }>> = {};
+    const latestMeasurementsByType: Record<'influent' | 'effluent', Record<string, any>> = {
+      influent: {},
+      effluent: {},
+    };
     let compliantCount = 0;
     let totalCount = 0;
 
     for (const m of measurements) {
       const key = String(m.parameter_key || '').toLowerCase();
       if (!paramConfig[key]) continue;
-      const date = new Date(m.timestamp).toISOString().slice(0, 10);
-      grouped[date] ||= {};
-      grouped[date][key] ||= {};
-      grouped[date][key][m.type] = Number(m.value);
+      const measurementType = m.type === 'influent' || m.type === 'effluent' ? m.type : 'effluent';
+      const timestamp = new Date(m.timestamp).getTime();
+
+      grouped[new Date(m.timestamp).toISOString().slice(0, 10)] ||= {};
+      grouped[new Date(m.timestamp).toISOString().slice(0, 10)][key] ||= {};
+      grouped[new Date(m.timestamp).toISOString().slice(0, 10)][key][measurementType] = Number(m.value);
+
+      const existing = latestMeasurementsByType[measurementType][key];
+      if (!existing || timestamp > new Date(existing.timestamp).getTime()) {
+        latestMeasurementsByType[measurementType][key] = m;
+      }
 
       totalCount += 1;
       if (m.value >= paramConfig[key].min && m.value <= paramConfig[key].max) {
@@ -725,26 +737,32 @@ export const dashboardApi = {
     }
 
     const dates = Object.keys(grouped).sort();
-    const parameterStatuses: ParameterStatusDTO[] = Object.keys(paramConfig).map((key) => {
-      const latest = [...measurements]
-        .find((m) => String(m.parameter_key || '').toLowerCase() === key && m.type === 'effluent')
-        || [...measurements].find((m) => String(m.parameter_key || '').toLowerCase() === key);
-      const value = Number(latest?.value || 0);
-      const cfg = paramConfig[key];
-      const margin = (cfg.max - cfg.min) * 0.1;
-      let status: 'good' | 'warning' | 'critical' = 'good';
-      if (value < cfg.min || value > cfg.max) status = 'critical';
-      else if (value < cfg.min + margin || value > cfg.max - margin) status = 'warning';
-      return {
-        key,
-        name: cfg.label,
-        value,
-        unit: cfg.unit,
-        status,
-        standard: `${cfg.min}-${cfg.max}`,
-        color: cfg.color,
-      };
-    });
+    const buildParameterStatus = (type: 'influent' | 'effluent') =>
+      Object.keys(paramConfig).map((key) => {
+        const latest = latestMeasurementsByType[type][key];
+        const value = Number(latest?.value ?? 0);
+        const cfg = paramConfig[key];
+        const margin = (cfg.max - cfg.min) * 0.1;
+        let status: 'good' | 'warning' | 'critical' = 'good';
+
+        if (latest) {
+          if (value < cfg.min || value > cfg.max) status = 'critical';
+          else if (value < cfg.min + margin || value > cfg.max - margin) status = 'warning';
+        }
+
+        return {
+          key,
+          name: cfg.label,
+          value,
+          unit: cfg.unit,
+          status,
+          standard: `${cfg.min}-${cfg.max}`,
+          color: cfg.color,
+        };
+      });
+
+    const parameterStatusesInfluent = buildParameterStatus('influent');
+    const parameterStatusesEffluent = buildParameterStatus('effluent');
 
     const chartSeries: Record<string, ChartSeriesDTO> = {};
     Object.keys(paramConfig).forEach((key) => {
@@ -756,7 +774,8 @@ export const dashboardApi = {
     });
 
     return {
-      parameterStatuses,
+      parameterStatusesInfluent,
+      parameterStatusesEffluent,
       chartSeries,
       recentAlerts: alerts.slice(0, 5),
       complianceRate: totalCount > 0 ? Math.round((compliantCount / totalCount) * 100) : 100,

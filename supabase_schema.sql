@@ -265,6 +265,11 @@ DECLARE
     alert_message TEXT;
     severity TEXT;
 BEGIN
+    -- Only generate alerts for effluent measurements
+    IF NEW.type != 'effluent' THEN
+        RETURN NEW;
+    END IF;
+
     -- Get the standard for this parameter
     SELECT s.min_limit, s.max_limit, p.name as parameter_name
     INTO standard_record

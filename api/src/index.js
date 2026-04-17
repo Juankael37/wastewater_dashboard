@@ -1253,9 +1253,10 @@ app.post('/measurements', authMiddleware, zValidator('json', measurementSchema),
       operator_id: user.id,
       timestamp: measurement.timestamp || new Date().toISOString(),
     })
-    // Avoid embedded selects here to keep response robust across PostgREST versions.
-    // Client can hydrate related entities via separate reads if needed.
-    .select('id, plant_id, parameter_id, value, type, timestamp, operator_id, notes')
+    // Return joined metadata for backup and presentation.
+    .select(
+      'id, plant_id, parameter_id, value, type, timestamp, operator_id, notes, plants!inner(name), parameters!inner(name, display_name, unit)'
+    )
     .single()
 
   if (error) {

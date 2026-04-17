@@ -9,7 +9,7 @@
 BEGIN;
 
 -- =====================================================================
--- Apply migration: 20260415103000_fix_alert_trigger_format.sql
+-- Apply migration: 20260415103000_fix_alert_trigger_format.sql + 20260415110000_alerts_only_effluent.sql
 -- =====================================================================
 
 CREATE OR REPLACE FUNCTION public.create_alert_on_violation()
@@ -19,6 +19,11 @@ DECLARE
   alert_message TEXT;
   severity TEXT;
 BEGIN
+  -- Only create alerts for effluent measurements
+  IF NEW.type != 'effluent' THEN
+    RETURN NEW;
+  END IF;
+
   SELECT s.min_limit, s.max_limit, p.name AS parameter_name
   INTO standard_record
   FROM public.standards s

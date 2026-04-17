@@ -60,7 +60,8 @@ interface ChartData {
 }
 
 const DashboardPage: React.FC = () => {
-  const [parameters, setParameters] = useState<ParameterData[]>([])
+  const [influentParameters, setInfluentParameters] = useState<ParameterData[]>([])
+  const [effluentParameters, setEffluentParameters] = useState<ParameterData[]>([])
   const [recentAlerts, setRecentAlerts] = useState<Alert[]>([])
   const [loading, setLoading] = useState(true)
   const [chartData, setChartData] = useState<Record<string, ChartData>>({})
@@ -100,7 +101,17 @@ const DashboardPage: React.FC = () => {
         
         const snapshot = await dashboardApi.getSnapshot()
 
-        const processedParams: ParameterData[] = snapshot.parameterStatuses.map((param) => ({
+        const processedInfluentParams: ParameterData[] = snapshot.parameterStatusesInfluent.map((param) => ({
+          name: param.name,
+          value: param.value,
+          unit: param.unit,
+          status: param.status,
+          standard: param.standard,
+          icon: paramConfig[param.key]?.icon || <Activity className="w-5 h-5" />,
+          color: param.color,
+        }))
+
+        const processedEffluentParams: ParameterData[] = snapshot.parameterStatusesEffluent.map((param) => ({
           name: param.name,
           value: param.value,
           unit: param.unit,
@@ -127,7 +138,8 @@ const DashboardPage: React.FC = () => {
           severity: (alert.severity as 'warning' | 'critical' | 'info') || 'info'
         }))
 
-        setParameters(processedParams)
+        setInfluentParameters(processedInfluentParams)
+        setEffluentParameters(processedEffluentParams)
         setChartData(processedChartData)
         setRecentAlerts(processedAlerts)
         setComplianceRate(snapshot.complianceRate)
@@ -141,6 +153,13 @@ const DashboardPage: React.FC = () => {
     }
     
     fetchData()
+
+    const handleWindowFocus = () => {
+      fetchData()
+    }
+
+    window.addEventListener('focus', handleWindowFocus)
+    return () => window.removeEventListener('focus', handleWindowFocus)
   }, [])
 
   const getStatusIcon = (status: string) => {
@@ -152,7 +171,7 @@ const DashboardPage: React.FC = () => {
     }
   }
 
-  const getChartOptions = (paramKey: string) => {
+  const getChartOptions = (paramKey: string, title: string) => {
     const config = paramConfig[paramKey]
     return {
       responsive: true,
@@ -164,7 +183,7 @@ const DashboardPage: React.FC = () => {
         },
         title: {
           display: true,
-          text: `${paramLabels[paramKey]} - Influent vs Effluent`,
+          text: title,
           color: '#e2e8f0',
           font: { size: 14 }
         }
@@ -184,28 +203,22 @@ const DashboardPage: React.FC = () => {
     }
   }
 
-  const getChartData = (paramKey: string) => {
+  const getChartData = (paramKey: string, type: 'influent' | 'effluent') => {
     const data = chartData[paramKey]
     if (!data) return { labels: [], datasets: [] }
     
     const config = paramConfig[paramKey]
-    
+    const values = type === 'influent' ? data.influent : data.effluent
+    const label = type === 'influent' ? 'Influent' : 'Effluent'
+
     return {
       labels: data.labels,
       datasets: [
         {
-          label: 'Influent',
-          data: data.influent,
-          borderColor: '#f59e0b',
-          backgroundColor: 'rgba(245, 158, 11, 0.1)',
-          fill: true,
-          tension: 0.4
-        },
-        {
-          label: 'Effluent',
-          data: data.effluent,
-          borderColor: config.color,
-          backgroundColor: `${config.color}20`,
+          label,
+          data: values,
+          borderColor: type === 'influent' ? '#f59e0b' : config.color,
+          backgroundColor: type === 'influent' ? 'rgba(245, 158, 11, 0.1)' : `${config.color}20`,
           fill: true,
           tension: 0.4
         },
@@ -220,6 +233,8 @@ const DashboardPage: React.FC = () => {
       ]
     }
   }
+
+  const getTypedChartData = (paramKey: string, type: 'influent' | 'effluent') => getChartData(paramKey, type)
 
   return (
     <div className="space-y-6">
@@ -285,47 +300,84 @@ const DashboardPage: React.FC = () => {
           </div>
 
           {/* Parameters Grid - All 9 Parameters */}
-          <div className="bg-slate-800 rounded-xl border border-slate-700">
-            <div className="px-6 py-4 border-b border-slate-700">
-              <h2 className="text-lg font-semibold text-white">Current Parameters</h2>
-              <p className="text-sm text-gray-400">Latest measurements with compliance status</p>
-            </div>
-            
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-6">
-              {parameters.map((param) => (
-                <div 
-                  key={param.name} 
-                  className={`p-4 rounded-lg border cursor-pointer transition-all hover:scale-105 ${
-                    param.status === 'critical' ? 'bg-red-900/20 border-red-500/50' :
-                    param.status === 'warning' ? 'bg-amber-900/20 border-amber-500/50' :
-                    'bg-slate-700/50 border-slate-600'
-                  }`}
-                  onClick={() => setSelectedParam(Object.keys(paramConfig).find(k => paramLabels[k] === param.name) || 'ph')}
-                >
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center gap-2" style={{ color: param.color }}>
-                      {param.icon}
-                      <span className="font-medium text-white">{param.name}</span>
+          <div className="grid gap-6 lg:grid-cols-2">
+            <div className="bg-slate-800 rounded-xl border border-slate-700">
+              <div className="px-6 py-4 border-b border-slate-700">
+                <h2 className="text-lg font-semibold text-white">Latest Influent Parameters</h2>
+                <p className="text-sm text-gray-400">Most recent raw wastewater measurements</p>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-6">
+                {influentParameters.map((param) => (
+                  <div
+                    key={`influent-${param.name}`}
+                    className={`p-4 rounded-lg border cursor-pointer transition-all hover:scale-105 ${
+                      param.status === 'critical' ? 'bg-red-900/20 border-red-500/50' :
+                      param.status === 'warning' ? 'bg-amber-900/20 border-amber-500/50' :
+                      'bg-slate-700/50 border-slate-600'
+                    }`}
+                    onClick={() => setSelectedParam(Object.keys(paramConfig).find(k => paramLabels[k] === param.name) || 'ph')}
+                  >
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-2" style={{ color: param.color }}>
+                        {param.icon}
+                        <span className="font-medium text-white">{param.name}</span>
+                      </div>
+                      {getStatusIcon(param.status)}
                     </div>
-                    {getStatusIcon(param.status)}
+                    <div className="text-2xl font-bold text-white">
+                      {param.value} <span className="text-sm text-gray-400">{param.unit}</span>
+                    </div>
+                    <div className="text-xs text-gray-400 mt-1">
+                      Standard: {param.standard} {param.unit}
+                    </div>
                   </div>
-                  <div className="text-2xl font-bold text-white">
-                    {param.value} <span className="text-sm text-gray-400">{param.unit}</span>
+                ))}
+              </div>
+            </div>
+
+            <div className="bg-slate-800 rounded-xl border border-slate-700">
+              <div className="px-6 py-4 border-b border-slate-700">
+                <h2 className="text-lg font-semibold text-white">Latest Effluent Parameters</h2>
+                <p className="text-sm text-gray-400">Most recent treated water measurements</p>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-6">
+                {effluentParameters.map((param) => (
+                  <div
+                    key={`effluent-${param.name}`}
+                    className={`p-4 rounded-lg border cursor-pointer transition-all hover:scale-105 ${
+                      param.status === 'critical' ? 'bg-red-900/20 border-red-500/50' :
+                      param.status === 'warning' ? 'bg-amber-900/20 border-amber-500/50' :
+                      'bg-slate-700/50 border-slate-600'
+                    }`}
+                    onClick={() => setSelectedParam(Object.keys(paramConfig).find(k => paramLabels[k] === param.name) || 'ph')}
+                  >
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-2" style={{ color: param.color }}>
+                        {param.icon}
+                        <span className="font-medium text-white">{param.name}</span>
+                      </div>
+                      {getStatusIcon(param.status)}
+                    </div>
+                    <div className="text-2xl font-bold text-white">
+                      {param.value} <span className="text-sm text-gray-400">{param.unit}</span>
+                    </div>
+                    <div className="text-xs text-gray-400 mt-1">
+                      Standard: {param.standard} {param.unit}
+                    </div>
                   </div>
-                  <div className="text-xs text-gray-400 mt-1">
-                    Standard: {param.standard} {param.unit}
-                  </div>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
           </div>
 
-          {/* Charts Section - Influent vs Effluent Comparison */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Main Chart */}
-            <div className="lg:col-span-2 bg-slate-800 rounded-xl border border-slate-700 p-6">
+          {/* Charts Section - Influent and Effluent Trends */}
+          <div className="grid gap-6 lg:grid-cols-2">
+            <div className="bg-slate-800 rounded-xl border border-slate-700 p-6">
               <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-semibold text-white">Parameter Trends - Influent vs Effluent</h2>
+                <div>
+                  <h2 className="text-lg font-semibold text-white">Influent Trends</h2>
+                  <p className="text-sm text-gray-400">Raw wastewater trend for {paramLabels[selectedParam]}</p>
+                </div>
                 <div className="flex gap-2">
                   {Object.keys(paramConfig).slice(0, 5).map(key => (
                     <button
@@ -344,31 +396,41 @@ const DashboardPage: React.FC = () => {
               </div>
               <div className="h-80">
                 <Line 
-                  data={getChartData(selectedParam)} 
-                  options={getChartOptions(selectedParam)} 
+                  data={getTypedChartData(selectedParam, 'influent')} 
+                  options={getChartOptions(selectedParam, 'Influent Trend')} 
                 />
               </div>
             </div>
 
-            {/* Additional Parameter Charts */}
-            {Object.keys(paramConfig).slice(5).map(key => (
-              <div key={key} className="bg-slate-800 rounded-xl border border-slate-700 p-4">
-                <h3 className="text-sm font-medium text-gray-400 mb-2">{paramLabels[key]} Trend</h3>
-                <div className="h-48">
-                  <Line 
-                    data={getChartData(key)} 
-                    options={{
-                      ...getChartOptions(key),
-                      plugins: {
-                        ...getChartOptions(key).plugins,
-                        title: { display: false },
-                        legend: { display: false }
-                      }
-                    }} 
-                  />
+            <div className="bg-slate-800 rounded-xl border border-slate-700 p-6">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h2 className="text-lg font-semibold text-white">Effluent Trends</h2>
+                  <p className="text-sm text-gray-400">Treated water trend for {paramLabels[selectedParam]}</p>
+                </div>
+                <div className="flex gap-2">
+                  {Object.keys(paramConfig).slice(5).map(key => (
+                    <button
+                      key={key}
+                      onClick={() => setSelectedParam(key)}
+                      className={`px-3 py-1 rounded text-sm transition-colors ${
+                        selectedParam === key 
+                          ? 'bg-blue-600 text-white' 
+                          : 'bg-slate-700 text-gray-400 hover:bg-slate-600'
+                      }`}
+                    >
+                      {paramLabels[key]}
+                    </button>
+                  ))}
                 </div>
               </div>
-            ))}
+              <div className="h-80">
+                <Line 
+                  data={getTypedChartData(selectedParam, 'effluent')} 
+                  options={getChartOptions(selectedParam, 'Effluent Trend')} 
+                />
+              </div>
+            </div>
           </div>
 
           {/* Recent Alerts */}
