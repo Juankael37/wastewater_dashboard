@@ -103,6 +103,13 @@ const requireAdminRole = async (c, next) => {
   const supabase = c.get('supabase')
   const user = c.get('user')
 
+  // Check user_metadata first (for backward compatibility with user registration)
+  if (user.user_metadata?.role === 'admin') {
+    await next()
+    return
+  }
+
+  // Check profiles table (primary source)
   const { data: profile, error } = await supabase
     .from('profiles')
     .select('role')
@@ -113,7 +120,7 @@ const requireAdminRole = async (c, next) => {
     return c.json({ error: 'Unable to resolve user role' }, 403)
   }
 
-  if (!['company_admin', 'super_admin'].includes(profile.role)) {
+  if (!['company_admin', 'super_admin', 'admin'].includes(profile.role)) {
     return c.json({ error: 'Admin access required' }, 403)
   }
 
@@ -1188,17 +1195,18 @@ app.get('/auth/me', authMiddleware, async (c) => {
     .eq('id', user.id)
     .single()
 
-  if (error) {
-    // Keep endpoint resilient if profile row is missing.
-    return c.json({
-      user,
-      profile: null,
-    })
+  // Merge profile role with user_metadata role
+  const mergedProfile = profile || {}
+  if (!mergedProfile.role && user.user_metadata?.role) {
+    mergedProfile.role = user.user_metadata.role
+  }
+  if (!mergedProfile.full_name && user.user_metadata?.full_name) {
+    mergedProfile.full_name = user.user_metadata.full_name
   }
 
   return c.json({
     user,
-    profile,
+    profile: mergedProfile,
   })
 })
 

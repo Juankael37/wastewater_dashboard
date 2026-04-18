@@ -8,7 +8,7 @@ compatibility_flags = ["nodejs_compat"]
 #   cd api && npx wrangler secret put SUPABASE_ANON_KEY
 [vars]
 SUPABASE_URL = "https://pkyazsrbhjtxbpwsxbwe.supabase.co"
-ALLOWED_ORIGINS = "http://localhost:5173,http://127.0.0.1:5173,https://wastewaterinput.pages.dev"
+ALLOWED_ORIGINS = "http://localhost:5173,http://127.0.0.1:5173,https://5b6caf7b.wastewater-dashboard.pages.dev,https://33cbaf08.wastewater-dashboard.pages.dev,https://7af81486.wastewater-dashboard.pages.dev,https://5a1c1011.wastewater-dashboard.pages.dev,https://af21d1ba.wastewater-dashboard.pages.dev,https://430d0637.wastewater-dashboard.pages.dev,https://3b45eaa4.wastewater-dashboard.pages.dev"
 # Optional: Google Sheets spreadsheet ID (from /d/<ID>/edit). Set here or via Dashboard → Settings → Variables.
 # GOOGLE_SHEETS_ID = ""
 

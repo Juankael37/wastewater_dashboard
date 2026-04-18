@@ -352,18 +352,21 @@ export const authApi = {
     if (capabilities.mode === 'worker') {
       try {
         const profile = await apiRequest<{ user: any; profile?: any | null }>('/auth/me');
-        const mappedRole = profile?.profile?.role === 'company_admin'
-          ? 'admin'
-          : profile?.profile?.role === 'viewer'
-            ? 'client'
-            : profile?.profile?.role || profile?.user?.user_metadata?.role;
+        
+        // Map profile roles to frontend roles
+        let mappedRole = profile?.user?.user_metadata?.role || 'operator';
+        if (profile?.profile?.role === 'company_admin' || profile?.profile?.role === 'super_admin' || profile?.profile?.role === 'admin') {
+          mappedRole = 'admin';
+        } else if (profile?.profile?.role === 'viewer') {
+          mappedRole = 'client';
+        }
 
         return {
           user: {
             ...profile.user,
             user_metadata: {
               ...(profile.user?.user_metadata || {}),
-              ...(mappedRole ? { role: mappedRole } : {}),
+              role: mappedRole,
             },
             profile: profile.profile || null,
           },
