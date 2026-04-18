@@ -124,21 +124,6 @@ export default defineConfig({
           });
         },
       },
-      '/login': {
-        target: 'http://192.168.1.4:5000',
-        changeOrigin: true,
-        secure: false,
-      },
-      '/logout': {
-        target: 'http://192.168.1.4:5000',
-        changeOrigin: true,
-        secure: false,
-      },
-      '/register': {
-        target: 'http://192.168.1.4:5000',
-        changeOrigin: true,
-        secure: false,
-      },
     }
   },
   build: {

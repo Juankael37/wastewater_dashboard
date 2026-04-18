@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 import { AlertCircle, User, Lock, Eye, EyeOff, Droplets } from 'lucide-react'
+import { getConfiguredApiBaseUrl } from '../../services/api'
 
 const LoginPage = () => {
   const [email, setEmail] = useState('')
@@ -12,6 +13,7 @@ const LoginPage = () => {
   
   const { signIn } = useAuth()
   const navigate = useNavigate()
+  const apiBaseUrl = getConfiguredApiBaseUrl()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -163,6 +165,7 @@ const LoginPage = () => {
 
         <div className="mt-6 text-center">
           <p className="text-xs text-gray-400">Use your Supabase user email and password.</p>
+          <p className="mt-1 break-all text-[11px] text-gray-400">API: {apiBaseUrl}</p>
         </div>
       </div>
     </div>

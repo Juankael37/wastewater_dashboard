@@ -128,7 +128,6 @@ const InputPage: React.FC = () => {
     try {
       console.log('🚀 Starting measurement submission...')
       const measurementData = {
-        timestamp: new Date().toISOString(),
         ph: parseFloat(previewData.ph) || null,
         cod: parseFloat(previewData.cod) || null,
         bod: parseFloat(previewData.bod) || null,
@@ -147,7 +146,8 @@ const InputPage: React.FC = () => {
       
       const result = await measurementsApi.create(measurementData)
       console.log('✅ API Response:', result)
-      
+      window.dispatchEvent(new Event('measurement:created'))
+
       toast.success('Measurement submitted successfully!')
       setShowPreview(false)
       navigate('/dashboard')

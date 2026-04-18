@@ -7,11 +7,14 @@ const getApiBaseUrl = () => {
     return import.meta.env.VITE_API_URL;
   }
 
-  return 'http://localhost:8787';
+  // Worker-first default prevents mobile/PWA builds from falling back to localhost.
+  return 'https://wastewater-api.juankael37.workers.dev';
 };
 
 const API_BASE_URL = getApiBaseUrl();
 const ACCESS_TOKEN_KEY = 'ww_access_token';
+
+export const getConfiguredApiBaseUrl = (): string => API_BASE_URL;
 
 type BackendMode = 'worker' | 'flask' | 'unknown';
 interface BackendCapabilities {
@@ -43,8 +46,26 @@ const decodeJwtPayload = (token: string): any => {
   }
 };
 
+const strictUnknownCapabilities = (): BackendCapabilities => ({
+  mode: 'unknown',
+  supportsLegacyAdminApi: false,
+  supportsLegacyParameterWriteApi: false,
+  supportsLegacyDataCountApi: false,
+  supportsLegacyDataClearApi: false,
+  supportsLegacyDataImportApi: false,
+  supportsLegacyDataExportApi: false,
+  supportsLegacyUserListApi: false,
+  supportsLegacyUserCreateApi: false,
+  supportsLegacyUserDeleteApi: false,
+  supportsLegacyReportsApi: false,
+  supportsLegacyReportMetricsApi: false,
+  supportsLegacyReportPdfApi: false,
+  supportsLegacyValidationApi: false,
+});
+
 const fallbackBackendCapabilities = (): BackendCapabilities => {
   const base = API_BASE_URL.toLowerCase();
+  // Keep explicit Flask localhost fallback for local legacy workflows only.
   if (base.includes('localhost:5000') || base.includes('127.0.0.1:5000')) {
     return {
       mode: 'flask',
@@ -63,35 +84,7 @@ const fallbackBackendCapabilities = (): BackendCapabilities => {
       supportsLegacyValidationApi: true,
     };
   }
-  if (base.includes('workers.dev') || base.includes('localhost:8787') || base.includes('127.0.0.1:8787')) {
-    return {
-      mode: 'worker',
-      supportsLegacyAdminApi: false,
-      supportsLegacyParameterWriteApi: true,
-      supportsLegacyDataCountApi: true,
-      supportsLegacyDataClearApi: true,
-      supportsLegacyUserListApi: true,
-      supportsLegacyUserCreateApi: true,
-      supportsLegacyUserDeleteApi: false,
-      supportsLegacyReportsApi: false,
-      supportsLegacyReportMetricsApi: true,
-      supportsLegacyReportPdfApi: true,
-      supportsLegacyValidationApi: false,
-    };
-  }
-  return {
-    mode: 'unknown',
-    supportsLegacyAdminApi: false,
-    supportsLegacyDataCountApi: false,
-    supportsLegacyDataClearApi: false,
-    supportsLegacyUserListApi: false,
-    supportsLegacyUserCreateApi: false,
-    supportsLegacyUserDeleteApi: false,
-    supportsLegacyReportsApi: false,
-    supportsLegacyReportMetricsApi: false,
-    supportsLegacyReportPdfApi: false,
-    supportsLegacyValidationApi: false,
-  };
+  return strictUnknownCapabilities();
 };
 
 let cachedCapabilities: BackendCapabilities | null = null;
@@ -124,16 +117,7 @@ export async function getBackendCapabilities(): Promise<BackendCapabilities> {
 
       // Backward-compat Worker detection if capabilities are absent.
       if (payload?.message === 'Wastewater Monitoring API' && payload?.version) {
-        cachedCapabilities = {
-          mode: 'worker',
-          supportsLegacyAdminApi: false,
-          supportsLegacyReportsApi: false,
-          supportsLegacyReportPdfApi: true,
-          supportsLegacyValidationApi: false,
-          supportsLegacyParameterWriteApi: false,
-          supportsLegacyDataImportApi: false,
-          supportsLegacyDataExportApi: false,
-        };
+        cachedCapabilities = strictUnknownCapabilities();
         return cachedCapabilities;
       }
     }
@@ -230,6 +214,7 @@ export interface DashboardSnapshotDTO {
   recentAlerts: Alert[];
   complianceRate: number;
   totalReadings: number;
+  latestMeasurementTimestamp?: string | null;
 }
 
 // Helper function for API requests
@@ -270,6 +255,11 @@ async function apiRequest<T>(
     return await response.text() as T;
   } catch (error) {
     console.error(`[API] Request failed for ${endpoint}:`, error);
+    if (error instanceof TypeError) {
+      throw new Error(
+        `Network request failed for ${url}. Verify this API URL is reachable from your device.`
+      );
+    }
     throw error;
   }
 }
@@ -407,8 +397,9 @@ export const measurementsApi = {
     }));
   },
   
-  getRecent: async (limit: number = 10): Promise<Measurement[]> => {
-    const response = await apiRequest<{ data: any[] }>(`/measurements?limit=${limit}`);
+  getRecent: async (limit: number = 10, forceFresh: boolean = false): Promise<Measurement[]> => {
+    const cacheBust = forceFresh ? `&_ts=${Date.now()}` : '';
+    const response = await apiRequest<{ data: any[] }>(`/measurements?limit=${limit}${cacheBust}`);
     return (response.data || []).map((item) => ({
       id: item.id,
       plant_id: item.plant_id,
@@ -606,7 +597,7 @@ export const parametersApi = {
   create: async (parameter: string, min_limit: number, max_limit: number): Promise<Parameter> => {
     const capabilities = await getBackendCapabilities();
     if (!capabilities.supportsLegacyParameterWriteApi) {
-      throw new Error('Parameter creation is not available on the Worker API yet.');
+      throw new Error('Parameter creation is not available on the configured backend.');
     }
     const response = await apiRequest<Parameter>('/api/parameters', {
       method: 'POST',
@@ -618,7 +609,7 @@ export const parametersApi = {
   update: async (parameterName: string, data: Partial<Parameter>): Promise<Parameter> => {
     const capabilities = await getBackendCapabilities();
     if (!capabilities.supportsLegacyParameterWriteApi) {
-      throw new Error(`Parameter update for "${parameterName}" is not available on the Worker API yet.`);
+      throw new Error(`Parameter update for "${parameterName}" is not available on the configured backend.`);
     }
     const response = await apiRequest<Parameter>(`/api/parameters/${parameterName}`, {
       method: 'PUT',
@@ -630,7 +621,7 @@ export const parametersApi = {
   delete: async (parameterName: string): Promise<{success: boolean}> => {
     const capabilities = await getBackendCapabilities();
     if (!capabilities.supportsLegacyParameterWriteApi) {
-      throw new Error(`Parameter delete for "${parameterName}" is not available on the Worker API yet.`);
+      throw new Error(`Parameter delete for "${parameterName}" is not available on the configured backend.`);
     }
     return apiRequest<{ success: boolean }>(`/api/parameters/${parameterName}`, {
       method: 'DELETE',
@@ -690,9 +681,12 @@ export const dashboardApi = {
 
   getSnapshot: async (): Promise<DashboardSnapshotDTO> => {
     const [measurements, alerts] = await Promise.all([
-      measurementsApi.getRecent(300),
+      measurementsApi.getRecent(300, true),
       alertsApi.getAll(),
     ]);
+    // #region agent log
+    fetch('http://127.0.0.1:7809/ingest/3c885fd4-432d-4e7e-bd86-81fe491894f6',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'1f49fc'},body:JSON.stringify({sessionId:'1f49fc',runId:'initial',hypothesisId:'H2',location:'services/api.ts:getSnapshot:afterFetch',message:'snapshot source payload sizes',data:{measurementsCount:measurements.length,alertsCount:alerts.length,newestTimestamp:measurements[0]?.timestamp||null,oldestTimestamp:measurements[measurements.length-1]?.timestamp||null},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
 
     const paramConfig: Record<string, { label: string; unit: string; min: number; max: number; color: string }> = {
       ph: { label: 'pH', unit: '', min: 6.0, max: 9.5, color: '#3b82f6' },
@@ -706,7 +700,15 @@ export const dashboardApi = {
       flow: { label: 'Flow', unit: 'm³/h', min: 0, max: 5000, color: '#6366f1' },
     };
 
-    const grouped: Record<string, Record<string, { influent?: number; effluent?: number }>> = {};
+    const grouped: Record<
+      string,
+      Record<string, {
+        influent?: number;
+        influentTimestamp?: string;
+        effluent?: number;
+        effluentTimestamp?: string;
+      }>
+    > = {};
     let compliantCount = 0;
     let totalCount = 0;
 
@@ -716,7 +718,19 @@ export const dashboardApi = {
       const date = new Date(m.timestamp).toISOString().slice(0, 10);
       grouped[date] ||= {};
       grouped[date][key] ||= {};
-      grouped[date][key][m.type] = Number(m.value);
+      const current = grouped[date][key];
+      const currentTs = m.type === 'influent' ? current.influentTimestamp : current.effluentTimestamp;
+      const incomingTs = new Date(m.timestamp).getTime();
+      const existingTs = currentTs ? new Date(currentTs).getTime() : Number.NEGATIVE_INFINITY;
+      if (incomingTs >= existingTs) {
+        if (m.type === 'influent') {
+          current.influent = Number(m.value);
+          current.influentTimestamp = m.timestamp;
+        } else {
+          current.effluent = Number(m.value);
+          current.effluentTimestamp = m.timestamp;
+        }
+      }
 
       totalCount += 1;
       if (m.value >= paramConfig[key].min && m.value <= paramConfig[key].max) {
@@ -724,11 +738,10 @@ export const dashboardApi = {
       }
     }
 
-    const dates = Object.keys(grouped).sort();
     const parameterStatuses: ParameterStatusDTO[] = Object.keys(paramConfig).map((key) => {
       const latest = [...measurements]
-        .find((m) => String(m.parameter_key || '').toLowerCase() === key && m.type === 'effluent')
-        || [...measurements].find((m) => String(m.parameter_key || '').toLowerCase() === key);
+        .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+        .find((m) => String(m.parameter_key || '').toLowerCase() === key);
       const value = Number(latest?.value || 0);
       const cfg = paramConfig[key];
       const margin = (cfg.max - cfg.min) * 0.1;
@@ -745,15 +758,44 @@ export const dashboardApi = {
         color: cfg.color,
       };
     });
+    // #region agent log
+    fetch('http://127.0.0.1:7809/ingest/3c885fd4-432d-4e7e-bd86-81fe491894f6',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'1f49fc'},body:JSON.stringify({sessionId:'1f49fc',runId:'initial',hypothesisId:'H2',location:'services/api.ts:getSnapshot:statuses',message:'computed latest status values',data:{sampleStatuses:parameterStatuses.filter((p)=>['cod','bod','tss'].includes(p.key)).map((p)=>({key:p.key,value:p.value,status:p.status}))},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
 
     const chartSeries: Record<string, ChartSeriesDTO> = {};
     Object.keys(paramConfig).forEach((key) => {
+      const rows = measurements
+        .filter((m) => String(m.parameter_key || '').toLowerCase() === key)
+        .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+
+      const byTimestamp = new Map<string, { influent?: number; effluent?: number }>();
+      rows.forEach((m) => {
+        const ts = m.timestamp;
+        const current = byTimestamp.get(ts) || {};
+        current[m.type] = Number(m.value);
+        byTimestamp.set(ts, current);
+      });
+
+      const timestampKeys = Array.from(byTimestamp.keys()).slice(-10);
       chartSeries[key] = {
-        labels: dates.slice(-10),
-        influent: dates.slice(-10).map((d) => grouped[d]?.[key]?.influent ?? 0),
-        effluent: dates.slice(-10).map((d) => grouped[d]?.[key]?.effluent ?? grouped[d]?.[key]?.influent ?? 0),
+        labels: timestampKeys.map((ts) =>
+          new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        ),
+        influent: timestampKeys.map((ts) => byTimestamp.get(ts)?.influent ?? 0),
+        effluent: timestampKeys.map(
+          (ts) => byTimestamp.get(ts)?.effluent ?? byTimestamp.get(ts)?.influent ?? 0
+        ),
       };
     });
+    // #region agent log
+    fetch('http://127.0.0.1:7809/ingest/3c885fd4-432d-4e7e-bd86-81fe491894f6',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'1f49fc'},body:JSON.stringify({sessionId:'1f49fc',runId:'initial',hypothesisId:'H3',location:'services/api.ts:getSnapshot:chartSeries',message:'chart series sample points',data:{codLabels:chartSeries.cod?.labels?.slice(-3)||[],codEffluent:chartSeries.cod?.effluent?.slice(-3)||[],bodEffluent:chartSeries.bod?.effluent?.slice(-3)||[],tssEffluent:chartSeries.tss?.effluent?.slice(-3)||[]},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
+
+    const latestMeasurementTimestamp = measurements.length > 0
+      ? measurements
+          .map((m) => m.timestamp)
+          .sort((a, b) => new Date(b).getTime() - new Date(a).getTime())[0]
+      : null;
 
     return {
       parameterStatuses,
@@ -761,6 +803,7 @@ export const dashboardApi = {
       recentAlerts: alerts.slice(0, 5),
       complianceRate: totalCount > 0 ? Math.round((compliantCount / totalCount) * 100) : 100,
       totalReadings: measurements.length,
+      latestMeasurementTimestamp,
     };
   },
   
@@ -906,7 +949,7 @@ export const usersApi = {
   getAll: async (): Promise<User[]> => {
     const capabilities = await getBackendCapabilities();
     if (!capabilities.supportsLegacyUserListApi) {
-      throw new Error('User listing is not available on the Worker API yet.');
+      throw new Error('User listing is not available on the configured backend.');
     }
     return apiRequest<User[]>('/api/users');
   },
@@ -914,7 +957,7 @@ export const usersApi = {
   create: async (username: string, password: string, role: string): Promise<{success: boolean; id: string; username: string; role: string}> => {
     const capabilities = await getBackendCapabilities();
     if (!capabilities.supportsLegacyUserCreateApi) {
-      throw new Error('User creation is not available on the Worker API yet.');
+      throw new Error('User creation is not available on the configured backend.');
     }
     return apiRequest<{ success: boolean; id: string; username: string; role: string }>('/api/users', {
       method: 'POST',
@@ -925,7 +968,7 @@ export const usersApi = {
   delete: async (userId: string): Promise<{success: boolean}> => {
     const capabilities = await getBackendCapabilities();
     if (!capabilities.supportsLegacyUserDeleteApi) {
-      throw new Error('User deletion is not available on the Worker API yet.');
+      throw new Error('User deletion is not available on the configured backend.');
     }
     return apiRequest<{ success: boolean }>(`/api/users/${userId}`, {
       method: 'DELETE',

@@ -21,6 +21,8 @@
 - Remaining parity gaps: validate any residual Flask-only `/api/*` references in the PWA and keep only intentional dual-backend fallbacks.
 - Rollout helper added: `supabase/APPLY_PARAMETER_WRITE_RLS_AND_VERIFY.sql` to apply admin write policies for `parameters`/`standards` and verify policy state in one SQL run.
 - **Live verification (Worker + Supabase):** smoke test now passes end-to-end (auth, core CRUD reads, POST /measurements, RBAC resolve, CSV export/import, and parameter write lifecycle). Follow-up: commit the Supabase RLS/trigger fixes used during verification.
+- **PWA preflight (local):** production build now passes (`npm run build`) and generates service worker + manifest assets; Settings/API copy was updated to capability-driven wording (no stale Flask-only assumptions).
+- **Next verification gate:** execute real-device run (install, camera, offline queue and resync) using Worker URL from `PWA_TESTING_GUIDE.md` fast-path checklist.
 
 ---
 

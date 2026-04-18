@@ -3,7 +3,7 @@ SUPABASE_URL=https://pkyazsrbhjtxbpwsxbwe.supabase.co
 SUPABASE_ANON_KEY=your-anon-key
 # Required for Worker /api/users/:id delete parity (admin delete via Supabase Admin API)
 SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
-ALLOWED_ORIGINS=http://localhost:5173,http://127.0.0.1:5173,https://wastewaterinput.pages.dev
+ALLOWED_ORIGINS=LAN_DEV_ORIGINS,http://localhost:5173,http://127.0.0.1:5173,http://localhost:4173,http://127.0.0.1:4173,https://wastewaterinput.pages.dev
 
 # Optional — Google Sheets backup (append row on each POST /measurements)
 # From sheet URL: https://docs.google.com/spreadsheets/d/<SPREADSHEET_ID>/edit

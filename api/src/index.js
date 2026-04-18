@@ -8,11 +8,37 @@ import { appendMeasurementRow, isSheetsBackupConfigured } from './sheetsBackup.j
 
 const app = new Hono()
 
+const LAN_DEV_ORIGINS_TOKEN = 'LAN_DEV_ORIGINS'
+
 const parseAllowedOrigins = (raw) =>
-  (raw || 'http://localhost:5173,http://127.0.0.1:5173')
+  (raw || `${LAN_DEV_ORIGINS_TOKEN},http://localhost:5173,http://127.0.0.1:5173,http://localhost:4173,http://127.0.0.1:4173`)
     .split(',')
     .map((s) => s.trim())
     .filter(Boolean)
+
+const isPrivateIpv4Host = (host) => {
+  const parts = String(host || '').split('.').map((p) => Number(p))
+  if (parts.length !== 4 || parts.some((n) => !Number.isInteger(n) || n < 0 || n > 255)) {
+    return false
+  }
+  if (parts[0] === 10) return true
+  if (parts[0] === 192 && parts[1] === 168) return true
+  if (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) return true
+  return false
+}
+
+const isLanDevOrigin = (origin) => {
+  try {
+    const url = new URL(origin)
+    if (url.protocol !== 'http:') return false
+    const port = url.port || '80'
+    if (!['4173', '5173'].includes(port)) return false
+    const host = url.hostname
+    return host === 'localhost' || host === '127.0.0.1' || isPrivateIpv4Host(host)
+  } catch {
+    return false
+  }
+}
 
 app.use('*', logger())
 
@@ -46,6 +72,7 @@ app.use('*', cors({
     // Allow same-origin/non-browser requests that do not send Origin.
     if (!origin) return null
     if (allowed.includes(origin)) return origin
+    if (allowed.includes(LAN_DEV_ORIGINS_TOKEN) && isLanDevOrigin(origin)) return origin
     return null
   },
   allowHeaders: ['Content-Type', 'Authorization'],

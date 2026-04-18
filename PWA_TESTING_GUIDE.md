@@ -42,10 +42,20 @@ npm run preview
 # App will be available at: http://localhost:4173
 ```
 
+### Worker-first environment check (recommended before device tests)
+```bash
+# frontend/.env.development or frontend/.env.production
+VITE_API_URL=https://<your-worker-subdomain>.workers.dev
+VITE_SUPABASE_URL=https://<your-project>.supabase.co
+VITE_SUPABASE_ANON_KEY=<your-anon-key>
+```
+
+Use the Worker URL as the primary API target so capability-gated behavior in Settings reflects production.
+
 ## Step 2: PWA Installation Testing
 
 ### Desktop Browsers
-1. Open Chrome/Edge and navigate to `http://localhost:5173`
+1. Open Chrome/Edge and navigate to `http://localhost:4173` (preview build)
 2. Look for the install icon in the address bar (📥)
 3. Click "Install" and verify:
    - App installs successfully
@@ -68,7 +78,7 @@ npm run preview
 1. Open Chrome DevTools (F12)
 2. Go to **Application** → **Service Workers**
 3. Verify service worker is registered and active
-4. Check "Update on reload" for development
+4. Check "Update on reload" for development (not needed in production preview)
 
 ### Offline Testing
 1. In DevTools, go to **Application** → **Service Workers**
@@ -101,7 +111,7 @@ npm run preview
    - ✅ Content is sized correctly for viewport
 
 ### Manifest Properties Check
-Verify `public/manifest.json` includes:
+Verify generated `dist/manifest.webmanifest` (or browser-loaded manifest) includes:
 - ✅ `name` and `short_name`
 - ✅ `start_url` and `scope`
 - ✅ `display: standalone` or `minimal-ui`
@@ -319,6 +329,16 @@ Test on actual devices if possible:
 - iPhone (latest iOS)
 - Android phone (latest)
 - Tablet (iPad/Android)
+
+### Practical execution order (fast path)
+1. Start preview build (`npm run build` then `npm run preview -- --host`).
+2. Open from phone using LAN IP shown by Vite preview.
+3. Install to home screen and relaunch from icon.
+4. Log in against Worker API and submit one measurement online.
+5. Turn on airplane mode, submit one measurement offline, confirm queue indicator.
+6. Reconnect network, trigger sync, verify measurement appears in dashboard/alerts.
+7. Capture one camera image (or fallback upload), verify save + later sync.
+8. Record pass/fail with screenshot evidence for each step.
 
 ### Network Conditions
 Test under different network conditions:

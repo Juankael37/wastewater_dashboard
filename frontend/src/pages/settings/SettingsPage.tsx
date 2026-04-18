@@ -77,7 +77,7 @@ const UserManagementSection: React.FC<{ capabilities: SettingsCapabilities }> = 
             User accounts are created via the app Register page or in the Supabase Dashboard (Authentication → Users).
           </p>
           <p className="pt-1">
-            Listing and deleting users from this screen requires the legacy Flask admin API. It is not available on the Cloudflare Worker yet.
+            Listing and deleting users from this screen are disabled because the current backend capability flags do not permit them.
           </p>
         </CloudSettingsNotice>
       </div>
@@ -395,7 +395,7 @@ const ParameterManagementSection: React.FC<{ capabilities: SettingsCapabilities 
       {!canWriteParameters && (
         <CloudSettingsNotice title="Read-only on cloud API">
           <p>
-            Parameters and standards are loaded from Supabase. Add, edit, and delete here still use the legacy Flask API and are hidden until equivalent Worker endpoints exist.
+            Parameters and standards are loaded from Supabase. Add, edit, and delete actions are shown only when backend capabilities report write support.
           </p>
         </CloudSettingsNotice>
       )}
@@ -583,7 +583,7 @@ const DataManagementSection: React.FC<{ capabilities: SettingsCapabilities }> = 
         </div>
         <CloudSettingsNotice title="Not available on Worker API yet">
           <p>
-            Bulk counts and clearing measurements are implemented on the legacy Flask API. Use the Supabase Table Editor for measurements if you need to inspect or delete rows during development.
+            Bulk counts and clear actions are disabled for the current backend capabilities. Use the Supabase Table Editor if you need to inspect or delete rows during development.
           </p>
         </CloudSettingsNotice>
       </div>

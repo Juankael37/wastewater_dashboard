@@ -11,7 +11,7 @@ import { useAuth } from '../../contexts/AuthContext'
 const Navigation: React.FC = () => {
   const { signOut } = useAuth()
   
-  // Settings and Reports moved to AquaDash (Flask backend)
+  // Main operator navigation; admin tooling is capability-gated elsewhere.
   const navItems = [
     { path: '/dashboard', icon: Home, label: 'Dashboard' },
     { path: '/input', icon: PlusCircle, label: 'Input Data' },

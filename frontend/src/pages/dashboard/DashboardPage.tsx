@@ -8,6 +8,7 @@ import {
   Beaker,
   Activity,
   Wind,
+  RefreshCw,
 } from 'lucide-react'
 import { Line } from 'react-chartjs-2'
 import {
@@ -67,6 +68,8 @@ const DashboardPage: React.FC = () => {
   const [selectedParam, setSelectedParam] = useState<string>('ph')
   const [complianceRate, setComplianceRate] = useState<number>(0)
   const [totalReadings, setTotalReadings] = useState<number>(0)
+  const [lastUpdated, setLastUpdated] = useState<string>(new Date().toLocaleTimeString())
+  const [latestMeasurementAt, setLatestMeasurementAt] = useState<string>('n/a')
 
   // Parameter configuration with icons and colors
   const paramConfig: Record<string, { unit: string; icon: React.ReactNode; color: string; min: number; max: number }> = {
@@ -93,54 +96,94 @@ const DashboardPage: React.FC = () => {
     flow: 'Flow'
   }
 
+  const fetchData = async (showLoader: boolean = false) => {
+    try {
+      if (showLoader) setLoading(true)
+      // #region agent log
+      fetch('http://127.0.0.1:7809/ingest/3c885fd4-432d-4e7e-bd86-81fe491894f6',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'1f49fc'},body:JSON.stringify({sessionId:'1f49fc',runId:'initial',hypothesisId:'H1',location:'pages/dashboard/DashboardPage.tsx:fetchData:start',message:'dashboard fetch start',data:{showLoader,selectedParam,currentLastUpdated:lastUpdated},timestamp:Date.now()})}).catch(()=>{});
+      // #endregion
+
+      const snapshot = await dashboardApi.getSnapshot()
+      // #region agent log
+      fetch('http://127.0.0.1:7809/ingest/3c885fd4-432d-4e7e-bd86-81fe491894f6',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'1f49fc'},body:JSON.stringify({sessionId:'1f49fc',runId:'initial',hypothesisId:'H1',location:'pages/dashboard/DashboardPage.tsx:fetchData:afterSnapshot',message:'dashboard snapshot received',data:{totalReadings:snapshot.totalReadings,latestMeasurementTimestamp:snapshot.latestMeasurementTimestamp||null,statusCount:snapshot.parameterStatuses.length,codStatus:snapshot.parameterStatuses.find((p)=>p.key==='cod')?.value??null,bodStatus:snapshot.parameterStatuses.find((p)=>p.key==='bod')?.value??null,tssStatus:snapshot.parameterStatuses.find((p)=>p.key==='tss')?.value??null},timestamp:Date.now()})}).catch(()=>{});
+      // #endregion
+
+      const processedParams: ParameterData[] = snapshot.parameterStatuses.map((param) => ({
+        name: param.name,
+        value: param.value,
+        unit: param.unit,
+        status: param.status,
+        standard: param.standard,
+        icon: paramConfig[param.key]?.icon || <Activity className="w-5 h-5" />,
+        color: param.color,
+      }))
+
+      const processedChartData: Record<string, ChartData> = {}
+      Object.entries(snapshot.chartSeries).forEach(([key, series]) => {
+        processedChartData[key] = {
+          labels: series.labels,
+          influent: series.influent,
+          effluent: series.effluent,
+        }
+      })
+      // #region agent log
+      fetch('http://127.0.0.1:7809/ingest/3c885fd4-432d-4e7e-bd86-81fe491894f6',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'1f49fc'},body:JSON.stringify({sessionId:'1f49fc',runId:'initial',hypothesisId:'H3',location:'pages/dashboard/DashboardPage.tsx:fetchData:chartPrepared',message:'chart data prepared for render',data:{codLabels:processedChartData.cod?.labels?.slice(-3)||[],codEffluent:processedChartData.cod?.effluent?.slice(-3)||[],selectedParam},timestamp:Date.now()})}).catch(()=>{});
+      // #endregion
+
+      const processedAlerts: Alert[] = (snapshot.recentAlerts as AlertDTO[]).map((alert) => ({
+        id: Number(alert.id),
+        parameter: alert.parameter,
+        message: alert.message || `${alert.parameter}: ${alert.status} (${alert.value})`,
+        time: alert.time || 'Just now',
+        severity: (alert.severity as 'warning' | 'critical' | 'info') || 'info'
+      }))
+
+      setParameters(processedParams)
+      setChartData(processedChartData)
+      setRecentAlerts(processedAlerts)
+      setComplianceRate(snapshot.complianceRate)
+      setTotalReadings(snapshot.totalReadings)
+      setLastUpdated(new Date().toLocaleTimeString())
+      setLatestMeasurementAt(
+        snapshot.latestMeasurementTimestamp
+          ? `${new Date(snapshot.latestMeasurementTimestamp).toLocaleString()} (server UTC ${new Date(snapshot.latestMeasurementTimestamp).toISOString().slice(11, 16)})`
+          : 'n/a'
+      )
+      // #region agent log
+      fetch('http://127.0.0.1:7809/ingest/3c885fd4-432d-4e7e-bd86-81fe491894f6',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'1f49fc'},body:JSON.stringify({sessionId:'1f49fc',runId:'initial',hypothesisId:'H4',location:'pages/dashboard/DashboardPage.tsx:fetchData:stateSet',message:'dashboard state updated',data:{parameterCards:processedParams.filter((p)=>['COD','BOD','TSS'].includes(p.name)).map((p)=>({name:p.name,value:p.value,status:p.status})),totalReadings:snapshot.totalReadings,latestMeasurementTimestamp:snapshot.latestMeasurementTimestamp||null},timestamp:Date.now()})}).catch(()=>{});
+      // #endregion
+    } catch (error) {
+      console.error('Failed to fetch dashboard data:', error)
+    } finally {
+      if (showLoader) setLoading(false)
+    }
+  }
+
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        setLoading(true)
-        
-        const snapshot = await dashboardApi.getSnapshot()
+    fetchData(true)
 
-        const processedParams: ParameterData[] = snapshot.parameterStatuses.map((param) => ({
-          name: param.name,
-          value: param.value,
-          unit: param.unit,
-          status: param.status,
-          standard: param.standard,
-          icon: paramConfig[param.key]?.icon || <Activity className="w-5 h-5" />,
-          color: param.color,
-        }))
-
-        const processedChartData: Record<string, ChartData> = {}
-        Object.entries(snapshot.chartSeries).forEach(([key, series]) => {
-          processedChartData[key] = {
-            labels: series.labels,
-            influent: series.influent,
-            effluent: series.effluent,
-          }
-        })
-
-        const processedAlerts: Alert[] = (snapshot.recentAlerts as AlertDTO[]).map((alert) => ({
-          id: Number(alert.id),
-          parameter: alert.parameter,
-          message: alert.message || `${alert.parameter}: ${alert.status} (${alert.value})`,
-          time: alert.time || 'Just now',
-          severity: (alert.severity as 'warning' | 'critical' | 'info') || 'info'
-        }))
-
-        setParameters(processedParams)
-        setChartData(processedChartData)
-        setRecentAlerts(processedAlerts)
-        setComplianceRate(snapshot.complianceRate)
-        setTotalReadings(snapshot.totalReadings)
-        
-      } catch (error) {
-        console.error('Failed to fetch dashboard data:', error)
-      } finally {
-        setLoading(false)
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        fetchData(false)
       }
     }
-    
-    fetchData()
+
+    const handleMeasurementCreated = () => {
+      fetchData(false)
+    }
+
+    const interval = window.setInterval(() => {
+      fetchData(false)
+    }, 15000)
+
+    document.addEventListener('visibilitychange', handleVisibility)
+    window.addEventListener('measurement:created', handleMeasurementCreated as EventListener)
+
+    return () => {
+      window.clearInterval(interval)
+      document.removeEventListener('visibilitychange', handleVisibility)
+      window.removeEventListener('measurement:created', handleMeasurementCreated as EventListener)
+    }
   }, [])
 
   const getStatusIcon = (status: string) => {
@@ -230,7 +273,15 @@ const DashboardPage: React.FC = () => {
           <p className="text-gray-400">Real-time monitoring of all 9 wastewater parameters</p>
         </div>
         <div className="flex items-center gap-2">
-          <span className="text-sm text-gray-400">Last updated: {new Date().toLocaleTimeString()}</span>
+          <button
+            onClick={() => fetchData(false)}
+            className="inline-flex items-center gap-2 rounded-md border border-slate-600 bg-slate-800 px-3 py-1.5 text-xs text-slate-200 hover:bg-slate-700"
+          >
+            <RefreshCw className="h-3.5 w-3.5" />
+            Refresh
+          </button>
+          <span className="text-sm text-gray-400">Last updated: {lastUpdated}</span>
+          <span className="text-xs text-slate-500">Latest measurement: {latestMeasurementAt}</span>
         </div>
       </div>
 
