@@ -684,9 +684,6 @@ export const dashboardApi = {
       measurementsApi.getRecent(300, true),
       alertsApi.getAll(),
     ]);
-    // #region agent log
-    fetch('http://127.0.0.1:7809/ingest/3c885fd4-432d-4e7e-bd86-81fe491894f6',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'1f49fc'},body:JSON.stringify({sessionId:'1f49fc',runId:'initial',hypothesisId:'H2',location:'services/api.ts:getSnapshot:afterFetch',message:'snapshot source payload sizes',data:{measurementsCount:measurements.length,alertsCount:alerts.length,newestTimestamp:measurements[0]?.timestamp||null,oldestTimestamp:measurements[measurements.length-1]?.timestamp||null},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
 
     const paramConfig: Record<string, { label: string; unit: string; min: number; max: number; color: string }> = {
       ph: { label: 'pH', unit: '', min: 6.0, max: 9.5, color: '#3b82f6' },
@@ -758,9 +755,6 @@ export const dashboardApi = {
         color: cfg.color,
       };
     });
-    // #region agent log
-    fetch('http://127.0.0.1:7809/ingest/3c885fd4-432d-4e7e-bd86-81fe491894f6',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'1f49fc'},body:JSON.stringify({sessionId:'1f49fc',runId:'initial',hypothesisId:'H2',location:'services/api.ts:getSnapshot:statuses',message:'computed latest status values',data:{sampleStatuses:parameterStatuses.filter((p)=>['cod','bod','tss'].includes(p.key)).map((p)=>({key:p.key,value:p.value,status:p.status}))},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
 
     const chartSeries: Record<string, ChartSeriesDTO> = {};
     Object.keys(paramConfig).forEach((key) => {
@@ -787,9 +781,6 @@ export const dashboardApi = {
         ),
       };
     });
-    // #region agent log
-    fetch('http://127.0.0.1:7809/ingest/3c885fd4-432d-4e7e-bd86-81fe491894f6',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'1f49fc'},body:JSON.stringify({sessionId:'1f49fc',runId:'initial',hypothesisId:'H3',location:'services/api.ts:getSnapshot:chartSeries',message:'chart series sample points',data:{codLabels:chartSeries.cod?.labels?.slice(-3)||[],codEffluent:chartSeries.cod?.effluent?.slice(-3)||[],bodEffluent:chartSeries.bod?.effluent?.slice(-3)||[],tssEffluent:chartSeries.tss?.effluent?.slice(-3)||[]},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
 
     const latestMeasurementTimestamp = measurements.length > 0
       ? measurements

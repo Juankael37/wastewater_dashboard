@@ -40,6 +40,27 @@ const isLanDevOrigin = (origin) => {
   }
 }
 
+/**
+ * Match an origin against a pattern that may contain a single leading wildcard.
+ * e.g. "https://*.pages.dev" matches "https://abc123.pages.dev"
+ *       "https://*.wastewater-dashboard.pages.dev" matches any preview deploy.
+ */
+const matchesWildcard = (origin, pattern) => {
+  if (!pattern.includes('*')) return origin === pattern
+  // Convert wildcard pattern to a regex: escape special chars, replace * with [^.]+
+  const escaped = pattern.replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '[^.]+')
+  try {
+    return new RegExp(`^${escaped}$`).test(origin)
+  } catch {
+    return false
+  }
+}
+
+const isAllowedOrigin = (origin, allowed) => {
+  if (allowed.includes(origin)) return true
+  return allowed.some((pattern) => pattern.includes('*') && matchesWildcard(origin, pattern))
+}
+
 app.use('*', logger())
 
 app.use('*', async (c, next) => {
@@ -71,7 +92,7 @@ app.use('*', cors({
     const allowed = parseAllowedOrigins(c.env.ALLOWED_ORIGINS)
     // Allow same-origin/non-browser requests that do not send Origin.
     if (!origin) return null
-    if (allowed.includes(origin)) return origin
+    if (isAllowedOrigin(origin, allowed)) return origin
     if (allowed.includes(LAN_DEV_ORIGINS_TOKEN) && isLanDevOrigin(origin)) return origin
     return null
   },
