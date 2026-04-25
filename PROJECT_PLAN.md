@@ -5,7 +5,27 @@
 ### Connect plan vs rest of migration
 The [connect plan](.cursor/plans/connect_supabase_+_cloudflare_cbd74acc.plan.md) scoped **wiring** this repo to Supabase + a deployed Worker + PWA env + minimal RLS + E2E checks. **Outside that plan** (still tracked below): Flask `/api/*` parity for some PWA screens, optional SQLite → Postgres migration, Google Sheets backup, email automation, multi-tenant, full camera→Storage QA.
 
-## 📊 Current Implementation Status (April 15, 2026)
+## 📊 Current Implementation Status (April 25, 2026)
+
+### 🔖 Checkpoint — April 25, 2026 — Production Deployment Stabilized ✅
+
+**Completed in this checkpoint**
+- Both portals (AquaDash dark + Operator light) are **LIVE on Cloudflare Pages** at `wastewater-dashboard.pages.dev` — login working on both.
+- CORS wildcard support added to Worker (`matchesWildcard()` + `isAllowedOrigin()`) — preview and production Cloudflare Pages URLs now correctly allowed.
+- Production deployment pipeline fully fixed:
+  - Cloudflare Pages project production branch set to `main`
+  - `deploy-frontend.yml` uses `wrangler pages deploy --branch=main` → advances production alias on every push
+  - `VITE_API_URL` typo (`juanke37` instead of `juankael37`) found and fixed — workflow no longer overrides `frontend/.env.production`
+- Removed 3 stale debug telemetry `fetch` blocks from `frontend/src/services/api.ts` that called `localhost:7809` in production.
+- Confirmed Flask app is **local-only** — not needed for the cloud production path (React PWA + Worker + Supabase).
+
+**Still pending**
+- Google Sheets backup implementation
+- Real-device PWA testing (install / camera / offline sync)
+- Optional: migrate SQLite historical data to Supabase
+- Email automation (Daily/Weekly/Monthly reports)
+
+---
 
 ### 🔖 Checkpoint — April 15, 2026
 
@@ -143,6 +163,9 @@ Local Flask + React integration is done. The PWA can use **Supabase + Workers** 
 - [x] **Enhance CSV export with professional header and metadata**
 - [x] Deploy Supabase database (your project)
 - [x] Deploy Cloudflare Workers API (your account)
+- [x] Deploy React PWA to Cloudflare Pages — **LIVE at wastewater-dashboard.pages.dev** ✅
+- [x] Fix production deployment pipeline (wrangler + --branch=main + .env.production) ✅
+- [x] Fix CORS wildcard for preview/production Pages URLs ✅
 - [ ] Implement Google Sheets backup
 - [x] Close final gaps: Worker vs Flask feature parity for PWA Settings parameter-write routes (see `IMPLEMENTATION_ROADMAP.md`)
 
@@ -264,10 +287,11 @@ Migration is complete when **all** of the following are true:
 
 ## 📈 Project Health Status
 
-- **Overall Progress**: Product feature-rich locally; **cloud operator path** live; **parity + backup + device QA** remain
-- **Frontend**: Strong; resolve hybrid API for a single clear production story
-- **Backend**: Flask complete for exports/admin; Worker covers core CRUD + auth plus CSV data import/export parity
-- **Documentation**: Roadmap/progress aligned as of April 2026
+- **Overall Progress**: ✅ **Production cloud path LIVE** — both portals deployed and login working; Google Sheets backup + device QA remain
+- **Frontend**: React PWA live on Cloudflare Pages; both AquaDash and Operator portals functional on `wastewater-dashboard.pages.dev`
+- **Backend**: Worker live at `wastewater-api.juankael37.workers.dev`; CORS wildcard fix deployed; Flask local-only
+- **CI/CD**: GitHub Actions auto-deploys to Cloudflare Pages production on every push to `main` touching `frontend/`
+- **Documentation**: Updated April 25, 2026
 - **Testing**: Exercise smoke tests (`scripts/smoke-test-worker.ps1`) and `PWA_TESTING_GUIDE.md` on real devices
 
 The system is fully functional with two interfaces:

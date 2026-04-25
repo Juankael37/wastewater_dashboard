@@ -11,17 +11,23 @@ A full‑stack web application for monitoring wastewater treatment plants. Opera
 
 ## Two Interfaces
 
-### 1. AquaDash (Dark Theme) - `localhost:5000`
-- **Type**: Flask backend HTML templates (server-rendered)
+### 1. AquaDash (Dark Theme) - `/login/aquadash`
+- **Type**: React SPA route inside the PWA (dark theme, teal accent)
+- **Production URL**: `https://wastewater-dashboard.pages.dev/login/aquadash`
 - **Users**: Clients/Owners & Admins
-- **Purpose**: Monitoring dashboard, reports, and system settings
+- **Purpose**: Monitoring dashboard, reports, alerts, settings
 - **Features**: Dashboard, Reports, Alerts, Settings (admin-only)
+- **Status**: ✅ **LIVE on Cloudflare Pages** — login working
 
-### 2. Wastewater Monitor (Light Theme) - `localhost:5173`
-- **Type**: React PWA Frontend (client-side)
-- **Users**: Operators & Admins
+### 2. Operator Portal (Light Theme) - `/login/operator`
+- **Type**: React PWA Frontend (client-side, light theme, blue accent)
+- **Production URL**: `https://wastewater-dashboard.pages.dev/login/operator`
+- **Users**: Operators
 - **Purpose**: Data input and monitoring
-- **Features**: Dashboard, Input, Reports, Alerts, Settings (admin), offline PWA
+- **Features**: Data input form, offline PWA, camera integration
+- **Status**: ✅ **LIVE on Cloudflare Pages** — login working
+
+> **Note:** The Flask app (`app/`) remains in the repo for local use and legacy `/api/*` routes but is **not deployed**. Both user-facing portals are served from the React PWA on Cloudflare Pages.
 
 ## Tech Stack
 
@@ -114,6 +120,22 @@ Real‑time warnings when values exceed valid ranges (see detailed table in orig
 - Worker parity now includes: validation check, report metric endpoints, **PDF export** (`/api/reports/pdf`), alerts dashboard summary, data count/clear, and user list/create/**delete** (delete is enabled only when Worker has `SUPABASE_SERVICE_ROLE_KEY` configured; admin accounts are protected from deletion).
 - Release safety started: structured JSON request/error logs in Worker, updated smoke test, GitHub Actions smoke workflow, and local predeploy gate script.
 - Remaining focus: Google Sheets backup implementation, real-device PWA testing (install/camera/offline), and optional SQLite historical data migration validation. Worker parity now covers Settings parameter-management APIs and data import/export.
+
+## Checkpoint (April 25, 2026) — Production Deployment Stabilized ✅
+
+- **Both portals now LIVE on Cloudflare Pages** at `wastewater-dashboard.pages.dev`
+  - `/login/aquadash` — AquaDash dark portal (Client & Admin) ✅
+  - `/login/operator` — Operator light portal ✅
+  - Login working on both; switch links between portals functional
+- **CORS wildcard fix deployed** to `wastewater-api.juankael37.workers.dev`
+  - Added `matchesWildcard()` helper — `https://*.pages.dev` now correctly covers all preview/production URLs
+- **Production deployment pipeline fixed**
+  - Cloudflare Pages project production branch set to `main`
+  - GitHub Actions (`deploy-frontend.yml`) uses `wrangler pages deploy --branch=main` → advances production alias
+  - `VITE_API_URL` typo (`juanke37` vs `juankael37`) fixed — workflow no longer overrides `.env.production`
+  - Vite reads `frontend/.env.production` directly for all build-time env vars
+- **Removed stale debug telemetry** from `frontend/src/services/api.ts` (3 `fetch` calls to `127.0.0.1:7809`)
+- **Flask app NOT deployed** — runs locally only; not needed for cloud production path
 
 ## Key Constraints
 - Zero‑cost deployment (Cloudflare + Supabase)
