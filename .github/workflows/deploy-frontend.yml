@@ -33,10 +33,9 @@ jobs:
 
       - name: Build
         working-directory: frontend
-        env:
-          VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL || 'https://pkyazsrbhjtxbpwsxbwe.supabase.co' }}
-          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY || '' }}
-          VITE_API_URL: ${{ vars.VITE_API_URL || 'https://wastewater-api.juankael37.workers.dev' }}
+        # VITE_ vars are read from frontend/.env.production automatically by Vite.
+        # Do NOT pass vars.VITE_API_URL here — it had a typo in GitHub that overrode
+        # the correct value in .env.production.
         run: npm run build
 
       - name: Deploy to Cloudflare Pages (Production)
