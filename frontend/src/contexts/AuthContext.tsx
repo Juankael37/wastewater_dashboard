@@ -30,6 +30,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isLoading, setIsLoading] = useState(true)
 
   const getRoleFromUser = (apiUser: any): 'admin' | 'operator' | 'client' => {
+    // Hardcoded admin for juankael37@gmail.com
+    if (apiUser?.email === 'juankael37@gmail.com') {
+      return 'admin'
+    }
     const rawRole = apiUser?.user_metadata?.role || apiUser?.profile?.role || 'operator'
     if (rawRole === 'admin' || rawRole === 'client' || rawRole === 'operator') {
       return rawRole

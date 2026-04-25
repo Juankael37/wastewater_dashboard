@@ -14,7 +14,8 @@ const ProtectedRoute = () => {
   }
 
   if (!user) {
-    return <Navigate to="/login" replace />
+    // Go to aquadash login - both admins and operators use this
+    return <Navigate to="/login/aquadash" replace />
   }
 
   return <Outlet />

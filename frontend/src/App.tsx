@@ -4,12 +4,12 @@ import { AuthProvider } from './contexts/AuthContext'
 import { OfflineProvider } from './contexts/OfflineContext'
 import ProtectedRoute from './components/auth/ProtectedRoute'
 import AdminRoute from './components/auth/AdminRoute'
-import Layout from './components/layout/Layout'
 import AquaLayout from './components/layout/AquaLayout'
+import Layout from './components/layout/Layout'
 
 // Pages
-import LoginPage from './pages/auth/LoginPage'
-import RegisterPage from './pages/auth/RegisterPage'
+import AquaLoginPage from './pages/auth/AquaLoginPage'
+import OperatorLoginPage from './pages/auth/OperatorLoginPage'
 import DashboardPage from './pages/dashboard/DashboardPage'
 import InputPage from './pages/input/InputPage'
 import ReportsPage from './pages/reports/ReportsPage'
@@ -45,11 +45,11 @@ function App() {
         />
         
         <Routes>
-          {/* Public routes */}
-          <Route path="/login" element={<LoginPage />} />
-          <Route path="/register" element={<RegisterPage />} />
+          {/* TWO SEPARATE LOGINS - per project.md */}
+          <Route path="/login/aquadash" element={<AquaLoginPage />} />
+          <Route path="/login/operator" element={<OperatorLoginPage />} />
           
-          {/* AquaDash routes (dark theme - client/admin) */}
+          {/* AquaDash routes (DARK theme) - client/admin */}
           <Route element={<ProtectedRoute />}>
             <Route element={<AquaLayout />}>
               <Route path="/" element={<Navigate to="/dashboard" replace />} />
@@ -59,21 +59,22 @@ function App() {
             </Route>
           </Route>
           
-          {/* Admin-only routes */}
+          {/* Admin-only */}
           <Route element={<AdminRoute />}>
             <Route element={<AquaLayout />}>
               <Route path="/settings" element={<SettingsPage />} />
-              <Route path="/admin/dashboard" element={<DashboardPage />} />
-              <Route path="/admin/settings" element={<SettingsPage />} />
             </Route>
           </Route>
           
-          {/* Operator routes (light theme - data input) */}
+          {/* Operator routes (LIGHT theme) - data input */}
           <Route element={<ProtectedRoute />}>
             <Route element={<Layout />}>
               <Route path="/input" element={<InputPage />} />
             </Route>
           </Route>
+          
+          {/* Default redirect */}
+          <Route path="/login" element={<Navigate to="/login/aquadash" replace />} />
           
           {/* 404 */}
           <Route path="*" element={<NotFoundPage />} />
