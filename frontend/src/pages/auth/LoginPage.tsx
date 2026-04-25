@@ -22,6 +22,7 @@ const LoginPage = () => {
 
     try {
       await signIn(email, password)
+      // Default redirect - can check user.role after auth context updates
       navigate('/dashboard')
     } catch (err: any) {
       setError(err.message || 'Failed to sign in')

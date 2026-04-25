@@ -5,6 +5,7 @@ import { OfflineProvider } from './contexts/OfflineContext'
 import ProtectedRoute from './components/auth/ProtectedRoute'
 import AdminRoute from './components/auth/AdminRoute'
 import Layout from './components/layout/Layout'
+import AquaLayout from './components/layout/AquaLayout'
 
 // Pages
 import LoginPage from './pages/auth/LoginPage'
@@ -48,12 +49,11 @@ function App() {
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
           
-          {/* Protected routes */}
+          {/* AquaDash routes (dark theme - client/admin) */}
           <Route element={<ProtectedRoute />}>
-            <Route element={<Layout />}>
+            <Route element={<AquaLayout />}>
               <Route path="/" element={<Navigate to="/dashboard" replace />} />
               <Route path="/dashboard" element={<DashboardPage />} />
-              <Route path="/input" element={<InputPage />} />
               <Route path="/reports" element={<ReportsPage />} />
               <Route path="/alerts" element={<AlertsPage />} />
             </Route>
@@ -61,8 +61,17 @@ function App() {
           
           {/* Admin-only routes */}
           <Route element={<AdminRoute />}>
-            <Route element={<Layout />}>
+            <Route element={<AquaLayout />}>
               <Route path="/settings" element={<SettingsPage />} />
+              <Route path="/admin/dashboard" element={<DashboardPage />} />
+              <Route path="/admin/settings" element={<SettingsPage />} />
+            </Route>
+          </Route>
+          
+          {/* Operator routes (light theme - data input) */}
+          <Route element={<ProtectedRoute />}>
+            <Route element={<Layout />}>
+              <Route path="/input" element={<InputPage />} />
             </Route>
           </Route>
           
