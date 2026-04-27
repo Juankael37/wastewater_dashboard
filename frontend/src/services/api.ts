@@ -195,7 +195,8 @@ export interface DashboardData {
 export interface ParameterStatusDTO {
   key: string;
   name: string;
-  value: number;
+  influentValue: number;
+  effluentValue: number;
   unit: string;
   status: 'good' | 'warning' | 'critical';
   standard: string;
@@ -505,7 +506,12 @@ export const measurementsApi = {
 export const alertsApi = {
   getAll: async (): Promise<Alert[]> => {
     const response = await apiRequest<{ data: any[] }>('/alerts?resolved=false&limit=50');
-    return (response.data || []).map((item) => {
+    return (response.data || [])
+      .filter((item) => {
+        const measurement = item.measurements || {};
+        return measurement.type !== 'influent';
+      })
+      .map((item) => {
       const measurement = item.measurements || {};
       const parameter = measurement.parameters?.display_name || measurement.parameters?.name || 'Unknown';
       const severity = item.severity || (item.resolved ? 'info' : 'warning');
@@ -736,19 +742,29 @@ export const dashboardApi = {
     }
 
     const parameterStatuses: ParameterStatusDTO[] = Object.keys(paramConfig).map((key) => {
-      const latest = [...measurements]
+      const latestInfluent = [...measurements]
         .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
-        .find((m) => String(m.parameter_key || '').toLowerCase() === key);
-      const value = Number(latest?.value || 0);
+        .find((m) => String(m.parameter_key || '').toLowerCase() === key && m.type === 'influent');
+        
+      const latestEffluent = [...measurements]
+        .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+        .find((m) => String(m.parameter_key || '').toLowerCase() === key && (!m.type || m.type === 'effluent'));
+
+      const influentValue = Number(latestInfluent?.value || 0);
+      const effluentValue = Number(latestEffluent?.value || 0);
+      
       const cfg = paramConfig[key];
       const margin = (cfg.max - cfg.min) * 0.1;
+      
       let status: 'good' | 'warning' | 'critical' = 'good';
-      if (value < cfg.min || value > cfg.max) status = 'critical';
-      else if (value < cfg.min + margin || value > cfg.max - margin) status = 'warning';
+      if (effluentValue < cfg.min || effluentValue > cfg.max) status = 'critical';
+      else if (effluentValue < cfg.min + margin || effluentValue > cfg.max - margin) status = 'warning';
+      
       return {
         key,
         name: cfg.label,
-        value,
+        influentValue,
+        effluentValue,
         unit: cfg.unit,
         status,
         standard: `${cfg.min}-${cfg.max}`,

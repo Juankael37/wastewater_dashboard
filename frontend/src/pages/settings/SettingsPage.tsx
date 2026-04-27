@@ -30,9 +30,9 @@ interface SettingsCapabilities {
 }
 
 const CloudSettingsNotice: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => (
-  <div className="rounded-lg border border-teal-500/30 bg-teal-500/10 px-4 py-3 text-sm text-slate-300">
+  <div className="rounded-lg border border-teal-500/30 bg-teal-500/10 px-4 py-3 text-sm text-gray-600 dark:text-slate-300">
     <p className="font-medium text-teal-300">{title}</p>
-    <div className="mt-2 space-y-1 text-slate-400">{children}</div>
+    <div className="mt-2 space-y-1 text-gray-500 dark:text-slate-400">{children}</div>
   </div>
 )
 
@@ -69,8 +69,8 @@ const UserManagementSection: React.FC<{ capabilities: SettingsCapabilities }> = 
     return (
       <div className="space-y-6">
         <div>
-          <h2 className="text-2xl font-semibold text-white">User Management</h2>
-          <p className="text-slate-400">Cloud deployment</p>
+          <h2 className="text-2xl font-semibold text-gray-900 dark:text-white">User Management</h2>
+          <p className="text-gray-500 dark:text-slate-400">Cloud deployment</p>
         </div>
         <CloudSettingsNotice title="Managed in Supabase Authentication">
           <p>
@@ -128,13 +128,13 @@ const UserManagementSection: React.FC<{ capabilities: SettingsCapabilities }> = 
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <div>
-          <h2 className="text-2xl font-semibold text-white">User Management</h2>
-          <p className="text-slate-400">Manage system users and their permissions</p>
+          <h2 className="text-2xl font-semibold text-gray-900 dark:text-white">User Management</h2>
+          <p className="text-gray-500 dark:text-slate-400">Manage system users and their permissions</p>
         </div>
         <button 
           disabled={!capabilities.supportsUserCreate}
           onClick={() => setShowAddUser(!showAddUser)}
-          className="px-4 py-2 bg-teal-500 hover:bg-teal-600 disabled:opacity-50 text-white rounded-lg font-semibold transition flex items-center gap-2"
+          className="px-4 py-2 bg-teal-500 hover:bg-teal-600 disabled:opacity-50 text-gray-900 dark:text-white rounded-lg font-semibold transition flex items-center gap-2"
         >
           <Plus className="w-4 h-4" />
           Add New User
@@ -143,45 +143,45 @@ const UserManagementSection: React.FC<{ capabilities: SettingsCapabilities }> = 
 
       {/* Add User Form */}
       {capabilities.supportsUserCreate && showAddUser && (
-        <div className="bg-slate-700/50 rounded-lg p-6 border border-slate-600">
-          <h3 className="text-lg font-semibold text-white mb-4">Add New User</h3>
+        <div className="bg-gray-50 dark:bg-white dark:bg-slate-700/50 rounded-lg p-6 border border-gray-300 dark:border-slate-600">
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Add New User</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <div>
-              <label className="block text-sm text-slate-400 mb-1">Username</label>
+              <label className="block text-sm text-gray-500 dark:text-slate-400 mb-1">Username</label>
               <input
                 type="text"
                 value={newUser.username}
                 onChange={(e) => setNewUser({...newUser, username: e.target.value})}
-                className="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-white"
+                className="w-full bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 text-gray-900 dark:text-white"
                 placeholder="Enter username"
               />
             </div>
             <div>
-              <label className="block text-sm text-slate-400 mb-1">Password</label>
+              <label className="block text-sm text-gray-500 dark:text-slate-400 mb-1">Password</label>
               <input
                 type="password"
                 value={newUser.password}
                 onChange={(e) => setNewUser({...newUser, password: e.target.value})}
-                className="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-white"
+                className="w-full bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 text-gray-900 dark:text-white"
                 placeholder="Min 6 characters"
               />
             </div>
             <div>
-              <label className="block text-sm text-slate-400 mb-1">Confirm Password</label>
+              <label className="block text-sm text-gray-500 dark:text-slate-400 mb-1">Confirm Password</label>
               <input
                 type="password"
                 value={newUser.confirmPassword}
                 onChange={(e) => setNewUser({...newUser, confirmPassword: e.target.value})}
-                className="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-white"
+                className="w-full bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 text-gray-900 dark:text-white"
                 placeholder="Re-enter password"
               />
             </div>
             <div>
-              <label className="block text-sm text-slate-400 mb-1">Role</label>
+              <label className="block text-sm text-gray-500 dark:text-slate-400 mb-1">Role</label>
               <select
                 value={newUser.role}
                 onChange={(e) => setNewUser({...newUser, role: e.target.value as 'admin' | 'operator' | 'client'})}
-                className="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-white"
+                className="w-full bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 text-gray-900 dark:text-white"
               >
                 <option value="admin">Admin</option>
                 <option value="operator">Operator</option>
@@ -205,13 +205,13 @@ const UserManagementSection: React.FC<{ capabilities: SettingsCapabilities }> = 
             <button
               onClick={handleAddUser}
               disabled={addingUser}
-              className="px-4 py-2 bg-teal-500 hover:bg-teal-600 text-white rounded-lg disabled:opacity-50 transition"
+              className="px-4 py-2 bg-teal-500 hover:bg-teal-600 text-gray-900 dark:text-white rounded-lg disabled:opacity-50 transition"
             >
               {addingUser ? 'Creating...' : 'Create User'}
             </button>
             <button
               onClick={() => setShowAddUser(false)}
-              className="px-4 py-2 bg-slate-600 hover:bg-slate-500 text-white rounded-lg transition"
+              className="px-4 py-2 bg-gray-200 dark:bg-slate-600 hover:bg-slate-500 text-gray-900 dark:text-white rounded-lg transition"
             >
               Cancel
             </button>
@@ -220,34 +220,34 @@ const UserManagementSection: React.FC<{ capabilities: SettingsCapabilities }> = 
       )}
 
       {/* Users Table */}
-      <div className="bg-slate-700/30 rounded-lg overflow-hidden">
+      <div className="bg-gray-50 dark:bg-white dark:bg-slate-700/30 rounded-lg overflow-hidden">
         <table className="w-full">
-          <thead className="bg-slate-700/50">
+          <thead className="bg-gray-50 dark:bg-white dark:bg-slate-700/50">
             <tr>
-              <th className="text-left py-3 px-4 text-slate-300 font-semibold">User</th>
-              <th className="text-left py-3 px-4 text-slate-300 font-semibold">Role</th>
-              <th className="text-left py-3 px-4 text-slate-300 font-semibold">Access Level</th>
-              <th className="text-left py-3 px-4 text-slate-300 font-semibold">Actions</th>
+              <th className="text-left py-3 px-4 text-gray-600 dark:text-slate-300 font-semibold">User</th>
+              <th className="text-left py-3 px-4 text-gray-600 dark:text-slate-300 font-semibold">Role</th>
+              <th className="text-left py-3 px-4 text-gray-600 dark:text-slate-300 font-semibold">Access Level</th>
+              <th className="text-left py-3 px-4 text-gray-600 dark:text-slate-300 font-semibold">Actions</th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={4} className="py-8 text-center text-slate-400">Loading users...</td>
+                <td colSpan={4} className="py-8 text-center text-gray-500 dark:text-slate-400">Loading users...</td>
               </tr>
             ) : users.length === 0 ? (
               <tr>
-                <td colSpan={4} className="py-8 text-center text-slate-400">No users found</td>
+                <td colSpan={4} className="py-8 text-center text-gray-500 dark:text-slate-400">No users found</td>
               </tr>
             ) : (
               users.map(user => (
-                <tr key={user.id} className="border-t border-slate-700/50 hover:bg-slate-700/20 transition">
+                <tr key={user.id} className="border-t border-gray-200 dark:border-slate-700/50 hover:bg-white dark:bg-slate-700/20 transition">
                   <td className="py-3 px-4">
                     <div className="flex items-center gap-3">
                       <div className="w-8 h-8 bg-teal-500/20 rounded-full flex items-center justify-center">
                         <span className="text-teal-400 font-semibold">{user.username.charAt(0).toUpperCase()}</span>
                       </div>
-                      <span className="text-white">{user.username}</span>
+                      <span className="text-gray-900 dark:text-white">{user.username}</span>
                     </div>
                   </td>
                   <td className="py-3 px-4">
@@ -260,7 +260,7 @@ const UserManagementSection: React.FC<{ capabilities: SettingsCapabilities }> = 
                     </span>
                   </td>
                   <td className="py-3 px-4">
-                    <span className="text-sm text-slate-400">
+                    <span className="text-sm text-gray-500 dark:text-slate-400">
                       {user.role === 'admin' ? 'Full access to all dashboards & settings' :
                        user.role === 'client' ? 'View-only monitoring dashboard' :
                        'Data input & monitoring (no settings)'}
@@ -401,13 +401,13 @@ const ParameterManagementSection: React.FC<{ capabilities: SettingsCapabilities 
       )}
       <div className="flex justify-between items-center">
         <div>
-          <h2 className="text-2xl font-semibold text-white">Parameter Management</h2>
-          <p className="text-slate-400">Configure water quality standards for all parameters</p>
+          <h2 className="text-2xl font-semibold text-gray-900 dark:text-white">Parameter Management</h2>
+          <p className="text-gray-500 dark:text-slate-400">Configure water quality standards for all parameters</p>
         </div>
         {canWriteParameters && (
           <button
             onClick={() => setShowAddParam(!showAddParam)}
-            className="px-4 py-2 bg-teal-500 hover:bg-teal-600 text-white rounded-lg font-semibold transition flex items-center gap-2"
+            className="px-4 py-2 bg-teal-500 hover:bg-teal-600 text-gray-900 dark:text-white rounded-lg font-semibold transition flex items-center gap-2"
           >
             <Plus className="w-4 h-4" />
             Add Parameter
@@ -417,38 +417,38 @@ const ParameterManagementSection: React.FC<{ capabilities: SettingsCapabilities 
 
       {/* Add Parameter Form */}
       {canWriteParameters && showAddParam && (
-        <div className="bg-slate-700/50 rounded-lg p-6 border border-slate-600">
-          <h3 className="text-lg font-semibold text-white mb-4">Add New Parameter</h3>
+        <div className="bg-gray-50 dark:bg-white dark:bg-slate-700/50 rounded-lg p-6 border border-gray-300 dark:border-slate-600">
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Add New Parameter</h3>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div>
-              <label className="block text-sm text-slate-400 mb-1">Parameter Name</label>
+              <label className="block text-sm text-gray-500 dark:text-slate-400 mb-1">Parameter Name</label>
               <input
                 type="text"
                 value={newParam.parameter}
                 onChange={(e) => setNewParam({...newParam, parameter: e.target.value.toLowerCase()})}
-                className="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-white"
+                className="w-full bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 text-gray-900 dark:text-white"
                 placeholder="e.g., turbidity"
               />
             </div>
             <div>
-              <label className="block text-sm text-slate-400 mb-1">Min Limit</label>
+              <label className="block text-sm text-gray-500 dark:text-slate-400 mb-1">Min Limit</label>
               <input
                 type="number"
                 step="0.01"
                 value={newParam.min_limit}
                 onChange={(e) => setNewParam({...newParam, min_limit: parseFloat(e.target.value) || 0})}
-                className="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-white"
+                className="w-full bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 text-gray-900 dark:text-white"
                 placeholder="0"
               />
             </div>
             <div>
-              <label className="block text-sm text-slate-400 mb-1">Max Limit</label>
+              <label className="block text-sm text-gray-500 dark:text-slate-400 mb-1">Max Limit</label>
               <input
                 type="number"
                 step="0.01"
                 value={newParam.max_limit}
                 onChange={(e) => setNewParam({...newParam, max_limit: parseFloat(e.target.value) || 0})}
-                className="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-white"
+                className="w-full bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 text-gray-900 dark:text-white"
                 placeholder="100"
               />
             </div>
@@ -456,13 +456,13 @@ const ParameterManagementSection: React.FC<{ capabilities: SettingsCapabilities 
               <button
                 onClick={handleAddParameter}
                 disabled={addingParam}
-                className="flex-1 px-4 py-2 bg-teal-500 hover:bg-teal-600 text-white rounded-lg disabled:opacity-50 transition"
+                className="flex-1 px-4 py-2 bg-teal-500 hover:bg-teal-600 text-gray-900 dark:text-white rounded-lg disabled:opacity-50 transition"
               >
                 {addingParam ? 'Adding...' : 'Add'}
               </button>
               <button
                 onClick={() => setShowAddParam(false)}
-                className="px-4 py-2 bg-slate-600 hover:bg-slate-500 text-white rounded-lg transition"
+                className="px-4 py-2 bg-gray-200 dark:bg-slate-600 hover:bg-slate-500 text-gray-900 dark:text-white rounded-lg transition"
               >
                 Cancel
               </button>
@@ -473,22 +473,22 @@ const ParameterManagementSection: React.FC<{ capabilities: SettingsCapabilities 
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {loading ? (
-          <div className="col-span-full py-8 text-center text-slate-400">Loading parameters...</div>
+          <div className="col-span-full py-8 text-center text-gray-500 dark:text-slate-400">Loading parameters...</div>
         ) : (
           parameters.map(param => (
-            <div key={param.id} className="bg-slate-700/30 rounded-lg p-4 border border-slate-600">
+            <div key={param.id} className="bg-gray-50 dark:bg-white dark:bg-slate-700/30 rounded-lg p-4 border border-gray-300 dark:border-slate-600">
               <div className="flex items-center justify-between mb-3">
-                <div className={`flex items-center gap-2 ${paramColors[param.parameter] || 'text-slate-400'}`}>
+                <div className={`flex items-center gap-2 ${paramColors[param.parameter] || 'text-gray-500 dark:text-slate-400'}`}>
                   {paramIcons[param.parameter] || <Beaker className="w-5 h-5" />}
-                  <span className="font-semibold text-white capitalize">{param.parameter}</span>
+                  <span className="font-semibold text-gray-900 dark:text-white capitalize">{param.parameter}</span>
                 </div>
                 {canWriteParameters && (
                   editingParam === param.parameter ? (
-                    <button onClick={() => setEditingParam(null)} className="text-slate-400 hover:text-white">
+                    <button onClick={() => setEditingParam(null)} className="text-gray-500 dark:text-slate-400 hover:text-gray-900 dark:text-white">
                       <X className="w-4 h-4" />
                     </button>
                   ) : (
-                    <button onClick={() => { setEditingParam(param.parameter); setEditValues({ min_limit: param.min_limit || 0, max_limit: param.max_limit || 0 }) }} className="text-slate-400 hover:text-white">
+                    <button onClick={() => { setEditingParam(param.parameter); setEditValues({ min_limit: param.min_limit || 0, max_limit: param.max_limit || 0 }) }} className="text-gray-500 dark:text-slate-400 hover:text-gray-900 dark:text-white">
                       <Edit className="w-4 h-4" />
                     </button>
                   )
@@ -499,37 +499,37 @@ const ParameterManagementSection: React.FC<{ capabilities: SettingsCapabilities 
                 <div className="space-y-3">
                   <div className="grid grid-cols-2 gap-2">
                     <div>
-                      <label className="block text-xs text-slate-400 mb-1">Min</label>
+                      <label className="block text-xs text-gray-500 dark:text-slate-400 mb-1">Min</label>
                       <input
                         type="number"
                         step="0.01"
                         value={editValues.min_limit}
                         onChange={(e) => setEditValues({...editValues, min_limit: parseFloat(e.target.value) || 0})}
-                        className="w-full bg-slate-800 border border-slate-600 rounded px-2 py-1 text-white text-sm"
+                        className="w-full bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 rounded px-2 py-1 text-gray-900 dark:text-white text-sm"
                       />
                     </div>
                     <div>
-                      <label className="block text-xs text-slate-400 mb-1">Max</label>
+                      <label className="block text-xs text-gray-500 dark:text-slate-400 mb-1">Max</label>
                       <input
                         type="number"
                         step="0.01"
                         value={editValues.max_limit}
                         onChange={(e) => setEditValues({...editValues, max_limit: parseFloat(e.target.value) || 0})}
-                        className="w-full bg-slate-800 border border-slate-600 rounded px-2 py-1 text-white text-sm"
+                        className="w-full bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 rounded px-2 py-1 text-gray-900 dark:text-white text-sm"
                       />
                     </div>
                   </div>
                   <button
                     onClick={() => handleSave(param.parameter)}
-                    className="w-full px-3 py-2 bg-teal-500 hover:bg-teal-600 text-white rounded text-sm transition flex items-center justify-center gap-2"
+                    className="w-full px-3 py-2 bg-teal-500 hover:bg-teal-600 text-gray-900 dark:text-white rounded text-sm transition flex items-center justify-center gap-2"
                   >
                     <Save className="w-3 h-3" />
                     Save
                   </button>
                 </div>
               ) : (
-                <div className="text-sm text-slate-300">
-                  <p>Standard: <span className="text-white font-medium">{param.min_limit} - {param.max_limit}</span></p>
+                <div className="text-sm text-gray-600 dark:text-slate-300">
+                  <p>Standard: <span className="text-gray-900 dark:text-white font-medium">{param.min_limit} - {param.max_limit}</span></p>
                 </div>
               )}
               
@@ -578,8 +578,8 @@ const DataManagementSection: React.FC<{ capabilities: SettingsCapabilities }> = 
     return (
       <div className="space-y-6">
         <div>
-          <h2 className="text-2xl font-semibold text-white">Data Management</h2>
-          <p className="text-slate-400">Cloud deployment</p>
+          <h2 className="text-2xl font-semibold text-gray-900 dark:text-white">Data Management</h2>
+          <p className="text-gray-500 dark:text-slate-400">Cloud deployment</p>
         </div>
         <CloudSettingsNotice title="Not available on Worker API yet">
           <p>
@@ -612,26 +612,26 @@ const DataManagementSection: React.FC<{ capabilities: SettingsCapabilities }> = 
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-2xl font-semibold text-white">Data Management</h2>
-        <p className="text-slate-400">Manage measurement data and backups</p>
+        <h2 className="text-2xl font-semibold text-gray-900 dark:text-white">Data Management</h2>
+        <p className="text-gray-500 dark:text-slate-400">Manage measurement data and backups</p>
       </div>
 
-      <div className="bg-slate-700/30 rounded-lg p-6">
+      <div className="bg-gray-50 dark:bg-white dark:bg-slate-700/30 rounded-lg p-6">
         <div className="flex items-center justify-between mb-4">
           <div>
-            <h3 className="text-lg font-semibold text-white">Current Data Status</h3>
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Current Data Status</h3>
             <div className="flex items-center gap-4 mt-2">
-              <span className="text-slate-400">Total Measurements:</span>
-              <span className="text-3xl font-bold text-white">
+              <span className="text-gray-500 dark:text-slate-400">Total Measurements:</span>
+              <span className="text-3xl font-bold text-gray-900 dark:text-white">
                 {loading ? '...' : dataCount || 0}
               </span>
             </div>
           </div>
           <button
             onClick={fetchDataCount}
-            className="p-2 bg-slate-600 hover:bg-slate-500 rounded-lg transition"
+            className="p-2 bg-gray-200 dark:bg-slate-600 hover:bg-slate-500 rounded-lg transition"
           >
-            <RefreshCw className="w-5 h-5 text-white" />
+            <RefreshCw className="w-5 h-5 text-gray-900 dark:text-white" />
           </button>
         </div>
       </div>
@@ -640,7 +640,7 @@ const DataManagementSection: React.FC<{ capabilities: SettingsCapabilities }> = 
         <div className="flex items-start gap-4">
           <AlertTriangle className="w-6 h-6 text-red-400 mt-1" />
           <div className="flex-1">
-            <h3 className="text-lg font-semibold text-white mb-2">Danger Zone</h3>
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">Danger Zone</h3>
             <p className="text-red-300 text-sm mb-4">
               Clearing all data will permanently delete all measurement records. This action cannot be undone.
             </p>
@@ -648,7 +648,7 @@ const DataManagementSection: React.FC<{ capabilities: SettingsCapabilities }> = 
               <button
                 onClick={() => setShowClearConfirm(true)}
                 disabled={loading || !canClear || !dataCount || dataCount === 0}
-                className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg disabled:opacity-50 transition flex items-center gap-2"
+                className="px-4 py-2 bg-red-600 hover:bg-red-700 text-gray-900 dark:text-white rounded-lg disabled:opacity-50 transition flex items-center gap-2"
               >
                 <Trash2 className="w-4 h-4" />
                 Clear All Data
@@ -658,13 +658,13 @@ const DataManagementSection: React.FC<{ capabilities: SettingsCapabilities }> = 
                 <button
                   onClick={handleClearAllData}
                   disabled={loading}
-                  className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg disabled:opacity-50 transition"
+                  className="px-4 py-2 bg-red-600 hover:bg-red-700 text-gray-900 dark:text-white rounded-lg disabled:opacity-50 transition"
                 >
                   {loading ? 'Clearing...' : `Yes, Delete ${dataCount} Records`}
                 </button>
                 <button
                   onClick={() => setShowClearConfirm(false)}
-                  className="px-4 py-2 bg-slate-600 hover:bg-slate-500 text-white rounded-lg transition"
+                  className="px-4 py-2 bg-gray-200 dark:bg-slate-600 hover:bg-slate-500 text-gray-900 dark:text-white rounded-lg transition"
                 >
                   Cancel
                 </button>
@@ -731,8 +731,8 @@ const SettingsPage: React.FC = () => {
         return (
           <div className="text-center py-12">
             <Bell className="w-16 h-16 text-slate-600 mx-auto mb-4" />
-            <h3 className="text-xl font-semibold text-white mb-2">Notification Settings</h3>
-            <p className="text-slate-400">Configure email and push notifications for alerts and reports.</p>
+            <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">Notification Settings</h3>
+            <p className="text-gray-500 dark:text-slate-400">Configure email and push notifications for alerts and reports.</p>
             <p className="text-slate-500 text-sm mt-4">Coming soon...</p>
           </div>
         )
@@ -740,8 +740,8 @@ const SettingsPage: React.FC = () => {
         return (
           <div className="text-center py-12">
             <Shield className="w-16 h-16 text-slate-600 mx-auto mb-4" />
-            <h3 className="text-xl font-semibold text-white mb-2">Security Settings</h3>
-            <p className="text-slate-400">Manage password policies, session timeouts, and access controls.</p>
+            <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">Security Settings</h3>
+            <p className="text-gray-500 dark:text-slate-400">Manage password policies, session timeouts, and access controls.</p>
             <p className="text-slate-500 text-sm mt-4">Coming soon...</p>
           </div>
         )
@@ -751,23 +751,23 @@ const SettingsPage: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-900 to-slate-800 p-4 md:p-6">
+    <div className="space-y-6">
       <div className="max-w-7xl mx-auto">
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-white mb-2">Settings</h1>
-          <p className="text-slate-400">Configure system settings and manage users</p>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Settings</h1>
+          <p className="text-gray-500 dark:text-slate-400">Configure system settings and manage users</p>
         </div>
 
         {showCapabilitiesDebug && (
           <div className="mb-6 rounded-lg border border-teal-500/30 bg-teal-500/10 p-4">
             <h2 className="text-sm font-semibold text-teal-300 mb-2">Backend Capabilities (dev)</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm text-slate-300">
-              <div>User list: <span className={capabilities.supportsUserList ? 'text-emerald-300' : 'text-slate-400'}>{String(capabilities.supportsUserList)}</span></div>
-              <div>User create: <span className={capabilities.supportsUserCreate ? 'text-emerald-300' : 'text-slate-400'}>{String(capabilities.supportsUserCreate)}</span></div>
-              <div>User delete: <span className={capabilities.supportsUserDelete ? 'text-emerald-300' : 'text-slate-400'}>{String(capabilities.supportsUserDelete)}</span></div>
-              <div>Parameter write: <span className={capabilities.supportsParameterWrite ? 'text-emerald-300' : 'text-slate-400'}>{String(capabilities.supportsParameterWrite)}</span></div>
-              <div>Data count: <span className={capabilities.supportsDataCount ? 'text-emerald-300' : 'text-slate-400'}>{String(capabilities.supportsDataCount)}</span></div>
-              <div>Data clear: <span className={capabilities.supportsDataClear ? 'text-emerald-300' : 'text-slate-400'}>{String(capabilities.supportsDataClear)}</span></div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm text-gray-600 dark:text-slate-300">
+              <div>User list: <span className={capabilities.supportsUserList ? 'text-emerald-300' : 'text-gray-500 dark:text-slate-400'}>{String(capabilities.supportsUserList)}</span></div>
+              <div>User create: <span className={capabilities.supportsUserCreate ? 'text-emerald-300' : 'text-gray-500 dark:text-slate-400'}>{String(capabilities.supportsUserCreate)}</span></div>
+              <div>User delete: <span className={capabilities.supportsUserDelete ? 'text-emerald-300' : 'text-gray-500 dark:text-slate-400'}>{String(capabilities.supportsUserDelete)}</span></div>
+              <div>Parameter write: <span className={capabilities.supportsParameterWrite ? 'text-emerald-300' : 'text-gray-500 dark:text-slate-400'}>{String(capabilities.supportsParameterWrite)}</span></div>
+              <div>Data count: <span className={capabilities.supportsDataCount ? 'text-emerald-300' : 'text-gray-500 dark:text-slate-400'}>{String(capabilities.supportsDataCount)}</span></div>
+              <div>Data clear: <span className={capabilities.supportsDataClear ? 'text-emerald-300' : 'text-gray-500 dark:text-slate-400'}>{String(capabilities.supportsDataClear)}</span></div>
             </div>
           </div>
         )}
@@ -775,7 +775,7 @@ const SettingsPage: React.FC = () => {
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
           {/* Sidebar Navigation */}
           <div className="lg:col-span-1">
-            <div className="bg-slate-800/50 backdrop-blur-sm rounded-xl border border-slate-700 p-4">
+            <div className="bg-white dark:bg-gray-50 dark:bg-slate-800/50 backdrop-blur-sm rounded-xl border border-gray-200 dark:border-slate-700 p-4">
               <nav className="space-y-1">
                 {tabs.map(tab => (
                   <button
@@ -784,7 +784,7 @@ const SettingsPage: React.FC = () => {
                     className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition ${
                       activeTab === tab.id 
                         ? 'bg-teal-500/10 text-teal-400 border border-teal-500/20' 
-                        : 'text-slate-400 hover:bg-slate-700/50 hover:text-white'
+                        : 'text-gray-500 dark:text-slate-400 hover:bg-gray-50 dark:bg-white dark:bg-slate-700/50 hover:text-gray-900 dark:text-white'
                     }`}
                   >
                     {tab.icon}
@@ -797,7 +797,7 @@ const SettingsPage: React.FC = () => {
 
           {/* Main Content */}
           <div className="lg:col-span-3">
-            <div className="bg-slate-800/50 backdrop-blur-sm rounded-xl border border-slate-700 p-6">
+            <div className="bg-white dark:bg-gray-50 dark:bg-slate-800/50 backdrop-blur-sm rounded-xl border border-gray-200 dark:border-slate-700 p-6">
               {renderContent()}
             </div>
           </div>

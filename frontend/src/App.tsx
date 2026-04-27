@@ -11,11 +11,14 @@ import Layout from './components/layout/Layout'
 import AquaLoginPage from './pages/auth/AquaLoginPage'
 import OperatorLoginPage from './pages/auth/OperatorLoginPage'
 import DashboardPage from './pages/dashboard/DashboardPage'
+import GraphsPage from './pages/dashboard/GraphsPage'
 import InputPage from './pages/input/InputPage'
 import ReportsPage from './pages/reports/ReportsPage'
 import AlertsPage from './pages/alerts/AlertsPage'
 import SettingsPage from './pages/settings/SettingsPage'
 import NotFoundPage from './pages/NotFoundPage'
+
+import { ThemeProvider } from './contexts/ThemeContext'
 
 // Dynamically select the layout based on user role
 const DynamicLayout = () => {
@@ -32,8 +35,9 @@ const DynamicLayout = () => {
 
 function App() {
   return (
-    <AuthProvider>
-      <OfflineProvider>
+    <ThemeProvider>
+      <AuthProvider>
+        <OfflineProvider>
         <Toaster
           position="top-right"
           toastOptions={{
@@ -67,6 +71,7 @@ function App() {
             <Route element={<DynamicLayout />}>
               <Route path="/" element={<Navigate to="/dashboard" replace />} />
               <Route path="/dashboard" element={<DashboardPage />} />
+              <Route path="/graphs" element={<GraphsPage />} />
               <Route path="/alerts" element={<AlertsPage />} />
             </Route>
           </Route>
@@ -100,6 +105,7 @@ function App() {
         </Routes>
       </OfflineProvider>
     </AuthProvider>
+    </ThemeProvider>
   )
 }
 

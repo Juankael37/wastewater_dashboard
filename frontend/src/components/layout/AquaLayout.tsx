@@ -5,7 +5,7 @@ import AquaHeader from './AquaHeader'
 
 const AquaLayout: React.FC = () => {
   return (
-    <div className="min-h-screen bg-slate-900">
+    <div className="min-h-screen">
       <AquaHeader />
       <div className="flex">
         <AquaNavigation />
