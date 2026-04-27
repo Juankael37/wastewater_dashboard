@@ -137,6 +137,13 @@ Real‑time warnings when values exceed valid ranges (see detailed table in orig
 - **Removed stale debug telemetry** from `frontend/src/services/api.ts` (3 `fetch` calls to `127.0.0.1:7809`)
 - **Flask app NOT deployed** — runs locally only; not needed for cloud production path
 
+## Checkpoint (April 27, 2026) — UI/UX & Data Fixes ✅
+
+- **Tailwind v4 & Theming:** Migrated to Tailwind CSS v4 and fixed dark mode inconsistencies (removed conflicting white backgrounds across layouts and Settings page).
+- **Timezone Fix:** Corrected API timezone handling by forcing UTC interpretation (`+ 'Z'`), ensuring the dashboard reflects the correct local time.
+- **User Management RLS Bypass:** Fixed the issue where only the logged-in user appeared in the Settings user list. The Cloudflare Worker now correctly uses the `SUPABASE_SERVICE_ROLE_KEY` to securely bypass Supabase Row Level Security (RLS) for admin listing.
+- **Deployment & Actions:** Updated GitHub Actions to target Node.js v24.
+
 ## Key Constraints
 - Zero‑cost deployment (Cloudflare + Supabase)
 - Offline‑capable mobile app

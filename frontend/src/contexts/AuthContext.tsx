@@ -35,9 +35,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return 'admin'
     }
     const rawRole = apiUser?.user_metadata?.role || apiUser?.profile?.role || 'operator'
-    if (rawRole === 'admin' || rawRole === 'client' || rawRole === 'operator') {
-      return rawRole
-    }
+    if (rawRole === 'admin' || rawRole === 'company_admin') return 'admin'
+    if (rawRole === 'client') return 'client'
+    if (rawRole === 'operator' || rawRole === 'company_operator') return 'operator'
     return 'operator'
   }
 

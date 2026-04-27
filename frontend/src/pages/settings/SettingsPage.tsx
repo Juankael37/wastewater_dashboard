@@ -15,7 +15,9 @@ import {
   Beaker,
   Thermometer,
   Wind,
-  Droplets
+  Droplets,
+  Eye,
+  EyeOff
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { dataManagementApi, usersApi, parametersApi, getBackendCapabilities, type User, type Parameter } from '../../services/api'
@@ -43,6 +45,7 @@ const UserManagementSection: React.FC<{ capabilities: SettingsCapabilities }> = 
   const [showAddUser, setShowAddUser] = useState(false)
   const [newUser, setNewUser] = useState({ username: '', password: '', confirmPassword: '', role: 'operator' as 'admin' | 'operator' | 'client' })
   const [addingUser, setAddingUser] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
 
   useEffect(() => {
     if (!capabilities.supportsUserList) {
@@ -158,23 +161,34 @@ const UserManagementSection: React.FC<{ capabilities: SettingsCapabilities }> = 
             </div>
             <div>
               <label className="block text-sm text-gray-500 dark:text-slate-400 mb-1">Password</label>
-              <input
-                type="password"
-                value={newUser.password}
-                onChange={(e) => setNewUser({...newUser, password: e.target.value})}
-                className="w-full bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 text-gray-900 dark:text-white"
-                placeholder="Min 6 characters"
-              />
+              <div className="relative">
+                <input
+                  type={showPassword ? "text" : "password"}
+                  value={newUser.password}
+                  onChange={(e) => setNewUser({...newUser, password: e.target.value})}
+                  className="w-full bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 text-gray-900 dark:text-white pr-10"
+                  placeholder="Min 6 characters"
+                />
+                <button
+                  type="button"
+                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-500 hover:text-gray-700 dark:text-slate-400 dark:hover:text-slate-200"
+                  onClick={() => setShowPassword(!showPassword)}
+                >
+                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
             </div>
             <div>
               <label className="block text-sm text-gray-500 dark:text-slate-400 mb-1">Confirm Password</label>
-              <input
-                type="password"
-                value={newUser.confirmPassword}
-                onChange={(e) => setNewUser({...newUser, confirmPassword: e.target.value})}
-                className="w-full bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 text-gray-900 dark:text-white"
-                placeholder="Re-enter password"
-              />
+              <div className="relative">
+                <input
+                  type={showPassword ? "text" : "password"}
+                  value={newUser.confirmPassword}
+                  onChange={(e) => setNewUser({...newUser, confirmPassword: e.target.value})}
+                  className="w-full bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 text-gray-900 dark:text-white pr-10"
+                  placeholder="Re-enter password"
+                />
+              </div>
             </div>
             <div>
               <label className="block text-sm text-gray-500 dark:text-slate-400 mb-1">Role</label>

@@ -7,6 +7,16 @@ The [connect plan](.cursor/plans/connect_supabase_+_cloudflare_cbd74acc.plan.md)
 
 ## 📊 Current Implementation Status (April 25, 2026)
 
+### 🔖 Checkpoint — April 27, 2026 — UI/UX & Data Fixes ✅
+
+**Completed in this checkpoint**
+- **Tailwind v4 & Theming:** Migrated to Tailwind CSS v4 and fixed global dark mode inconsistencies, specifically eliminating white flash issues on layout shells and Settings pages.
+- **Timezone Standardization:** Fixed dashboard timezone display issues by explicitly handling UTC offsets on incoming Supabase API timestamps.
+- **User Management RLS Bypass:** Resolved an issue where operators could not see other users in the Settings dashboard. The Cloudflare Worker now utilizes the `SUPABASE_SERVICE_ROLE_KEY` to bypass Row Level Security (RLS) when fetching the user list.
+- **CI/CD Maintenance:** Updated GitHub Actions environment targets to Node.js v24 to prevent deprecation errors.
+
+---
+
 ### 🔖 Checkpoint — April 25, 2026 — Production Deployment Stabilized ✅
 
 **Completed in this checkpoint**
