@@ -56,14 +56,8 @@ const DashboardPage: React.FC = () => {
   const fetchData = async (showLoader: boolean = false) => {
     try {
       if (showLoader) setLoading(true)
-      // #region agent log
-      fetch('http://127.0.0.1:7809/ingest/3c885fd4-432d-4e7e-bd86-81fe491894f6',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'1f49fc'},body:JSON.stringify({sessionId:'1f49fc',runId:'initial',hypothesisId:'H1',location:'pages/dashboard/DashboardPage.tsx:fetchData:start',message:'dashboard fetch start',data:{showLoader,currentLastUpdated:lastUpdated},timestamp:Date.now()})}).catch(()=>{});
-      // #endregion
 
       const snapshot = await dashboardApi.getSnapshot()
-      // #region agent log
-      fetch('http://127.0.0.1:7809/ingest/3c885fd4-432d-4e7e-bd86-81fe491894f6',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'1f49fc'},body:JSON.stringify({sessionId:'1f49fc',runId:'initial',hypothesisId:'H1',location:'pages/dashboard/DashboardPage.tsx:fetchData:afterSnapshot',message:'dashboard snapshot received',data:{totalReadings:snapshot.totalReadings,latestMeasurementTimestamp:snapshot.latestMeasurementTimestamp||null,statusCount:snapshot.parameterStatuses.length,codStatus:snapshot.parameterStatuses.find((p)=>p.key==='cod')?.effluentValue??null,bodStatus:snapshot.parameterStatuses.find((p)=>p.key==='bod')?.effluentValue??null,tssStatus:snapshot.parameterStatuses.find((p)=>p.key==='tss')?.effluentValue??null},timestamp:Date.now()})}).catch(()=>{});
-      // #endregion
 
       const processedParams: ParameterData[] = snapshot.parameterStatuses.map((param) => ({
         name: param.name,
@@ -76,9 +70,6 @@ const DashboardPage: React.FC = () => {
         color: param.color,
       }))
 
-      // #region agent log
-      fetch('http://127.0.0.1:7809/ingest/3c885fd4-432d-4e7e-bd86-81fe491894f6',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'1f49fc'},body:JSON.stringify({sessionId:'1f49fc',runId:'initial',hypothesisId:'H3',location:'pages/dashboard/DashboardPage.tsx:fetchData:chartPrepared',message:'chart data prepared for render',data:{},timestamp:Date.now()})}).catch(()=>{});
-      // #endregion
 
       const processedAlerts: Alert[] = (snapshot.recentAlerts as AlertDTO[]).map((alert) => ({
         id: Number(alert.id),
@@ -101,9 +92,6 @@ const DashboardPage: React.FC = () => {
         const dt = new Date(tsWithZ);
         return `${dt.toLocaleString()} (server UTC ${dt.toISOString().slice(11, 16)})`;
       })
-      // #region agent log
-      fetch('http://127.0.0.1:7809/ingest/3c885fd4-432d-4e7e-bd86-81fe491894f6',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'1f49fc'},body:JSON.stringify({sessionId:'1f49fc',runId:'initial',hypothesisId:'H4',location:'pages/dashboard/DashboardPage.tsx:fetchData:stateSet',message:'dashboard state updated',data:{parameterCards:processedParams.filter((p)=>['COD','BOD','TSS'].includes(p.name)).map((p)=>({name:p.name,effluentValue:p.effluentValue,influentValue:p.influentValue,status:p.status})),totalReadings:snapshot.totalReadings,latestMeasurementTimestamp:snapshot.latestMeasurementTimestamp||null},timestamp:Date.now()})}).catch(()=>{});
-      // #endregion
     } catch (error) {
       console.error('Failed to fetch dashboard data:', error)
     } finally {
