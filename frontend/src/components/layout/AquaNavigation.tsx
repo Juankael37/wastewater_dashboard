@@ -10,13 +10,15 @@ import {
 import { useAuth } from '../../contexts/AuthContext'
 
 const AquaNavigation: React.FC = () => {
-  const { signOut } = useAuth()
+  const { signOut, user } = useAuth()
+  
+  const isAdmin = user?.role === 'admin'
   
   const navItems = [
     { path: '/dashboard', icon: Home, label: 'Dashboard' },
     { path: '/reports', icon: FileText, label: 'Reports' },
     { path: '/alerts', icon: AlertTriangle, label: 'Alerts' },
-    { path: '/settings', icon: Settings, label: 'Settings' },
+    ...(isAdmin ? [{ path: '/settings', icon: Settings, label: 'Settings' }] : []),
   ]
 
   return (

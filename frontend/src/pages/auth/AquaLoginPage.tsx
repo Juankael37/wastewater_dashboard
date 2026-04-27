@@ -17,13 +17,24 @@ const AquaLoginPage = () => {
     setIsLoading(true)
 
     try {
-      // Clear any existing session first
-      localStorage.removeItem('ww_access_token')
-      localStorage.removeItem('aq_access_token')
+      localStorage.clear()
       
       await signIn(email, password)
       
-      // Full page redirect to FORCE new page load
+      // AquaDash login is ONLY for admin/client - redirect operators to operator login
+      const userStr = localStorage.getItem('ww_access_token')
+      if (userStr) {
+        try {
+          const payload = JSON.parse(atob(userStr.split('.')[1]))
+          const role = payload?.user_metadata?.role || payload?.role || 'client'
+          if (role === 'operator') {
+            // Operators must use operator login - redirect there
+            window.location.href = '/login/operator'
+            return
+          }
+        } catch {}
+      }
+      
       window.location.href = '/dashboard'
     } catch (err: any) {
       setError(err.message || 'Failed to sign in')
