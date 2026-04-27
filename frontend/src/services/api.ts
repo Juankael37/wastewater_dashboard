@@ -54,9 +54,9 @@ const strictUnknownCapabilities = (): BackendCapabilities => ({
   supportsLegacyDataClearApi: false,
   supportsLegacyDataImportApi: false,
   supportsLegacyDataExportApi: false,
-  supportsLegacyUserListApi: false,
-  supportsLegacyUserCreateApi: false,
-  supportsLegacyUserDeleteApi: false,
+  supportsLegacyUserListApi: true,
+  supportsLegacyUserCreateApi: true,
+  supportsLegacyUserDeleteApi: true,
   supportsLegacyReportsApi: false,
   supportsLegacyReportMetricsApi: false,
   supportsLegacyReportPdfApi: false,
@@ -267,8 +267,10 @@ async function apiRequest<T>(
 
 const formatTimeAgo = (timestamp?: string): string => {
   if (!timestamp) return 'Unknown';
+  // Ensure we treat the timestamp as UTC if no timezone is specified
+  const tsWithZ = timestamp.endsWith('Z') || timestamp.includes('+') ? timestamp : `${timestamp}Z`;
   const now = new Date();
-  const eventTime = new Date(timestamp);
+  const eventTime = new Date(tsWithZ);
   const diffMs = now.getTime() - eventTime.getTime();
   const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
   const diffDays = Math.floor(diffHours / 24);

@@ -143,7 +143,7 @@ const UserManagementSection: React.FC<{ capabilities: SettingsCapabilities }> = 
 
       {/* Add User Form */}
       {capabilities.supportsUserCreate && showAddUser && (
-        <div className="bg-gray-50 dark:bg-white dark:bg-slate-700/50 rounded-lg p-6 border border-gray-300 dark:border-slate-600">
+        <div className="bg-gray-50 dark:bg-slate-700/50 rounded-lg p-6 border border-gray-300 dark:border-slate-600">
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Add New User</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <div>
@@ -220,9 +220,9 @@ const UserManagementSection: React.FC<{ capabilities: SettingsCapabilities }> = 
       )}
 
       {/* Users Table */}
-      <div className="bg-gray-50 dark:bg-white dark:bg-slate-700/30 rounded-lg overflow-hidden">
+      <div className="bg-gray-50 dark:bg-slate-700/30 rounded-lg overflow-hidden">
         <table className="w-full">
-          <thead className="bg-gray-50 dark:bg-white dark:bg-slate-700/50">
+          <thead className="bg-gray-50 dark:bg-slate-700/50">
             <tr>
               <th className="text-left py-3 px-4 text-gray-600 dark:text-slate-300 font-semibold">User</th>
               <th className="text-left py-3 px-4 text-gray-600 dark:text-slate-300 font-semibold">Role</th>
@@ -417,7 +417,7 @@ const ParameterManagementSection: React.FC<{ capabilities: SettingsCapabilities 
 
       {/* Add Parameter Form */}
       {canWriteParameters && showAddParam && (
-        <div className="bg-gray-50 dark:bg-white dark:bg-slate-700/50 rounded-lg p-6 border border-gray-300 dark:border-slate-600">
+        <div className="bg-gray-50 dark:bg-slate-700/50 rounded-lg p-6 border border-gray-300 dark:border-slate-600">
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Add New Parameter</h3>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div>
@@ -476,7 +476,7 @@ const ParameterManagementSection: React.FC<{ capabilities: SettingsCapabilities 
           <div className="col-span-full py-8 text-center text-gray-500 dark:text-slate-400">Loading parameters...</div>
         ) : (
           parameters.map(param => (
-            <div key={param.id} className="bg-gray-50 dark:bg-white dark:bg-slate-700/30 rounded-lg p-4 border border-gray-300 dark:border-slate-600">
+            <div key={param.id} className="bg-gray-50 dark:bg-slate-700/30 rounded-lg p-4 border border-gray-300 dark:border-slate-600">
               <div className="flex items-center justify-between mb-3">
                 <div className={`flex items-center gap-2 ${paramColors[param.parameter] || 'text-gray-500 dark:text-slate-400'}`}>
                   {paramIcons[param.parameter] || <Beaker className="w-5 h-5" />}
@@ -616,7 +616,7 @@ const DataManagementSection: React.FC<{ capabilities: SettingsCapabilities }> = 
         <p className="text-gray-500 dark:text-slate-400">Manage measurement data and backups</p>
       </div>
 
-      <div className="bg-gray-50 dark:bg-white dark:bg-slate-700/30 rounded-lg p-6">
+      <div className="bg-gray-50 dark:bg-slate-700/30 rounded-lg p-6">
         <div className="flex items-center justify-between mb-4">
           <div>
             <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Current Data Status</h3>
@@ -775,7 +775,7 @@ const SettingsPage: React.FC = () => {
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
           {/* Sidebar Navigation */}
           <div className="lg:col-span-1">
-            <div className="bg-white dark:bg-gray-50 dark:bg-slate-800/50 backdrop-blur-sm rounded-xl border border-gray-200 dark:border-slate-700 p-4">
+            <div className="bg-white dark:bg-slate-800/50 backdrop-blur-sm rounded-xl border border-gray-200 dark:border-slate-700 p-4">
               <nav className="space-y-1">
                 {tabs.map(tab => (
                   <button
@@ -784,7 +784,7 @@ const SettingsPage: React.FC = () => {
                     className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition ${
                       activeTab === tab.id 
                         ? 'bg-teal-500/10 text-teal-400 border border-teal-500/20' 
-                        : 'text-gray-500 dark:text-slate-400 hover:bg-gray-50 dark:bg-white dark:bg-slate-700/50 hover:text-gray-900 dark:text-white'
+                        : 'text-gray-500 dark:text-slate-400 hover:bg-gray-50 dark:bg-slate-700/50 hover:text-gray-900 dark:text-white'
                     }`}
                   >
                     {tab.icon}
@@ -797,7 +797,7 @@ const SettingsPage: React.FC = () => {
 
           {/* Main Content */}
           <div className="lg:col-span-3">
-            <div className="bg-white dark:bg-gray-50 dark:bg-slate-800/50 backdrop-blur-sm rounded-xl border border-gray-200 dark:border-slate-700 p-6">
+            <div className="bg-white dark:bg-slate-800/50 backdrop-blur-sm rounded-xl border border-gray-200 dark:border-slate-700 p-6">
               {renderContent()}
             </div>
           </div>

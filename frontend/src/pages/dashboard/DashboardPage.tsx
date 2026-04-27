@@ -93,11 +93,14 @@ const DashboardPage: React.FC = () => {
       setComplianceRate(snapshot.complianceRate)
       setTotalReadings(snapshot.totalReadings)
       setLastUpdated(new Date().toLocaleTimeString())
-      setLatestMeasurementAt(
-        snapshot.latestMeasurementTimestamp
-          ? `${new Date(snapshot.latestMeasurementTimestamp).toLocaleString()} (server UTC ${new Date(snapshot.latestMeasurementTimestamp).toISOString().slice(11, 16)})`
-          : 'n/a'
-      )
+      setLatestMeasurementAt(() => {
+        if (!snapshot.latestMeasurementTimestamp) return 'n/a';
+        const tsWithZ = snapshot.latestMeasurementTimestamp.endsWith('Z') || snapshot.latestMeasurementTimestamp.includes('+') 
+          ? snapshot.latestMeasurementTimestamp 
+          : `${snapshot.latestMeasurementTimestamp}Z`;
+        const dt = new Date(tsWithZ);
+        return `${dt.toLocaleString()} (server UTC ${dt.toISOString().slice(11, 16)})`;
+      })
       // #region agent log
       fetch('http://127.0.0.1:7809/ingest/3c885fd4-432d-4e7e-bd86-81fe491894f6',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'1f49fc'},body:JSON.stringify({sessionId:'1f49fc',runId:'initial',hypothesisId:'H4',location:'pages/dashboard/DashboardPage.tsx:fetchData:stateSet',message:'dashboard state updated',data:{parameterCards:processedParams.filter((p)=>['COD','BOD','TSS'].includes(p.name)).map((p)=>({name:p.name,effluentValue:p.effluentValue,influentValue:p.influentValue,status:p.status})),totalReadings:snapshot.totalReadings,latestMeasurementTimestamp:snapshot.latestMeasurementTimestamp||null},timestamp:Date.now()})}).catch(()=>{});
       // #endregion

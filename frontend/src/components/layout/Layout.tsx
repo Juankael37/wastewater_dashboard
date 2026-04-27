@@ -5,7 +5,7 @@ import Header from './Header'
 
 const Layout: React.FC = () => {
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen bg-gray-50 dark:bg-slate-900 transition-colors duration-200 text-gray-900 dark:text-white">
       <Header />
       <div className="flex">
         <Navigation />
