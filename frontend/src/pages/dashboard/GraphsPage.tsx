@@ -1,11 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react'
-import {
-  Thermometer,
-  Droplets,
-  Beaker,
-  Wind,
-  RefreshCw,
-} from 'lucide-react'
+import { RefreshCw } from 'lucide-react'
 import { Line } from 'react-chartjs-2'
 import {
   Chart as ChartJS,
