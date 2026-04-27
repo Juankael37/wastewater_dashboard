@@ -1,6 +1,6 @@
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { Toaster } from 'react-hot-toast'
-import { AuthProvider } from './contexts/AuthContext'
+import { AuthProvider, useAuth } from './contexts/AuthContext'
 import { OfflineProvider } from './contexts/OfflineContext'
 import ProtectedRoute from './components/auth/ProtectedRoute'
 import AdminRoute from './components/auth/AdminRoute'
@@ -16,6 +16,12 @@ import ReportsPage from './pages/reports/ReportsPage'
 import AlertsPage from './pages/alerts/AlertsPage'
 import SettingsPage from './pages/settings/SettingsPage'
 import NotFoundPage from './pages/NotFoundPage'
+
+// Dynamically select the layout based on user role
+const DynamicLayout = () => {
+  const { user } = useAuth()
+  return user?.role === 'operator' ? <Layout /> : <AquaLayout />
+}
 
 function App() {
   return (
@@ -49,13 +55,19 @@ function App() {
           <Route path="/login/aquadash" element={<AquaLoginPage />} />
           <Route path="/login/operator" element={<OperatorLoginPage />} />
           
-          {/* AquaDash routes (DARK theme) - client/admin */}
+          {/* Shared routes (Dynamic Layout) */}
           <Route element={<ProtectedRoute />}>
-            <Route element={<AquaLayout />}>
+            <Route element={<DynamicLayout />}>
               <Route path="/" element={<Navigate to="/dashboard" replace />} />
               <Route path="/dashboard" element={<DashboardPage />} />
-              <Route path="/reports" element={<ReportsPage />} />
               <Route path="/alerts" element={<AlertsPage />} />
+            </Route>
+          </Route>
+          
+          {/* AquaDash exclusive routes (DARK theme) */}
+          <Route element={<ProtectedRoute />}>
+            <Route element={<AquaLayout />}>
+              <Route path="/reports" element={<ReportsPage />} />
             </Route>
           </Route>
           
