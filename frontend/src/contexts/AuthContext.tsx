@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react'
 import toast from 'react-hot-toast'
 import { authApi } from '../services/api'
+import { getRoleFromUser, getDisplayName } from '../utils/roles'
 
 // Types
 interface User {
@@ -29,22 +30,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<User | null>(null)
   const [isLoading, setIsLoading] = useState(true)
 
-  const getRoleFromUser = (apiUser: any): 'admin' | 'operator' | 'client' => {
-    const rawRole = apiUser?.user_metadata?.role || apiUser?.profile?.role || 'operator'
-    if (rawRole === 'admin' || rawRole === 'company_admin') return 'admin'
-    if (rawRole === 'client') return 'client'
-    if (rawRole === 'operator' || rawRole === 'company_operator') return 'operator'
-    return 'operator'
-  }
 
-  const getDisplayName = (apiUser: any): string => {
-    return (
-      apiUser?.profile?.full_name ||
-      apiUser?.user_metadata?.full_name ||
-      apiUser?.email ||
-      'user'
-    )
-  }
 
   // Check for existing session on mount
   useEffect(() => {
@@ -144,17 +130,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }
 
-  // Reset password function
-  const resetPassword = async (_email: string) => {
-    try {
-      // Note: Flask backend doesn't have password reset yet
-      // This is a placeholder for future implementation
-      toast.success('Password reset feature coming soon')
-      // throw new Error('Password reset not implemented')
-    } catch (error: any) {
-      toast.error(error.message || 'Failed to send reset email')
-      throw error
-    }
+  // Reset password function (placeholder — not yet implemented on backend)
+  const resetPassword = async () => {
+    toast.success('Password reset feature coming soon')
   }
 
   // Check auth status
