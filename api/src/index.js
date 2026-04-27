@@ -1031,7 +1031,11 @@ app.get('/api/data/export', authMiddleware, requireAdminRole, async (c) => {
 })
 
 app.get('/api/users', authMiddleware, requireAdminRole, async (c) => {
-  const supabase = c.get('supabase')
+  const serviceRoleKey = c.env.SUPABASE_SERVICE_ROLE_KEY
+  const supabase = serviceRoleKey
+    ? createClient(c.env.SUPABASE_URL || '', serviceRoleKey, { auth: { persistSession: false } })
+    : c.get('supabase')
+    
   const { data, error } = await supabase
     .from('profiles')
     .select('id, role, full_name')
