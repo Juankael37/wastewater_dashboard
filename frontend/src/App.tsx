@@ -20,7 +20,14 @@ import NotFoundPage from './pages/NotFoundPage'
 // Dynamically select the layout based on user role
 const DynamicLayout = () => {
   const { user } = useAuth()
-  return user?.role === 'operator' ? <Layout /> : <AquaLayout />
+  const activePortal = localStorage.getItem('active_portal')
+  
+  // If explicitly in operator portal, or if user is exclusively an operator
+  if (activePortal === 'operator' || user?.role === 'operator') {
+    return <Layout />
+  }
+  
+  return <AquaLayout />
 }
 
 function App() {

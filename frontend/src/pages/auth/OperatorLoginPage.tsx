@@ -19,6 +19,7 @@ const OperatorLoginPage = () => {
 
     try {
       await signIn(email, password)
+      localStorage.setItem('active_portal', 'operator')
       navigate('/input')
     } catch (err: any) {
       setError(err.message || 'Failed to sign in')

@@ -20,6 +20,7 @@ const AquaLoginPage = () => {
       localStorage.clear()
       
       await signIn(email, password)
+      localStorage.setItem('active_portal', 'aquadash')
       
       // AquaDash login is ONLY for admin/client - redirect operators to operator login
       const userStr = localStorage.getItem('ww_access_token')
