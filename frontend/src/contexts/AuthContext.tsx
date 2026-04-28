@@ -120,6 +120,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       setIsLoading(true)
       await authApi.logout()
+      localStorage.removeItem('active_portal')
       setUser(null)
       toast.success('Signed out successfully')
     } catch (error: any) {

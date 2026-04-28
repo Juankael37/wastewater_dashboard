@@ -19,6 +19,7 @@ const OperatorLoginPage = () => {
     setIsLoading(true)
 
     try {
+      localStorage.removeItem('active_portal')
       await signIn(email, password)
       localStorage.setItem('active_portal', 'operator')
       navigate('/input')

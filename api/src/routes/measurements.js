@@ -43,7 +43,7 @@ measurements.post('/measurements', authMiddleware, zValidator('json', measuremen
       operator_id: user.id,
       timestamp: measurement.timestamp || new Date().toISOString(),
     })
-    .select('id, plant_id, parameter_id, value, type, timestamp, operator_id, notes')
+    .select('*, plants(name), parameters(name, display_name, unit)')
     .single()
 
   if (error) return errorResponse(c, 500, error.message, 'MEASUREMENT_CREATE_FAILED')
