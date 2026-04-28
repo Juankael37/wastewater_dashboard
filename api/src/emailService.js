@@ -4,40 +4,32 @@
  * without an API key or domain verification in many cases.
  */
 
-export async function sendEmailViaMailChannels(env, { to, subject, htmlContent }) {
-  const payload = {
-    personalizations: [
-      {
-        to: [{ email: to, name: 'Report Recipient' }],
-      },
-    ],
-    from: {
-      email: 'reports@wastewater-monitoring.worker.dev',
-      name: 'Wastewater Monitoring System',
-    },
-    subject: subject,
-    content: [
-      {
-        type: 'text/html',
-        value: htmlContent,
-      },
-    ],
-  };
+export async function sendEmailViaResend(env, { to, subject, htmlContent }) {
+  const apiKey = env.RESEND_API_KEY;
+  if (!apiKey) {
+    throw new Error('RESEND_API_KEY is not configured in environment variables');
+  }
 
-  const response = await fetch('https://api.mailchannels.net/tx/v1/send', {
+  const response = await fetch('https://api.resend.com/emails', {
     method: 'POST',
     headers: {
-      'content-type': 'application/json',
+      'Authorization': `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
     },
-    body: JSON.stringify(payload),
+    body: JSON.stringify({
+      from: 'AquaDash Reports <onboarding@resend.dev>',
+      to: [to],
+      subject: subject,
+      html: htmlContent,
+    }),
   });
 
   if (!response.ok) {
     const errorText = await response.text();
-    throw new Error(`MailChannels HTTP ${response.status}: ${errorText}`);
+    throw new Error(`Resend API Error (${response.status}): ${errorText}`);
   }
 
-  return { success: true };
+  return await response.json();
 }
 
 export async function generateDailyReportHtml(supabase, plantName) {

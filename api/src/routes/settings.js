@@ -3,7 +3,7 @@
  */
 import { Hono } from 'hono'
 import { authMiddleware, requireAdminRole, errorResponse, createServiceClient } from '../middleware.js'
-import { generateDailyReportHtml, sendEmailViaMailChannels } from '../emailService.js'
+import { generateDailyReportHtml, sendEmailViaResend } from '../emailService.js'
 
 const settings = new Hono()
 
@@ -86,7 +86,7 @@ settings.post('/api/settings/reports/test', authMiddleware, requireAdminRole, as
     const htmlContent = await generateDailyReportHtml(supabase, plantName)
 
     for (const r of recipients) {
-      await sendEmailViaMailChannels(c.env, {
+      await sendEmailViaResend(c.env, {
         to: r.email,
         subject: `[TEST] AquaDash Daily Report - ${plantName}`,
         htmlContent

@@ -160,9 +160,7 @@ app.onError((err, c) => {
 
 app.notFound((c) => c.json({ error: 'Endpoint not found', code: 'NOT_FOUND' }, 404))
 
-import { generateDailyReportHtml, sendEmailViaMailChannels } from './emailService.js'
-
-// ... existing code ...
+import { generateDailyReportHtml, sendEmailViaResend } from './emailService.js'
 
 export default {
   fetch: app.fetch,
@@ -197,7 +195,7 @@ export default {
       // 4. Send emails
       for (const recipient of recipients) {
         console.log(`Sending daily report to ${recipient.email}...`);
-        await sendEmailViaMailChannels(env, {
+        await sendEmailViaResend(env, {
           to: recipient.email,
           subject: `AquaDash Daily Report - ${plantName}`,
           htmlContent,
