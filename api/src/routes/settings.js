@@ -2,7 +2,8 @@
  * Settings routes — managing automated report recipients.
  */
 import { Hono } from 'hono'
-import { authMiddleware, requireAdminRole, errorResponse } from '../middleware.js'
+import { authMiddleware, requireAdminRole, errorResponse, createServiceClient } from '../middleware.js'
+import { generateDailyReportHtml, sendEmailViaMailChannels } from '../emailService.js'
 
 const settings = new Hono()
 
@@ -64,6 +65,38 @@ settings.delete('/api/settings/reports/:id', authMiddleware, requireAdminRole, a
 
   if (error) return errorResponse(c, 500, error.message, 'DELETE_REPORT_FAILED')
   return c.json({ success: true })
+})
+
+// Trigger a manual test report
+settings.post('/api/settings/reports/test', authMiddleware, requireAdminRole, async (c) => {
+  const supabase = createServiceClient(c.env) || c.get('supabase')
+  
+  try {
+    const { data: recipients } = await supabase
+      .from('report_settings')
+      .select('email')
+      .eq('is_active', true)
+    
+    if (!recipients || recipients.length === 0) {
+      return errorResponse(c, 400, 'No active recipients found', 'NO_RECIPIENTS')
+    }
+
+    const { data: plants } = await supabase.from('plants').select('name').limit(1)
+    const plantName = plants?.[0]?.name || 'Wastewater Plant'
+    const htmlContent = await generateDailyReportHtml(supabase, plantName)
+
+    for (const r of recipients) {
+      await sendEmailViaMailChannels(c.env, {
+        to: r.email,
+        subject: `[TEST] AquaDash Daily Report - ${plantName}`,
+        htmlContent
+      })
+    }
+
+    return c.json({ success: true, message: `Test report sent to ${recipients.length} recipients` })
+  } catch (error) {
+    return errorResponse(c, 500, error.message, 'TEST_REPORT_FAILED')
+  }
 })
 
 export default settings

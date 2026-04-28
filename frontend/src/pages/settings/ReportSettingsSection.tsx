@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { Mail, Plus, Trash2, ToggleLeft, ToggleRight, Loader2 } from 'lucide-react'
+import { Mail, Plus, Trash2, ToggleLeft, ToggleRight, Loader2, Send } from 'lucide-react'
 import { apiRequest } from '../../services/api/client'
 import toast from 'react-hot-toast'
 
@@ -15,6 +15,7 @@ const ReportSettingsSection: React.FC = () => {
   const [newEmail, setNewEmail] = useState('')
   const [isLoading, setIsLoading] = useState(true)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isTesting, setIsTesting] = useState(false)
 
   const fetchSettings = async () => {
     try {
@@ -77,6 +78,23 @@ const ReportSettingsSection: React.FC = () => {
     }
   }
 
+  const handleSendTestReport = async () => {
+    if (settings.filter(s => s.is_active).length === 0) {
+      toast.error('Please activate at least one recipient first')
+      return
+    }
+
+    setIsTesting(true)
+    try {
+      await apiRequest('/api/settings/reports/test', { method: 'POST' })
+      toast.success('Test report sent successfully!')
+    } catch (error: any) {
+      toast.error('Failed to send test report')
+    } finally {
+      setIsTesting(false)
+    }
+  }
+
   if (isLoading) {
     return (
       <div className="flex justify-center p-12">
@@ -88,9 +106,19 @@ const ReportSettingsSection: React.FC = () => {
   return (
     <div className="space-y-6">
       <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-6">
-        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-          <Mail className="w-5 h-5 text-teal-500" />
-          Automated Email Reports
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Mail className="w-5 h-5 text-teal-500" />
+            Automated Email Reports
+          </div>
+          <button
+            onClick={handleSendTestReport}
+            disabled={isTesting || settings.length === 0}
+            className="text-sm px-3 py-1.5 bg-gray-100 dark:bg-slate-700 hover:bg-gray-200 dark:hover:bg-slate-600 text-gray-700 dark:text-gray-200 rounded-lg flex items-center gap-2 transition disabled:opacity-50"
+          >
+            {isTesting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+            Send Test Report
+          </button>
         </h3>
         <p className="text-sm text-gray-500 dark:text-slate-400 mb-6">
           Configure who receives daily automated reports. Emails are sent via MailChannels (Free).
