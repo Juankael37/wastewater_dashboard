@@ -22,6 +22,7 @@ import measurementRoutes from './routes/measurements.js'
 import alertRoutes from './routes/alerts.js'
 import reportRoutes from './routes/reports.js'
 import adminRoutes from './routes/admin.js'
+import settingsRoutes from './routes/settings.js'
 
 const app = new Hono()
 
@@ -140,6 +141,7 @@ app.route('/', measurementRoutes)
 app.route('/', alertRoutes)
 app.route('/', reportRoutes)
 app.route('/', adminRoutes)
+app.route('/', settingsRoutes)
 
 // ---------------------------------------------------------------------------
 // Error & 404 handlers
@@ -158,4 +160,52 @@ app.onError((err, c) => {
 
 app.notFound((c) => c.json({ error: 'Endpoint not found', code: 'NOT_FOUND' }, 404))
 
-export default app
+import { generateDailyReportHtml, sendEmailViaMailChannels } from './emailService.js'
+
+// ... existing code ...
+
+export default {
+  fetch: app.fetch,
+  async scheduled(event, env, ctx) {
+    console.log('Running scheduled daily report trigger...');
+    
+    const supabase = createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, {
+      auth: { persistSession: false },
+    });
+
+    try {
+      // 1. Get all active report recipients
+      const { data: recipients, error: rErr } = await supabase
+        .from('report_settings')
+        .select('email')
+        .eq('is_active', true)
+        .eq('frequency', 'daily');
+
+      if (rErr) throw rErr;
+      if (!recipients || recipients.length === 0) {
+        console.log('No active daily report recipients found.');
+        return;
+      }
+
+      // 2. Get plant info (assuming one plant for now, or fetch all)
+      const { data: plants } = await supabase.from('plants').select('name').limit(1);
+      const plantName = plants?.[0]?.name || 'Wastewater Plant';
+
+      // 3. Generate content
+      const htmlContent = await generateDailyReportHtml(supabase, plantName);
+
+      // 4. Send emails
+      for (const recipient of recipients) {
+        console.log(`Sending daily report to ${recipient.email}...`);
+        await sendEmailViaMailChannels(env, {
+          to: recipient.email,
+          subject: `AquaDash Daily Report - ${plantName}`,
+          htmlContent,
+        });
+      }
+      console.log('Scheduled task completed successfully.');
+    } catch (err) {
+      console.error('Scheduled task failed:', err);
+    }
+  }
+}

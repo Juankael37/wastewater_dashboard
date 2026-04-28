@@ -16,3 +16,6 @@ GOOGLE_SHEETS_ID = "1k-awP_yG3tzLbQ_-t8j5Y0BgZ8eEXP0wk7d_Os7kmfU"
 # [env.production.vars]
 # SUPABASE_URL = "https://xxxx.supabase.co"
 # ALLOWED_ORIGINS = "https://your-frontend.pages.dev,http://localhost:5173"
+
+[triggers]
+crons = ["0 8 * * *"] # Runs at 08:00 UTC daily

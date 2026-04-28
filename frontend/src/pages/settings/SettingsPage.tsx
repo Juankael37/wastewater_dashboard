@@ -1,17 +1,19 @@
 import React, { useState, useEffect } from 'react'
-import { Users, Database, Shield } from 'lucide-react'
+import { Users, Database, Shield, Mail } from 'lucide-react'
 import { getBackendCapabilities } from '../../services/api'
 import UserManagementSection from './UserManagementSection'
 import ParameterManagementSection from './ParameterManagementSection'
 import DataManagementSection from './DataManagementSection'
 import type { SettingsCapabilities } from './types'
+import ReportSettingsSection from './ReportSettingsSection'
 
-type TabId = 'users' | 'parameters' | 'data'
+type TabId = 'users' | 'parameters' | 'data' | 'reports'
 
 const TABS: { id: TabId; label: string; icon: React.ReactNode }[] = [
   { id: 'users', label: 'Users', icon: <Users className="w-5 h-5" /> },
   { id: 'parameters', label: 'Parameters', icon: <Shield className="w-5 h-5" /> },
   { id: 'data', label: 'Data', icon: <Database className="w-5 h-5" /> },
+  { id: 'reports', label: 'Reports', icon: <Mail className="w-5 h-5" /> },
 ]
 
 const SettingsPage: React.FC = () => {
@@ -73,6 +75,7 @@ const SettingsPage: React.FC = () => {
       {activeTab === 'users' && <UserManagementSection capabilities={capabilities} />}
       {activeTab === 'parameters' && <ParameterManagementSection capabilities={capabilities} />}
       {activeTab === 'data' && <DataManagementSection capabilities={capabilities} />}
+      {activeTab === 'reports' && <ReportSettingsSection />}
     </div>
   )
 }
