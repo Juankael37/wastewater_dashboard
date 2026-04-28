@@ -121,7 +121,7 @@ const ReportSettingsSection: React.FC = () => {
           </button>
         </h3>
         <p className="text-sm text-gray-500 dark:text-slate-400 mb-6">
-          Configure who receives daily automated reports. Emails are sent via MailChannels (Free).
+          Configure who receives daily automated reports. Emails are sent via Resend (Free).
         </p>
 
         <form onSubmit={handleAddRecipient} className="flex gap-2 mb-8">
