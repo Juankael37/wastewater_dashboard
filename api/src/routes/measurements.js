@@ -34,17 +34,21 @@ measurements.get('/measurements', authMiddleware, async (c) => {
 measurements.post('/measurements', authMiddleware, zValidator('json', measurementSchema), async (c) => {
   const supabase = c.get('supabase')
   const user = c.get('user')
-  const measurement = c.req.valid('json')
+  const { local_timestamp, ...dbMeasurement } = c.req.valid('json')
 
   const { data, error } = await supabase
     .from('measurements')
     .insert({
-      ...measurement,
+      ...dbMeasurement,
       operator_id: user.id,
-      timestamp: measurement.timestamp || new Date().toISOString(),
+      timestamp: dbMeasurement.timestamp || new Date().toISOString(),
     })
     .select('*, plants(name), parameters(name, display_name, unit)')
     .single()
+
+  if (data && local_timestamp) {
+    data.local_timestamp = local_timestamp;
+  }
 
   if (error) return errorResponse(c, 500, error.message, 'MEASUREMENT_CREATE_FAILED')
 

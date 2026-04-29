@@ -4,10 +4,21 @@
  * without an API key or domain verification in many cases.
  */
 
-export async function sendEmailViaResend(env, { to, subject, htmlContent }) {
+export async function sendEmailViaResend(env, { to, subject, htmlContent, attachments = [] }) {
   const apiKey = env.RESEND_API_KEY?.trim();
   if (!apiKey) {
     throw new Error('RESEND_API_KEY is not configured in environment variables');
+  }
+
+  const payload = {
+    from: 'AquaDash Reports <onboarding@resend.dev>',
+    to: [to],
+    subject: subject,
+    html: htmlContent,
+  };
+
+  if (attachments.length > 0) {
+    payload.attachments = attachments;
   }
 
   const response = await fetch('https://api.resend.com/emails', {
@@ -16,12 +27,7 @@ export async function sendEmailViaResend(env, { to, subject, htmlContent }) {
       'Authorization': `Bearer ${apiKey}`,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({
-      from: 'AquaDash Reports <onboarding@resend.dev>',
-      to: [to],
-      subject: subject,
-      html: htmlContent,
-    }),
+    body: JSON.stringify(payload),
   });
 
   if (!response.ok) {
@@ -32,27 +38,65 @@ export async function sendEmailViaResend(env, { to, subject, htmlContent }) {
   return await response.json();
 }
 
-export async function generateDailyReportHtml(supabase, plantName) {
-  const yesterday = new Date(Date.now() - 86400000).toISOString();
+export async function generateReportHtml(supabase, plantName, frequency = 'daily') {
+  let daysAgo = 1;
+  if (frequency === 'weekly') daysAgo = 7;
+  if (frequency === 'monthly') daysAgo = 30;
+
+  const since = new Date(Date.now() - daysAgo * 86400000).toISOString();
   
   const { data: measurements } = await supabase
     .from('measurements')
     .select('*, parameters(display_name, unit)')
-    .gte('timestamp', yesterday)
+    .gte('timestamp', since)
     .order('timestamp', { ascending: false });
 
   const count = measurements?.length || 0;
   
+  // Prepare data for QuickChart
+  const latestValues = new Map();
+  (measurements || []).forEach(m => {
+    const pName = m.parameters?.display_name || 'Unknown';
+    if (!latestValues.has(pName)) {
+      latestValues.set(pName, m.value);
+    }
+  });
+
+  const chartConfig = {
+    type: 'bar',
+    data: {
+      labels: Array.from(latestValues.keys()).slice(0, 7),
+      datasets: [{
+        label: 'Latest Values',
+        data: Array.from(latestValues.values()).slice(0, 7),
+        backgroundColor: 'rgba(13, 148, 136, 0.6)',
+        borderColor: 'rgb(13, 148, 136)',
+        borderWidth: 1
+      }]
+    },
+    options: {
+      title: { display: true, text: 'Recent Parameter Readings' },
+      legend: { display: false }
+    }
+  };
+  const chartUrl = `https://quickchart.io/chart?c=${encodeURIComponent(JSON.stringify(chartConfig))}&w=600&h=300`;
+
+  const freqTitle = frequency.charAt(0).toUpperCase() + frequency.slice(1);
+
   return `
     <div style="font-family: sans-serif; color: #333; max-width: 600px; margin: 0 auto; border: 1px solid #eee; border-radius: 10px; overflow: hidden;">
       <div style="background: #0d9488; color: white; padding: 20px; text-align: center;">
-        <h1 style="margin: 0;">AquaDash Daily Report</h1>
+        <h1 style="margin: 0;">AquaDash ${freqTitle} Report</h1>
         <p style="margin: 5px 0 0;">${plantName} - ${new Date().toLocaleDateString()}</p>
       </div>
       <div style="padding: 30px;">
         <h2 style="color: #0d9488;">Summary</h2>
-        <p>Total measurements in last 24 hours: <strong>${count}</strong></p>
+        <p>Total measurements in last ${daysAgo} day(s): <strong>${count}</strong></p>
         
+        <div style="margin: 30px 0; text-align: center;">
+          <img src="${chartUrl}" alt="Measurements Chart" style="max-width: 100%; border-radius: 8px; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);" />
+        </div>
+
         <table style="width: 100%; border-collapse: collapse; margin-top: 20px;">
           <thead>
             <tr style="background: #f8fafc; border-bottom: 2px solid #e2e8f0;">
@@ -61,10 +105,10 @@ export async function generateDailyReportHtml(supabase, plantName) {
             </tr>
           </thead>
           <tbody>
-            ${(measurements || []).slice(0, 10).map(m => `
+            ${Array.from(latestValues.entries()).slice(0, 10).map(([name, val]) => `
               <tr style="border-bottom: 1px solid #f1f5f9;">
-                <td style="padding: 10px;">${m.parameters?.display_name || 'Unknown'}</td>
-                <td style="padding: 10px; text-align: right;">${m.value} ${m.parameters?.unit || ''}</td>
+                <td style="padding: 10px;">${name}</td>
+                <td style="padding: 10px; text-align: right;">${val}</td>
               </tr>
             `).join('')}
           </tbody>

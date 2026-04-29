@@ -160,48 +160,98 @@ app.onError((err, c) => {
 
 app.notFound((c) => c.json({ error: 'Endpoint not found', code: 'NOT_FOUND' }, 404))
 
-import { generateDailyReportHtml, sendEmailViaResend } from './emailService.js'
+import { generateReportHtml, sendEmailViaResend } from './emailService.js'
 
 export default {
   fetch: app.fetch,
   async scheduled(event, env, ctx) {
-    console.log('Running scheduled daily report trigger...');
+    console.log('Running scheduled report trigger...');
     
     const supabase = createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, {
       auth: { persistSession: false },
     });
 
     try {
-      // 1. Get all active report recipients
+      const today = new Date();
+      const dayOfWeek = today.getDay(); // 0 is Sunday, 1 is Monday
+      const dayOfMonth = today.getDate(); // 1-31
+
+      let frequencies = ['daily'];
+      if (dayOfWeek === 1) frequencies.push('weekly');
+      if (dayOfMonth === 1) frequencies.push('monthly');
+
       const { data: recipients, error: rErr } = await supabase
         .from('report_settings')
-        .select('email')
+        .select('email, frequency')
         .eq('is_active', true)
-        .eq('frequency', 'daily');
+        .in('frequency', frequencies);
 
       if (rErr) throw rErr;
       if (!recipients || recipients.length === 0) {
-        console.log('No active daily report recipients found.');
+        console.log('No active recipients for today.');
         return;
       }
 
-      // 2. Get plant info (assuming one plant for now, or fetch all)
       const { data: plants } = await supabase.from('plants').select('name').limit(1);
       const plantName = plants?.[0]?.name || 'Wastewater Plant';
 
-      // 3. Generate content
-      const htmlContent = await generateDailyReportHtml(supabase, plantName);
-
-      // 4. Send emails
-      for (const recipient of recipients) {
-        console.log(`Sending daily report to ${recipient.email}...`);
-        await sendEmailViaResend(env, {
-          to: recipient.email,
-          subject: `AquaDash Daily Report - ${plantName}`,
-          htmlContent,
-        });
+      // Group recipients by frequency
+      const freqGroups = { daily: [], weekly: [], monthly: [] };
+      for (const r of recipients) {
+        if (freqGroups[r.frequency]) freqGroups[r.frequency].push(r.email);
       }
-      console.log('Scheduled task completed successfully.');
+
+      // We need to import buildSimplePdfBuffer here if not already imported
+      const { buildSimplePdfBuffer } = await import('./middleware.js');
+
+      for (const freq of Object.keys(freqGroups)) {
+        const emails = freqGroups[freq];
+        if (emails.length === 0) continue;
+
+        console.log(`Generating ${freq} report for ${emails.length} recipients...`);
+        const htmlContent = await generateReportHtml(supabase, plantName, freq);
+        
+        // Build simple PDF for attachment
+        let daysAgo = 1;
+        if (freq === 'weekly') daysAgo = 7;
+        if (freq === 'monthly') daysAgo = 30;
+        const since = new Date(Date.now() - daysAgo * 86400000).toISOString();
+        const { data: rawMs } = await supabase.from('measurements')
+          .select('value,type,timestamp,parameters!inner(name,display_name,unit),plants!inner(name)')
+          .gte('timestamp', since).order('timestamp', { ascending: false }).limit(500);
+
+        const lines = ['Wastewater Monitoring Raw Data Report', `Period: Last ${daysAgo} day(s)`, `Generated: ${new Date().toISOString()}`, '------------------------------------------------------------'];
+        for (const row of (rawMs || [])) {
+          const p = row.parameters?.display_name || row.parameters?.name || 'Unknown';
+          const v = Number(row.value);
+          lines.push(`${String(row.timestamp || '').replace('T', ' ').slice(0, 19)} | ${p} ${Number.isFinite(v) ? v : '-'} ${row.parameters?.unit || ''} | ${row.type || 'effluent'}`);
+        }
+        
+        const pdfBytes = buildSimplePdfBuffer(lines);
+        
+        // base64 encode using btoa and Uint8Array
+        let binary = '';
+        for (let i = 0; i < pdfBytes.length; i++) {
+            binary += String.fromCharCode(pdfBytes[i]);
+        }
+        const pdfBase64 = btoa(binary);
+
+        const attachments = [{
+          filename: `AquaDash_${freq}_report.pdf`,
+          content: pdfBase64
+        }];
+
+        for (const email of emails) {
+          console.log(`Sending to ${email}...`);
+          await sendEmailViaResend(env, {
+            to: email,
+            subject: `AquaDash ${freq.charAt(0).toUpperCase() + freq.slice(1)} Report - ${plantName}`,
+            htmlContent,
+            attachments
+          });
+        }
+      }
+      console.log('Scheduled tasks completed successfully.');
     } catch (err) {
       console.error('Scheduled task failed:', err);
     }

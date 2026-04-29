@@ -28,12 +28,12 @@ The [connect plan](.cursor/plans/connect_supabase_+_cloudflare_cbd74acc.plan.md)
   - `VITE_API_URL` typo (`juanke37` instead of `juankael37`) found and fixed — workflow no longer overrides `frontend/.env.production`
 - Removed 3 stale debug telemetry `fetch` blocks from `frontend/src/services/api.ts` that called `localhost:7809` in production.
 - Confirmed Flask app is **local-only** — not needed for the cloud production path (React PWA + Worker + Supabase).
+- **Google Sheets Backup fully implemented** and deployed to Cloudflare worker (API verified with tests).
 
 **Still pending**
-- Google Sheets backup implementation
 - Real-device PWA testing (install / camera / offline sync)
-- Optional: migrate SQLite historical data to Supabase
 - Email automation (Daily/Weekly/Monthly reports)
+- Optional: migrate SQLite historical data to Supabase
 
 ---
 

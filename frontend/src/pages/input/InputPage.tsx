@@ -139,7 +139,8 @@ const InputPage: React.FC = () => {
         flow: parseFloat(previewData.flow) || null,
         type: previewData.type,
         plant_id: previewData.plantId,
-        notes: `Images captured: ${Object.keys(capturedImages).join(', ')}`
+        notes: `Images captured: ${Object.keys(capturedImages).join(', ')}`,
+        local_timestamp: new Date().toLocaleString()
       }
       
       console.log('📡 Sending measurement data:', measurementData)

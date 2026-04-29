@@ -2,8 +2,8 @@
  * Settings routes — managing automated report recipients.
  */
 import { Hono } from 'hono'
-import { authMiddleware, requireAdminRole, errorResponse, createServiceClient } from '../middleware.js'
-import { generateDailyReportHtml, sendEmailViaResend } from '../emailService.js'
+import { authMiddleware, requireAdminRole, errorResponse, createServiceClient, buildSimplePdfBuffer } from '../middleware.js'
+import { generateReportHtml, sendEmailViaResend } from '../emailService.js'
 
 const settings = new Hono()
 
@@ -67,14 +67,25 @@ settings.delete('/api/settings/reports/:id', authMiddleware, requireAdminRole, a
   return c.json({ success: true })
 })
 
-// Trigger a manual test report
+// Debug endpoint — temporarily public for troubleshooting
+settings.get('/api/settings/debug', async (c) => {
+  const key = c.env.RESEND_API_KEY?.trim() ?? ''
+  return c.json({
+    resend_key_set: key.length > 0,
+    resend_key_prefix: key.length > 4 ? key.slice(0, 4) + '...' : '(empty)',
+    resend_key_length: key.length,
+    service_role_key_set: Boolean(c.env.SUPABASE_SERVICE_ROLE_KEY),
+  })
+})
+
+// trigger a manual test report
 settings.post('/api/settings/reports/test', authMiddleware, requireAdminRole, async (c) => {
   const supabase = createServiceClient(c.env) || c.get('supabase')
   
   try {
     const { data: recipients } = await supabase
       .from('report_settings')
-      .select('email')
+      .select('email, frequency')
       .eq('is_active', true)
     
     if (!recipients || recipients.length === 0) {
@@ -83,14 +94,54 @@ settings.post('/api/settings/reports/test', authMiddleware, requireAdminRole, as
 
     const { data: plants } = await supabase.from('plants').select('name').limit(1)
     const plantName = plants?.[0]?.name || 'Wastewater Plant'
-    const htmlContent = await generateDailyReportHtml(supabase, plantName)
-
+    
+    const freqGroups = { daily: [], weekly: [], monthly: [] };
     for (const r of recipients) {
-      await sendEmailViaResend(c.env, {
-        to: r.email,
-        subject: `[TEST] AquaDash Daily Report - ${plantName}`,
-        htmlContent
-      })
+      if (freqGroups[r.frequency]) freqGroups[r.frequency].push(r.email);
+    }
+
+    for (const freq of Object.keys(freqGroups)) {
+      const emails = freqGroups[freq];
+      if (emails.length === 0) continue;
+
+      const htmlContent = await generateReportHtml(supabase, plantName, freq)
+
+      // Build simple PDF
+      let daysAgo = 1;
+      if (freq === 'weekly') daysAgo = 7;
+      if (freq === 'monthly') daysAgo = 30;
+      const since = new Date(Date.now() - daysAgo * 86400000).toISOString();
+      const { data: rawMs } = await supabase.from('measurements')
+        .select('value,type,timestamp,parameters!inner(name,display_name,unit),plants!inner(name)')
+        .gte('timestamp', since).order('timestamp', { ascending: false }).limit(500);
+
+      const lines = ['Wastewater Monitoring Raw Data Report', `Period: Last ${daysAgo} day(s)`, `Generated: ${new Date().toISOString()}`, '------------------------------------------------------------'];
+      for (const row of (rawMs || [])) {
+        const p = row.parameters?.display_name || row.parameters?.name || 'Unknown';
+        const v = Number(row.value);
+        lines.push(`${String(row.timestamp || '').replace('T', ' ').slice(0, 19)} | ${p} ${Number.isFinite(v) ? v : '-'} ${row.parameters?.unit || ''} | ${row.type || 'effluent'}`);
+      }
+      
+      const pdfBytes = buildSimplePdfBuffer(lines);
+      let binary = '';
+      for (let i = 0; i < pdfBytes.length; i++) {
+          binary += String.fromCharCode(pdfBytes[i]);
+      }
+      const pdfBase64 = btoa(binary);
+
+      const attachments = [{
+        filename: `AquaDash_${freq}_report.pdf`,
+        content: pdfBase64
+      }];
+
+      for (const email of emails) {
+        await sendEmailViaResend(c.env, {
+          to: email,
+          subject: `[TEST] AquaDash ${freq.charAt(0).toUpperCase() + freq.slice(1)} Report - ${plantName}`,
+          htmlContent,
+          attachments
+        })
+      }
     }
 
     return c.json({ success: true, message: `Test report sent to ${recipients.length} recipients` })

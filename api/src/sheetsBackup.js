@@ -71,7 +71,7 @@ export async function appendMeasurementRow(env, { measurement, operatorEmail }) 
   const paramLabel = parameters?.display_name || parameters?.name || ''
   const unit = parameters?.unit ?? ''
   const type = measurement.type ?? ''
-  const ts = measurement.timestamp ?? new Date().toISOString()
+  const ts = measurement.local_timestamp ?? measurement.timestamp ?? new Date().toISOString()
 
   const row = [
     ts,

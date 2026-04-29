@@ -64,6 +64,7 @@ export const measurementSchema = z.object({
   value: z.number(),
   type: z.enum(['influent', 'effluent']),
   timestamp: z.string().datetime().optional(),
+  local_timestamp: z.string().optional(),
   notes: z.string().optional(),
 })
 

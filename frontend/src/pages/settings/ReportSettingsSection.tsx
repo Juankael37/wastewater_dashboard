@@ -13,6 +13,7 @@ interface ReportSetting {
 const ReportSettingsSection: React.FC = () => {
   const [settings, setSettings] = useState<ReportSetting[]>([])
   const [newEmail, setNewEmail] = useState('')
+  const [newFrequency, setNewFrequency] = useState('daily')
   const [isLoading, setIsLoading] = useState(true)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isTesting, setIsTesting] = useState(false)
@@ -41,7 +42,7 @@ const ReportSettingsSection: React.FC = () => {
     try {
       await apiRequest('/api/settings/reports', {
         method: 'POST',
-        body: JSON.stringify({ email: newEmail, frequency: 'daily' })
+        body: JSON.stringify({ email: newEmail, frequency: newFrequency })
       })
       toast.success('Recipient added successfully')
       setNewEmail('')
@@ -133,6 +134,15 @@ const ReportSettingsSection: React.FC = () => {
             className="flex-1 px-4 py-2 bg-gray-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-teal-500 outline-none transition dark:text-white"
             required
           />
+          <select
+            value={newFrequency}
+            onChange={(e) => setNewFrequency(e.target.value)}
+            className="px-4 py-2 bg-gray-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-teal-500 outline-none transition dark:text-white"
+          >
+            <option value="daily">Daily</option>
+            <option value="weekly">Weekly</option>
+            <option value="monthly">Monthly</option>
+          </select>
           <button
             type="submit"
             disabled={isSubmitting}

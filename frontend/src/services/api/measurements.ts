@@ -48,6 +48,7 @@ export const measurementsApi = {
     plant_id?: number | string;
     operator_id?: number;
     notes?: string;
+    local_timestamp?: string;
   }): Promise<any> => {
     // Compatibility path: old UI submits all parameters in one payload.
     // Worker API expects one measurement per parameter.
@@ -86,6 +87,7 @@ export const measurementsApi = {
           value,
           type: data.type || 'effluent',
           timestamp: data.timestamp,
+          local_timestamp: data.local_timestamp,
           notes: data.notes,
         }),
       });
