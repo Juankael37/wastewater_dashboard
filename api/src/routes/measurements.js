@@ -173,12 +173,19 @@ measurements.post('/measurements/upload-image', authMiddleware, async (c) => {
   
   try {
     const contentType = c.req.header('content-type') || ''
-    if (!contentType.includes('image/')) {
-      return c.json({ error: 'Invalid content type. Image required.' }, 400)
+    let buffer;
+    
+    if (contentType.includes('application/json')) {
+      const payload = await c.req.json()
+      if (!payload.imageBase64) return c.json({ error: 'Missing imageBase64' }, 400)
+      const base64Data = payload.imageBase64.replace(/^data:image\/\w+;base64,/, '')
+      buffer = Uint8Array.from(atob(base64Data), char => char.charCodeAt(0))
+    } else if (contentType.includes('image/')) {
+      const imageData = await c.req.arrayBuffer()
+      buffer = new Uint8Array(imageData)
+    } else {
+      return c.json({ error: 'Invalid content type. Image or JSON required.' }, 400)
     }
-
-    const imageData = await c.req.arrayBuffer()
-    const buffer = new Uint8Array(imageData)
     
     const timestamp = Date.now()
     const filename = `measurement_${timestamp}.jpg`
