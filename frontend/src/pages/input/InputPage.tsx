@@ -1,9 +1,11 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
-import { Camera, Save, Eye, AlertCircle, CheckCircle, X, Trash2 } from 'lucide-react'
+import { Camera as CameraIcon, Save, Eye, AlertCircle, CheckCircle, X, Trash2 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { measurementsApi, plantsApi, uploadImage } from '../../services/api'
+import { Capacitor } from '@capacitor/core'
+import { Camera, CameraResultType, CameraSource } from '@capacitor/camera'
 
 interface ImageStatus {
   url?: string
@@ -244,15 +246,63 @@ const InputPage: React.FC = () => {
 
   const captureImage = async (parameter: string) => {
     try {
-      if (fileInputRef.current) {
-        fileInputRef.current.value = ''
-        fileInputRef.current.accept = 'image/*'
-        fileInputRef.current.capture = 'environment'
-        fileInputRef.current.dataset.param = parameter
-        fileInputRef.current.click()
+      if (Capacitor.isNativePlatform()) {
+        const image = await Camera.getPhoto({
+          quality: 70, // Native compression saves RAM immediately!
+          allowEditing: false,
+          resultType: CameraResultType.Uri,
+          source: CameraSource.Camera,
+          width: 1000 // Native downscaling
+        });
+        
+        if (image.webPath) {
+          const timestamp = new Date().toLocaleTimeString()
+          const loadingToast = toast.loading(`Uploading ${parameter.toUpperCase()}…`)
+          
+          try {
+            // Fetch the native compressed blob
+            const response = await fetch(image.webPath);
+            const blob = await response.blob();
+            const safeFile = new File([blob], `capture_${parameter}.jpg`, { type: 'image/jpeg' });
+            
+            revokeBlobUrls([parameter]);
+            blobUrlsRef.current[parameter] = image.webPath; // Use the local Capacitor URI
+            setCapturedImages(prev => ({
+              ...prev,
+              [parameter]: { preview: image.webPath, timestamp }
+            }));
+            
+            const uploadedUrl = await uploadImage(safeFile);
+            toast.dismiss(loadingToast);
+            
+            if (uploadedUrl) {
+              setCapturedImages(prev => ({
+                ...prev,
+                [parameter]: { url: uploadedUrl, preview: image.webPath, timestamp },
+              }))
+              toast.success(`${parameter.toUpperCase()} uploaded ✓`)
+            } else {
+              toast.error(`Upload failed for ${parameter.toUpperCase()}`)
+            }
+          } catch (err) {
+            toast.dismiss(loadingToast);
+            console.error('Upload error:', err);
+            toast.error('Upload failed. Please try again.');
+          }
+        }
+      } else {
+        // Web fallback (PWA on iOS/Desktop)
+        if (fileInputRef.current) {
+          fileInputRef.current.value = ''
+          fileInputRef.current.accept = 'image/*'
+          fileInputRef.current.capture = 'environment'
+          fileInputRef.current.dataset.param = parameter
+          fileInputRef.current.click()
+        }
       }
     } catch (error) {
       console.error('Camera error:', error)
+      if (String(error).includes('User cancelled')) return;
       toast.error('Unable to access camera. Please try again.')
     }
   }
@@ -459,7 +509,7 @@ const InputPage: React.FC = () => {
               {imageStatus ? (
                 <CheckCircle className="w-5 h-5" />
               ) : (
-               <Camera className="w-5 h-5" />
+               <CameraIcon className="w-5 h-5" />
               )}
             </button>
           )}
