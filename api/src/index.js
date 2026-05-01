@@ -21,6 +21,7 @@ import authRoutes from './routes/auth.js'
 import measurementRoutes from './routes/measurements.js'
 import alertRoutes from './routes/alerts.js'
 import reportRoutes from './routes/reports.js'
+import richPdfRoutes from './routes/richPdf.js'
 import adminRoutes from './routes/admin.js'
 import settingsRoutes from './routes/settings.js'
 
@@ -140,6 +141,7 @@ app.route('/auth', authRoutes)
 app.route('/', measurementRoutes)
 app.route('/', alertRoutes)
 app.route('/', reportRoutes)
+app.route('/', richPdfRoutes)
 app.route('/', adminRoutes)
 app.route('/', settingsRoutes)
 
@@ -161,6 +163,7 @@ app.onError((err, c) => {
 app.notFound((c) => c.json({ error: 'Endpoint not found', code: 'NOT_FOUND' }, 404))
 
 import { generateReportHtml, sendEmailViaResend } from './emailService.js'
+import { buildRichPdfBuffer } from './routes/richPdf.js'
 
 export default {
   fetch: app.fetch,
@@ -193,7 +196,7 @@ export default {
       }
 
       const { data: plants } = await supabase.from('plants').select('name').limit(1);
-      const plantName = plants?.[0]?.name || 'Wastewater Plant';
+      const plantName = plants?.[0]?.name || 'Wastewater Treatment Plant';
 
       // Group recipients by frequency
       const freqGroups = { daily: [], weekly: [], monthly: [] };
@@ -201,54 +204,80 @@ export default {
         if (freqGroups[r.frequency]) freqGroups[r.frequency].push(r.email);
       }
 
-      // We need to import buildSimplePdfBuffer here if not already imported
-      const { buildSimplePdfBuffer } = await import('./middleware.js');
+      // CRON Date Logic
+      // Daily: Previous full calendar day (yesterday)
+      const yesterday = new Date(today);
+      yesterday.setDate(yesterday.getDate() - 1);
+      const dailyStart = yesterday.toISOString().slice(0, 10);
+      const dailyEnd = dailyStart;
+
+      // Weekly: Previous full week (Mon-Sun)
+      const weekStart = new Date(today);
+      weekStart.setDate(weekStart.getDate() - (dayOfWeek === 0 ? 7 : dayOfWeek - 1) - 7 + dayOfWeek);
+      const weekStartDate = new Date(weekStart);
+      const weekEnd = new Date(weekStartDate);
+      weekEnd.setDate(weekEnd.getDate() + 6);
+      const weeklyStart = weekStartDate.toISOString().slice(0, 10);
+      const weeklyEnd = weekEnd.toISOString().slice(0, 10);
+
+      // Monthly: Previous full calendar month
+      const monthStart = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+      const monthEnd = new Date(today.getFullYear(), today.getMonth(), 0);
+      const monthlyStart = monthStart.toISOString().slice(0, 10);
+      const monthlyEnd = monthEnd.toISOString().slice(0, 10);
+
+      const dateRanges = {
+        daily: { start: dailyStart, end: dailyEnd, label: dailyStart },
+        weekly: { start: weeklyStart, end: weeklyEnd, label: `${weeklyStart} to ${weeklyEnd}` },
+        monthly: { start: monthlyStart, end: monthlyEnd, label: `${monthStart.toLocaleString('en-US', { month: 'long' })} ${monthStart.getFullYear()}` }
+      };
 
       for (const freq of Object.keys(freqGroups)) {
         const emails = freqGroups[freq];
         if (emails.length === 0) continue;
 
-        console.log(`Generating ${freq} report for ${emails.length} recipients...`);
+        const range = dateRanges[freq];
+        console.log(`Generating ${freq} report for ${range.label} to ${emails.length} recipients...`);
         const htmlContent = await generateReportHtml(supabase, plantName, freq);
-        
-        // Build simple PDF for attachment
-        let daysAgo = 1;
-        if (freq === 'weekly') daysAgo = 7;
-        if (freq === 'monthly') daysAgo = 30;
-        const since = new Date(Date.now() - daysAgo * 86400000).toISOString();
-        const { data: rawMs } = await supabase.from('measurements')
-          .select('value,type,timestamp,parameters!inner(name,display_name,unit),plants!inner(name)')
-          .gte('timestamp', since).order('timestamp', { ascending: false }).limit(500);
 
-        const lines = ['Wastewater Monitoring Raw Data Report', `Period: Last ${daysAgo} day(s)`, `Generated: ${new Date().toISOString()}`, '------------------------------------------------------------'];
-        for (const row of (rawMs || [])) {
-          const p = row.parameters?.display_name || row.parameters?.name || 'Unknown';
-          const v = Number(row.value);
-          lines.push(`${String(row.timestamp || '').replace('T', ' ').slice(0, 19)} | ${p} ${Number.isFinite(v) ? v : '-'} ${row.parameters?.unit || ''} | ${row.type || 'effluent'}`);
-        }
-        
-        const pdfBytes = buildSimplePdfBuffer(lines);
-        
-        // base64 encode using btoa and Uint8Array
-        let binary = '';
-        for (let i = 0; i < pdfBytes.length; i++) {
-            binary += String.fromCharCode(pdfBytes[i]);
-        }
-        const pdfBase64 = btoa(binary);
-
-        const attachments = [{
-          filename: `AquaDash_${freq}_report.pdf`,
-          content: pdfBase64
-        }];
-
-        for (const email of emails) {
-          console.log(`Sending to ${email}...`);
-          await sendEmailViaResend(env, {
-            to: email,
-            subject: `AquaDash ${freq.charAt(0).toUpperCase() + freq.slice(1)} Report - ${plantName}`,
-            htmlContent,
-            attachments
+        try {
+          console.log(`Building rich PDF for ${freq} (${range.start} to ${range.end})...`);
+          const pdfBytes = await buildRichPdfBuffer(env, supabase, {
+            startDate: range.start,
+            endDate: range.end,
+            title: plantName
           });
+
+          // base64 encode using btoa and Uint8Array
+          let binary = '';
+          for (let i = 0; i < pdfBytes.length; i++) {
+            binary += String.fromCharCode(pdfBytes[i]);
+          }
+          const pdfBase64 = btoa(binary);
+
+          const attachments = [{
+            filename: `AquaDash_${freq}_report_${range.start}_${range.end}.pdf`,
+            content: pdfBase64
+          }];
+
+          const subject = `[${freq.charAt(0).toUpperCase() + freq.slice(1)}] Wastewater Compliance Report - ${range.label}`;
+
+          for (const email of emails) {
+            console.log(`Sending ${freq} report to ${email}...`);
+            try {
+              await sendEmailViaResend(env, {
+                to: email,
+                subject,
+                htmlContent,
+                attachments
+              });
+              console.log(`Sent to ${email}`);
+            } catch (emailErr) {
+              console.error(`Failed to send to ${email}:`, emailErr.message);
+            }
+          }
+        } catch (pdfErr) {
+          console.error(`PDF generation failed for ${freq}:`, pdfErr.message);
         }
       }
       console.log('Scheduled tasks completed successfully.');

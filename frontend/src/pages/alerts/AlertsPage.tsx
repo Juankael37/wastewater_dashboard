@@ -46,133 +46,119 @@ const AlertsPage: React.FC = () => {
   return (
     <div className="space-y-6">
       <div className="max-w-6xl mx-auto">
-        <div className="mb-8">
-          <div className="flex items-center justify-between">
+        <div className="mb-6">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div>
-              <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Alerts & Notifications</h1>
-              <p className="text-gray-500 dark:text-slate-300">Monitor water quality alerts and compliance issues</p>
+              <h1 className="text-xl md:text-3xl font-bold text-gray-900 dark:text-white mb-1 md:mb-2">Alerts</h1>
+              <p className="text-sm text-gray-500 dark:text-slate-300">Monitor water quality alerts</p>
             </div>
-            <div className="flex items-center gap-4">
-              <div className="px-4 py-2 bg-gray-100 dark:bg-slate-800 rounded-lg">
-                <span className="text-gray-500 dark:text-slate-300">Active Alerts: </span>
+            <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
+              <div className="px-3 py-2 bg-gray-100 dark:bg-slate-800 rounded-lg flex items-center gap-2">
+                <span className="text-sm text-gray-500 dark:text-slate-300">Total:</span>
                 <span className="font-semibold text-gray-900 dark:text-white">{alerts.length}</span>
               </div>
-              <button className="px-4 py-2 bg-teal-600 hover:bg-teal-700 dark:bg-teal-500 dark:hover:bg-teal-600 text-white rounded-lg font-semibold transition">
-                Mark All as Read
+              <button className="px-3 py-2 bg-teal-600 hover:bg-teal-700 dark:bg-teal-500 dark:hover:bg-teal-600 text-white rounded-lg font-semibold transition text-sm w-full sm:w-auto">
+                Mark All Read
               </button>
             </div>
           </div>
         </div>
 
         {/* Alert Summary Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          <div className="bg-white dark:bg-slate-800/50 backdrop-blur-sm rounded-xl p-6 border border-gray-200 dark:border-slate-700 transition-colors">
-            <div className="flex items-center justify-between mb-4">
-              <div className="p-3 bg-red-50 dark:bg-red-500/10 rounded-lg">
-                <XCircle className="w-8 h-8 text-red-500" />
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-6 mb-6 md:mb-8">
+          <div className="bg-white dark:bg-slate-800/50 backdrop-blur-sm rounded-xl p-4 md:p-6 border border-gray-200 dark:border-slate-700 transition-colors">
+            <div className="flex items-center justify-between mb-3">
+              <div className="p-2 md:p-3 bg-red-50 dark:bg-red-500/10 rounded-lg">
+                <XCircle className="w-5 h-5 md:w-8 md:h-8 text-red-500" />
               </div>
-              <span className="text-3xl font-bold text-gray-900 dark:text-white">{criticalCount}</span>
+              <span className="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white">{criticalCount}</span>
             </div>
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">Critical Alerts</h3>
-            <p className="text-gray-500 dark:text-slate-300 text-sm">Requires immediate attention</p>
+            <h3 className="text-sm md:text-lg font-semibold text-gray-900 dark:text-white">Critical</h3>
+            <p className="text-xs text-gray-500 dark:text-slate-300 hidden md:block">Requires immediate attention</p>
           </div>
 
-          <div className="bg-white dark:bg-slate-800/50 backdrop-blur-sm rounded-xl p-6 border border-gray-200 dark:border-slate-700 transition-colors">
-            <div className="flex items-center justify-between mb-4">
-              <div className="p-3 bg-amber-50 dark:bg-amber-500/10 rounded-lg">
-                <AlertTriangle className="w-8 h-8 text-amber-500" />
+          <div className="bg-white dark:bg-slate-800/50 backdrop-blur-sm rounded-xl p-4 md:p-6 border border-gray-200 dark:border-slate-700 transition-colors">
+            <div className="flex items-center justify-between mb-3">
+              <div className="p-2 md:p-3 bg-amber-50 dark:bg-amber-500/10 rounded-lg">
+                <AlertTriangle className="w-5 h-5 md:w-8 md:h-8 text-amber-500" />
               </div>
-              <span className="text-3xl font-bold text-gray-900 dark:text-white">{warningCount}</span>
+              <span className="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white">{warningCount}</span>
             </div>
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">Warnings</h3>
-            <p className="text-gray-500 dark:text-slate-300 text-sm">Approaching limits</p>
+            <h3 className="text-sm md:text-lg font-semibold text-gray-900 dark:text-white">Warnings</h3>
+            <p className="text-xs text-gray-500 dark:text-slate-300 hidden md:block">Approaching limits</p>
           </div>
 
-          <div className="bg-white dark:bg-slate-800/50 backdrop-blur-sm rounded-xl p-6 border border-gray-200 dark:border-slate-700 transition-colors">
-            <div className="flex items-center justify-between mb-4">
-              <div className="p-3 bg-blue-50 dark:bg-blue-500/10 rounded-lg">
-                <Bell className="w-8 h-8 text-blue-500" />
+          <div className="bg-white dark:bg-slate-800/50 backdrop-blur-sm rounded-xl p-4 md:p-6 border border-gray-200 dark:border-slate-700 transition-colors">
+            <div className="flex items-center justify-between mb-3">
+              <div className="p-2 md:p-3 bg-blue-50 dark:bg-blue-500/10 rounded-lg">
+                <Bell className="w-5 h-5 md:w-8 md:h-8 text-blue-500" />
               </div>
-              <span className="text-3xl font-bold text-gray-900 dark:text-white">{infoCount}</span>
+              <span className="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white">{infoCount}</span>
             </div>
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">Informational</h3>
-            <p className="text-gray-500 dark:text-slate-300 text-sm">Monitoring alerts</p>
+            <h3 className="text-sm md:text-lg font-semibold text-gray-900 dark:text-white">Info</h3>
+            <p className="text-xs text-gray-500 dark:text-slate-300 hidden md:block">Monitoring alerts</p>
           </div>
 
-          <div className="bg-white dark:bg-slate-800/50 backdrop-blur-sm rounded-xl p-6 border border-gray-200 dark:border-slate-700 transition-colors">
-            <div className="flex items-center justify-between mb-4">
-              <div className="p-3 bg-teal-50 dark:bg-teal-500/10 rounded-lg">
-                <CheckCircle className="w-8 h-8 text-teal-500" />
+          <div className="bg-white dark:bg-slate-800/50 backdrop-blur-sm rounded-xl p-4 md:p-6 border border-gray-200 dark:border-slate-700 transition-colors">
+            <div className="flex items-center justify-between mb-3">
+              <div className="p-2 md:p-3 bg-teal-50 dark:bg-teal-500/10 rounded-lg">
+                <CheckCircle className="w-5 h-5 md:w-8 md:h-8 text-teal-500" />
               </div>
-              <span className="text-3xl font-bold text-gray-900 dark:text-white">24h</span>
+              <span className="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white">24h</span>
             </div>
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">Response Time</h3>
-            <p className="text-gray-500 dark:text-slate-300 text-sm">Average resolution</p>
+            <h3 className="text-sm md:text-lg font-semibold text-gray-900 dark:text-white">Response</h3>
+            <p className="text-xs text-gray-500 dark:text-slate-300 hidden md:block">Average resolution</p>
           </div>
         </div>
 
-        {/* Alerts Table */}
+        {/* Alerts List - Mobile Friendly */}
         <div className="bg-white dark:bg-slate-800/50 backdrop-blur-sm rounded-xl border border-gray-200 dark:border-slate-700 overflow-hidden transition-colors">
-          <div className="p-6 border-b border-gray-200 dark:border-slate-700">
-            <h2 className="text-2xl font-semibold text-gray-900 dark:text-white">Recent Alerts</h2>
+          <div className="p-4 md:p-6 border-b border-gray-200 dark:border-slate-700">
+            <h2 className="text-lg md:text-2xl font-semibold text-gray-900 dark:text-white">Recent Alerts</h2>
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-transparent">
-                  <th className="text-left py-4 px-6 text-gray-500 dark:text-slate-300 font-semibold">Status</th>
-                  <th className="text-left py-4 px-6 text-gray-500 dark:text-slate-300 font-semibold">Parameter</th>
-                  <th className="text-left py-4 px-6 text-gray-500 dark:text-slate-300 font-semibold">Value</th>
-                  <th className="text-left py-4 px-6 text-gray-500 dark:text-slate-300 font-semibold">Message</th>
-                  <th className="text-left py-4 px-6 text-gray-500 dark:text-slate-300 font-semibold">Plant</th>
-                  <th className="text-left py-4 px-6 text-gray-500 dark:text-slate-300 font-semibold">Time</th>
-                  <th className="text-left py-4 px-6 text-gray-500 dark:text-slate-300 font-semibold">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {alerts.map(alert => (
-                  <tr key={alert.id} className="border-b border-gray-100 dark:border-slate-700/50 hover:bg-gray-50 dark:hover:bg-slate-700/20 transition">
-                    <td className="py-4 px-6">
-                      <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full border ${getStatusColor(alert.severity || alert.status)}`}>
-                        {getStatusIcon(alert.severity || alert.status)}
-                        <span className="text-sm font-medium capitalize">{alert.severity || alert.status}</span>
-                      </div>
-                    </td>
-                    <td className="py-4 px-6">
-                      <span className="text-gray-900 dark:text-white font-medium">{alert.parameter}</span>
-                    </td>
-                    <td className="py-4 px-6">
-                      <span className="text-gray-900 dark:text-white font-semibold">{alert.value}</span>
-                      <span className="text-gray-500 dark:text-slate-400 text-sm ml-1">
-                        {alert.parameter === 'Temperature' ? '°C' : alert.parameter === 'pH' ? '' : 'mg/L'}
-                      </span>
-                    </td>
-                    <td className="py-4 px-6">
-                      <span className="text-gray-600 dark:text-slate-300">{alert.message || `${alert.parameter}: ${alert.status}`}</span>
-                    </td>
-                    <td className="py-4 px-6">
-                      <span className="text-gray-900 dark:text-white">{alert.plant || '-'}</span>
-                    </td>
-                    <td className="py-4 px-6">
-                      <span className="text-gray-600 dark:text-slate-300">{alert.time || alert.timestamp}</span>
-                    </td>
-                    <td className="py-4 px-6">
-                      <div className="flex gap-2">
-                        <button className="px-3 py-1 bg-teal-50 dark:bg-teal-500/20 text-teal-600 dark:text-teal-400 rounded text-sm hover:bg-teal-100 dark:hover:bg-teal-500/30 transition">
-                          Acknowledge
-                        </button>
-                        <button className="px-3 py-1 bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-300 rounded text-sm hover:bg-gray-200 dark:hover:bg-slate-600 transition">
-                          Details
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="divide-y divide-gray-100 dark:divide-slate-700/50">
+            {alerts.map(alert => (
+              <div key={alert.id} className="p-4 hover:bg-gray-50 dark:hover:bg-slate-700/20 transition">
+                <div className="flex items-start justify-between gap-3 mb-3">
+                  <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full border text-xs font-medium ${getStatusColor(alert.severity || alert.status)}`}>
+                    {getStatusIcon(alert.severity || alert.status)}
+                    <span className="capitalize">{alert.severity || alert.status}</span>
+                  </div>
+                  <span className="text-xs text-gray-500 dark:text-slate-400 whitespace-nowrap">
+                    {alert.time || alert.timestamp}
+                  </span>
+                </div>
+                <div className="space-y-1 mb-3">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium text-gray-900 dark:text-white">{alert.parameter}</span>
+                    <span className="text-lg font-bold text-blue-600 dark:text-blue-400">{alert.value}</span>
+                    <span className="text-xs text-gray-500 dark:text-slate-400">
+                      {alert.parameter === 'Temperature' ? '°C' : alert.parameter === 'pH' ? '' : 'mg/L'}
+                    </span>
+                  </div>
+                  <p className="text-sm text-gray-600 dark:text-slate-300 line-clamp-2">
+                    {alert.message || `${alert.parameter}: ${alert.status}`}
+                  </p>
+                  {alert.plant && (
+                    <p className="text-xs text-gray-500 dark:text-slate-400">Plant: {alert.plant}</p>
+                  )}
+                </div>
+                <div className="flex gap-2 mt-2">
+                  <button className="flex-1 px-3 py-2 bg-teal-50 dark:bg-teal-500/20 text-teal-600 dark:text-teal-400 rounded text-sm font-medium hover:bg-teal-100 dark:hover:bg-teal-500/30 transition">
+                    Acknowledge
+                  </button>
+                  <button className="flex-1 px-3 py-2 bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-300 rounded text-sm font-medium hover:bg-gray-200 dark:hover:bg-slate-600 transition">
+                    Details
+                  </button>
+                </div>
+              </div>
+            ))}
             {loading && (
-              <div className="px-6 py-4 text-gray-500 dark:text-slate-300">Loading alerts...</div>
+              <div className="p-6 text-center text-gray-500 dark:text-slate-300">Loading alerts...</div>
+            )}
+            {!loading && alerts.length === 0 && (
+              <div className="p-6 text-center text-gray-500 dark:text-slate-300">No alerts found</div>
             )}
           </div>
 
@@ -194,31 +180,31 @@ const AlertsPage: React.FC = () => {
         </div>
 
         {/* Alert Settings */}
-        <div className="mt-8 bg-white dark:bg-slate-800/50 backdrop-blur-sm rounded-xl p-6 border border-gray-200 dark:border-slate-700 transition-colors">
-          <h2 className="text-2xl font-semibold text-gray-900 dark:text-white mb-6">Alert Settings</h2>
+        <div className="mt-6 md:mt-8 bg-white dark:bg-slate-800/50 backdrop-blur-sm rounded-xl p-4 md:p-6 border border-gray-200 dark:border-slate-700 transition-colors">
+          <h2 className="text-lg md:text-2xl font-semibold text-gray-900 dark:text-white mb-4 md:mb-6">Alert Settings</h2>
           
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
             <div>
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Notification Channels</h3>
-              <div className="space-y-4">
-                <label className="flex items-center justify-between">
-                  <div>
-                    <span className="text-gray-900 dark:text-white">Email Notifications</span>
-                    <p className="text-sm text-gray-500 dark:text-slate-300">Receive alerts via email</p>
+              <h3 className="text-base md:text-lg font-semibold text-gray-900 dark:text-white mb-3 md:mb-4">Notifications</h3>
+              <div className="space-y-3 md:space-y-4">
+                <label className="flex items-center justify-between p-3 bg-gray-50 dark:bg-slate-700/50 rounded-lg">
+                  <div className="flex-1 pr-3">
+                    <span className="text-gray-900 dark:text-white text-sm">Email</span>
+                    <p className="text-xs text-gray-500 dark:text-slate-300">Receive via email</p>
                   </div>
                   <input type="checkbox" className="toggle" defaultChecked />
                 </label>
-                <label className="flex items-center justify-between">
-                  <div>
-                    <span className="text-gray-900 dark:text-white">Push Notifications</span>
-                    <p className="text-sm text-gray-500 dark:text-slate-300">Mobile push notifications</p>
+                <label className="flex items-center justify-between p-3 bg-gray-50 dark:bg-slate-700/50 rounded-lg">
+                  <div className="flex-1 pr-3">
+                    <span className="text-gray-900 dark:text-white text-sm">Push</span>
+                    <p className="text-xs text-gray-500 dark:text-slate-300">Mobile notifications</p>
                   </div>
                   <input type="checkbox" className="toggle" defaultChecked />
                 </label>
-                <label className="flex items-center justify-between">
-                  <div>
-                    <span className="text-gray-900 dark:text-white">SMS Alerts</span>
-                    <p className="text-sm text-gray-500 dark:text-slate-300">Critical alerts via SMS</p>
+                <label className="flex items-center justify-between p-3 bg-gray-50 dark:bg-slate-700/50 rounded-lg">
+                  <div className="flex-1 pr-3">
+                    <span className="text-gray-900 dark:text-white text-sm">SMS</span>
+                    <p className="text-xs text-gray-500 dark:text-slate-300">Critical alerts</p>
                   </div>
                   <input type="checkbox" className="toggle" />
                 </label>
@@ -226,11 +212,11 @@ const AlertsPage: React.FC = () => {
             </div>
 
             <div>
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Alert Thresholds</h3>
-              <div className="space-y-4">
+              <h3 className="text-base md:text-lg font-semibold text-gray-900 dark:text-white mb-3 md:mb-4">Thresholds</h3>
+              <div className="space-y-3 md:space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">Critical Alert Level</label>
-                  <select className="w-full bg-white dark:bg-slate-700 border border-gray-300 dark:border-slate-600 rounded-lg px-4 py-3 text-gray-900 dark:text-white">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">Critical Level</label>
+                  <select className="w-full bg-white dark:bg-slate-700 border border-gray-300 dark:border-slate-600 rounded-lg px-3 md:px-4 py-2.5 md:py-3 text-gray-900 dark:text-white text-sm">
                     <option value="immediate">Immediate (Exceeds limits)</option>
                     <option value="high">High (80% of limit)</option>
                     <option value="medium">Medium (60% of limit)</option>
@@ -246,12 +232,6 @@ const AlertsPage: React.FC = () => {
                 </div>
               </div>
             </div>
-          </div>
-
-          <div className="mt-8 flex justify-end">
-            <button className="px-8 py-3 bg-gradient-to-r from-teal-500 to-emerald-500 text-white rounded-lg font-semibold hover:opacity-90 transition">
-              Save Settings
-            </button>
           </div>
         </div>
       </div>

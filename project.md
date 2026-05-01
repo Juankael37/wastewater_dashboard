@@ -137,12 +137,28 @@ Real‑time warnings when values exceed valid ranges (see detailed table in orig
 - **Removed stale debug telemetry** from `frontend/src/services/api.ts` (3 `fetch` calls to `127.0.0.1:7809`)
 - **Flask app NOT deployed** — runs locally only; not needed for cloud production path
 
-## Checkpoint (April 27, 2026) — UI/UX & Data Fixes ✅
+## Checkpoint (April 29, 2026) — Professional PDF & Automated Reports ✅
 
-- **Tailwind v4 & Theming:** Migrated to Tailwind CSS v4 and fixed dark mode inconsistencies (removed conflicting white backgrounds across layouts and Settings page).
-- **Timezone Fix:** Corrected API timezone handling by forcing UTC interpretation (`+ 'Z'`), ensuring the dashboard reflects the correct local time.
-- **User Management RLS Bypass:** Fixed the issue where only the logged-in user appeared in the Settings user list. The Cloudflare Worker now correctly uses the `SUPABASE_SERVICE_ROLE_KEY` to securely bypass Supabase Row Level Security (RLS) for admin listing.
-- **Deployment & Actions:** Updated GitHub Actions to target Node.js v24.
+- **Cloudflare Browser Run Integration:** Implemented rich PDF generation using `@cloudflare/puppeteer` with professional A4 layout.
+- **Professional PDF Features:**
+  - Blue gradient header with v2.1 tag
+  - Influent vs Effluent charts (blue/red lines) for each parameter
+  - Dynamic parameter scaling - new parameters automatically appear
+  - Measurement data table (no averages)
+  - Notes section with lined space for observations
+  - Photo grid with 4 placeholders
+  - Proper page breaks (break-inside: avoid, break-before: page)
+  - @page A4 margins (20mm)
+- **Automated Email Reports:**
+  - CRON trigger at 8:00 AM daily
+  - Daily: Previous calendar day (yesterday)
+  - Weekly: Previous full week (Mon-Sun)
+  - Monthly: Previous full calendar month
+  - Proper date math for varying month lengths (28/30/31 days)
+  - Uses same professional PDF template as manual downloads
+  - Subject: `[Daily] Wastewater Compliance Report - Apr 28 2026`
+- **Resource Efficiency:** browser.close() called immediately after PDF generation to save Browser Run minutes.
+- **Test Button Updated:** Settings > Report Settings > "Send Test Report" now sends professional PDF.
 
 ## Key Constraints
 - Zero‑cost deployment (Cloudflare + Supabase)

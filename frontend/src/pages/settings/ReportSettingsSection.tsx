@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { Mail, Plus, Trash2, ToggleLeft, ToggleRight, Loader2, Send } from 'lucide-react'
+import { Mail, Plus, Trash2, ToggleLeft, ToggleRight, Loader2, Send, Clock, Info } from 'lucide-react'
 import { apiRequest } from '../../services/api/client'
 import toast from 'react-hot-toast'
 
@@ -8,12 +8,60 @@ interface ReportSetting {
   email: string
   is_active: boolean
   frequency: string
+  send_time?: string
+  day_of_week?: number
+  day_of_month?: number
+}
+
+const DAYS_OF_WEEK = [
+  { value: 1, label: 'Monday' },
+  { value: 2, label: 'Tuesday' },
+  { value: 3, label: 'Wednesday' },
+  { value: 4, label: 'Thursday' },
+  { value: 5, label: 'Friday' },
+  { value: 6, label: 'Saturday' },
+  { value: 7, label: 'Sunday' },
+]
+
+const DAYS_OF_MONTH = Array.from({ length: 28 }, (_, i) => ({
+  value: i + 1,
+  label: i === 0 ? '1st (First day)' : i === 27 ? '28th (Last day)' : `${i + 1}${getSuffix(i + 1)}`
+}))
+
+function getSuffix(day: number): string {
+  if (day >= 11 && day <= 13) return 'th'
+  switch (day % 10) {
+    case 1: return 'st'
+    case 2: return 'nd'
+    case 3: return 'rd'
+    default: return 'th'
+  }
+}
+
+function getFrequencyDescription(frequency: string, sendTime: string, dayOfWeek?: number, dayOfMonth?: number): string {
+  const timeStr = sendTime ? ` at ${sendTime}` : ' at 08:00'
+  
+  switch (frequency) {
+    case 'daily':
+      return `Every day${timeStr}`
+    case 'weekly':
+      const day = DAYS_OF_WEEK.find(d => d.value === dayOfWeek)
+      return `Every ${day?.label || 'Monday'}${timeStr}`
+    case 'monthly':
+      const monthDay = dayOfMonth || 1
+      return `${monthDay}${getSuffix(monthDay)} of month${timeStr}`
+    default:
+      return `Every ${frequency}${timeStr}`
+  }
 }
 
 const ReportSettingsSection: React.FC = () => {
   const [settings, setSettings] = useState<ReportSetting[]>([])
   const [newEmail, setNewEmail] = useState('')
   const [newFrequency, setNewFrequency] = useState('daily')
+  const [newSendTime, setNewSendTime] = useState('08:00')
+  const [newDayOfWeek, setNewDayOfWeek] = useState(1)
+  const [newDayOfMonth, setNewDayOfMonth] = useState(1)
   const [isLoading, setIsLoading] = useState(true)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isTesting, setIsTesting] = useState(false)
@@ -42,7 +90,13 @@ const ReportSettingsSection: React.FC = () => {
     try {
       await apiRequest('/api/settings/reports', {
         method: 'POST',
-        body: JSON.stringify({ email: newEmail, frequency: newFrequency })
+        body: JSON.stringify({ 
+          email: newEmail, 
+          frequency: newFrequency,
+          send_time: newSendTime,
+          day_of_week: newFrequency === 'weekly' ? newDayOfWeek : null,
+          day_of_month: newFrequency === 'monthly' ? newDayOfMonth : null
+        })
       })
       toast.success('Recipient added successfully')
       setNewEmail('')
@@ -122,34 +176,85 @@ const ReportSettingsSection: React.FC = () => {
           </button>
         </h3>
         <p className="text-sm text-gray-500 dark:text-slate-400 mb-6">
-          Configure who receives daily automated reports. Emails are sent via Resend (Free).
+          Configure automated reports. Emails are sent via Resend (Free tier: 3,000 emails/month).
         </p>
 
-        <form onSubmit={handleAddRecipient} className="flex gap-2 mb-8">
-          <input
-            type="email"
-            value={newEmail}
-            onChange={(e) => setNewEmail(e.target.value)}
-            placeholder="Add recipient email..."
-            className="flex-1 px-4 py-2 bg-gray-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-teal-500 outline-none transition dark:text-white"
-            required
-          />
-          <select
-            value={newFrequency}
-            onChange={(e) => setNewFrequency(e.target.value)}
-            className="px-4 py-2 bg-gray-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-teal-500 outline-none transition dark:text-white"
-          >
-            <option value="daily">Daily</option>
-            <option value="weekly">Weekly</option>
-            <option value="monthly">Monthly</option>
-          </select>
+        <form onSubmit={handleAddRecipient} className="mb-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+            <div className="lg:col-span-1">
+              <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">Email</label>
+              <input
+                type="email"
+                value={newEmail}
+                onChange={(e) => setNewEmail(e.target.value)}
+                placeholder="email@example.com"
+                className="w-full px-4 py-2 bg-gray-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-teal-500 outline-none transition dark:text-white"
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">Frequency</label>
+              <select
+                value={newFrequency}
+                onChange={(e) => setNewFrequency(e.target.value)}
+                className="w-full px-4 py-2 bg-gray-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-teal-500 outline-none transition dark:text-white"
+              >
+                <option value="daily">Daily</option>
+                <option value="weekly">Weekly</option>
+                <option value="monthly">Monthly</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">Time (UTC)</label>
+              <input
+                type="time"
+                value={newSendTime}
+                onChange={(e) => setNewSendTime(e.target.value)}
+                className="w-full px-4 py-2 bg-gray-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-teal-500 outline-none transition dark:text-white"
+              />
+            </div>
+            <div>
+              {newFrequency === 'weekly' ? (
+                <>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">Day</label>
+                  <select
+                    value={newDayOfWeek}
+                    onChange={(e) => setNewDayOfWeek(parseInt(e.target.value))}
+                    className="w-full px-4 py-2 bg-gray-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-teal-500 outline-none transition dark:text-white"
+                  >
+                    {DAYS_OF_WEEK.map(d => (
+                      <option key={d.value} value={d.value}>{d.label}</option>
+                    ))}
+                  </select>
+                </>
+              ) : newFrequency === 'monthly' ? (
+                <>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">Day of Month</label>
+                  <select
+                    value={newDayOfMonth}
+                    onChange={(e) => setNewDayOfMonth(parseInt(e.target.value))}
+                    className="w-full px-4 py-2 bg-gray-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-teal-500 outline-none transition dark:text-white"
+                  >
+                    {DAYS_OF_MONTH.map(d => (
+                      <option key={d.value} value={d.value}>{d.label}</option>
+                    ))}
+                  </select>
+                </>
+              ) : (
+                <div className="h-[42px] flex items-center text-sm text-gray-400">
+                  <Clock className="w-4 h-4 mr-1" />
+                  Daily
+                </div>
+              )}
+            </div>
+          </div>
           <button
             type="submit"
             disabled={isSubmitting}
-            className="px-4 py-2 bg-teal-600 hover:bg-teal-700 disabled:bg-teal-800 text-white rounded-lg flex items-center gap-2 transition"
+            className="px-6 py-2 bg-teal-600 hover:bg-teal-700 disabled:bg-teal-800 text-white rounded-lg flex items-center gap-2 transition"
           >
             {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
-            Add
+            Add Recipient
           </button>
         </form>
 
@@ -161,11 +266,13 @@ const ReportSettingsSection: React.FC = () => {
           ) : (
             settings.map((s) => (
               <div key={s.id} className="flex items-center justify-between p-4 bg-gray-50 dark:bg-slate-900/50 rounded-lg border border-gray-100 dark:border-slate-800">
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-4">
                   <div className={`w-2 h-2 rounded-full ${s.is_active ? 'bg-green-500' : 'bg-gray-400'}`} />
                   <div>
                     <div className="font-medium text-gray-900 dark:text-white">{s.email}</div>
-                    <div className="text-xs text-gray-500 dark:text-slate-500 capitalize">{s.frequency} report</div>
+                    <div className="text-xs text-gray-500 dark:text-slate-500">
+                      {getFrequencyDescription(s.frequency, s.send_time || '08:00', s.day_of_week, s.day_of_month)}
+                    </div>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
@@ -187,6 +294,20 @@ const ReportSettingsSection: React.FC = () => {
               </div>
             ))
           )}
+        </div>
+      </div>
+
+      <div className="bg-blue-50 dark:bg-blue-900/20 rounded-xl p-4 border border-blue-100 dark:border-blue-800">
+        <div className="flex items-start gap-3">
+          <Info className="w-5 h-5 text-blue-500 mt-0.5" />
+          <div className="text-sm text-blue-700 dark:text-blue-300">
+            <p className="font-medium mb-1">Schedule Information</p>
+            <ul className="list-disc list-inside space-y-1">
+              <li>Reports are sent at the configured UTC time</li>
+              <li>Weekly reports are sent on the selected day</li>
+              <li>Monthly reports are sent on the selected day of each month</li>
+            </ul>
+          </div>
         </div>
       </div>
     </div>

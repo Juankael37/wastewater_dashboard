@@ -1,5 +1,6 @@
 import React from 'react'
 import { Outlet } from 'react-router-dom'
+import MobileNav from './MobileNav'
 
 interface Props {
   header: React.ReactNode
@@ -12,11 +13,14 @@ const BaseLayout: React.FC<Props> = ({ header, navigation }) => {
     <div className="min-h-screen bg-gray-50 dark:bg-slate-900 transition-colors duration-200 text-gray-900 dark:text-white">
       {header}
       <div className="flex">
-        {navigation}
-        <main className="flex-1 p-6">
+        <div className="hidden md:block">
+          {navigation}
+        </div>
+        <main className="flex-1 p-4 md:p-6 pb-24 md:pb-6">
           <Outlet />
         </main>
       </div>
+      <MobileNav />
     </div>
   )
 }

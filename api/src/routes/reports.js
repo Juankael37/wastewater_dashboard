@@ -2,7 +2,7 @@
  * Reports routes — summary, performance, daily, PDF.
  */
 import { Hono } from 'hono'
-import { authMiddleware, errorResponse, buildSimplePdfBuffer } from '../middleware.js'
+import { authMiddleware, errorResponse, buildFormattedPdfBuffer } from '../middleware.js'
 
 const reports = new Hono()
 
@@ -59,8 +59,13 @@ reports.get('/api/reports/daily', authMiddleware, async (c) => {
 reports.get('/api/reports/pdf', authMiddleware, async (c) => {
   const supabase = c.get('supabase')
   const now = new Date()
-  const start = c.req.query('start') || new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
-  const end = c.req.query('end') || now.toISOString()
+  const startParam = c.req.query('start')
+  const endParam = c.req.query('end')
+  
+  // Handle date strings - convert "2026-04-28" to "2026-04-28T00:00:00Z"
+  const start = startParam ? startParam + 'T00:00:00Z' : new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
+  const end = endParam ? endParam + 'T23:59:59Z' : now.toISOString()
+  
   const selectedSet = new Set((c.req.query('parameters') || '').split(',').map((p) => p.trim().toLowerCase()).filter(Boolean))
 
   const { data, error } = await supabase.from('measurements')
@@ -70,15 +75,59 @@ reports.get('/api/reports/pdf', authMiddleware, async (c) => {
 
   const filtered = (data || []).filter((r) => selectedSet.size === 0 || selectedSet.has(String(r.parameters?.name || '').toLowerCase()))
   const hs = String(start).slice(0, 10), he = String(end).slice(0, 10)
-  const lines = ['Wastewater Monitoring Report', `Period: ${hs} to ${he}`, `Generated: ${now.toISOString()}`, `Total rows: ${filtered.length}`, selectedSet.size > 0 ? `Filters: ${[...selectedSet].join(', ')}` : 'Filters: none', '------------------------------------------------------------']
-  for (const row of filtered.slice(0, 250)) {
-    const p = row.parameters?.display_name || row.parameters?.name || 'Unknown'
-    const v = Number(row.value)
-    lines.push(`${String(row.timestamp || '').replace('T', ' ').slice(0, 19)} | ${row.plants?.name || '?'} | ${p} ${Number.isFinite(v) ? v : '-'} ${row.parameters?.unit || ''} | ${row.type || 'effluent'}`)
-  }
-  if (filtered.length > 250) lines.push(`... ${filtered.length - 250} additional rows omitted ...`)
 
-  const pdfBytes = buildSimplePdfBuffer(lines)
+  const paramStatsMap = new Map()
+  const rawDataList = []
+  
+  for (const row of filtered) {
+    const p = row.parameters?.display_name || row.parameters?.name || 'Unknown'
+    const unit = row.parameters?.unit || ''
+    const v = Number(row.value)
+    rawDataList.push({ timestamp: row.timestamp, parameter: p, value: v, unit })
+    
+    if (!paramStatsMap.has(p)) {
+      paramStatsMap.set(p, { name: p, latest: v, min: v, max: v, sum: v, count: 1, recent: [v], unit })
+    } else {
+      const stat = paramStatsMap.get(p)
+      stat.latest = v
+      stat.min = Math.min(stat.min, v)
+      stat.max = Math.max(stat.max, v)
+      stat.sum += v
+      stat.count += 1
+      stat.recent.push(v)
+    }
+  }
+  
+  const parameterStats = []
+  for (const [, stat] of paramStatsMap) {
+    parameterStats.push({
+      name: stat.name,
+      latest: stat.latest,
+      min: stat.min,
+      max: stat.max,
+      avg: stat.count > 0 ? stat.sum / stat.count : 0,
+      recent: stat.recent.slice(-10),
+      unit: stat.unit
+    })
+  }
+  
+  const summary = {
+    'Total Measurements': rawDataList.length,
+    'Date Range': `${hs} to ${he}`,
+    'Parameters Tracked': paramStatsMap.size
+  }
+
+  const pdfBytes = buildFormattedPdfBuffer({
+    title: 'Wastewater Monitoring Report',
+    subtitle: selectedSet.size > 0 ? `Filtered: ${[...selectedSet].join(', ')}` : 'All Parameters',
+    dateRange: `${hs} to ${he}`,
+    generatedAt: now.toISOString(),
+    summary,
+    parameterStats,
+    rawData: rawDataList,
+    maxRawRows: 300
+  })
+  
   return new Response(pdfBytes, { headers: { 'Content-Type': 'application/pdf', 'Content-Disposition': `attachment; filename="wastewater_report_${hs}_to_${he}.pdf"`, 'Cache-Control': 'no-store' } })
 })
 

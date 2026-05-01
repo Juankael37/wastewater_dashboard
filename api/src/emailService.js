@@ -53,33 +53,13 @@ export async function generateReportHtml(supabase, plantName, frequency = 'daily
 
   const count = measurements?.length || 0;
   
-  // Prepare data for QuickChart
-  const latestValues = new Map();
+  const paramMap = new Map();
   (measurements || []).forEach(m => {
     const pName = m.parameters?.display_name || 'Unknown';
-    if (!latestValues.has(pName)) {
-      latestValues.set(pName, m.value);
+    if (!paramMap.has(pName)) {
+      paramMap.set(pName, { value: m.value, unit: m.parameters?.unit, timestamp: m.timestamp });
     }
   });
-
-  const chartConfig = {
-    type: 'bar',
-    data: {
-      labels: Array.from(latestValues.keys()).slice(0, 7),
-      datasets: [{
-        label: 'Latest Values',
-        data: Array.from(latestValues.values()).slice(0, 7),
-        backgroundColor: 'rgba(13, 148, 136, 0.6)',
-        borderColor: 'rgb(13, 148, 136)',
-        borderWidth: 1
-      }]
-    },
-    options: {
-      title: { display: true, text: 'Recent Parameter Readings' },
-      legend: { display: false }
-    }
-  };
-  const chartUrl = `https://quickchart.io/chart?c=${encodeURIComponent(JSON.stringify(chartConfig))}&w=600&h=300`;
 
   const freqTitle = frequency.charAt(0).toUpperCase() + frequency.slice(1);
 
@@ -91,28 +71,31 @@ export async function generateReportHtml(supabase, plantName, frequency = 'daily
       </div>
       <div style="padding: 30px;">
         <h2 style="color: #0d9488;">Summary</h2>
-        <p>Total measurements in last ${daysAgo} day(s): <strong>${count}</strong></p>
+        <p>Period: Last ${daysAgo} day(s)</p>
+        <p>Total measurements: <strong>${count}</strong></p>
         
-        <div style="margin: 30px 0; text-align: center;">
-          <img src="${chartUrl}" alt="Measurements Chart" style="max-width: 100%; border-radius: 8px; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);" />
-        </div>
-
         <table style="width: 100%; border-collapse: collapse; margin-top: 20px;">
           <thead>
             <tr style="background: #f8fafc; border-bottom: 2px solid #e2e8f0;">
               <th style="padding: 10px; text-align: left;">Parameter</th>
-              <th style="padding: 10px; text-align: right;">Last Value</th>
+              <th style="padding: 10px; text-align: right;">Latest Value</th>
+              <th style="padding: 10px; text-align: right;">Unit</th>
             </tr>
           </thead>
           <tbody>
-            ${Array.from(latestValues.entries()).slice(0, 10).map(([name, val]) => `
+            ${Array.from(paramMap.entries()).slice(0, 10).map(([name, data]) => `
               <tr style="border-bottom: 1px solid #f1f5f9;">
                 <td style="padding: 10px;">${name}</td>
-                <td style="padding: 10px; text-align: right;">${val}</td>
+                <td style="padding: 10px; text-align: right;">${data.value !== undefined ? Number(data.value).toFixed(2) : '-'}</td>
+                <td style="padding: 10px; text-align: right;">${data.unit || ''}</td>
               </tr>
             `).join('')}
           </tbody>
         </table>
+
+        <p style="margin-top: 30px; color: #64748b; font-size: 12px;">
+          A PDF report with detailed data and trend charts is attached to this email.
+        </p>
         
         <div style="margin-top: 30px; padding: 15px; background: #f0fdfa; border-radius: 8px; color: #134e4a;">
           <p style="margin: 0;">This is an automated report from your Wastewater Monitoring System.</p>

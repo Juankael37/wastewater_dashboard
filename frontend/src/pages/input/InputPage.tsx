@@ -1,9 +1,15 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
-import { Camera, Save, Eye, AlertCircle } from 'lucide-react'
+import { Camera, Save, Eye, AlertCircle, CheckCircle, X, Trash2 } from 'lucide-react'
 import toast from 'react-hot-toast'
-import { measurementsApi, plantsApi } from '../../services/api'
+import { measurementsApi, plantsApi, uploadImage } from '../../services/api'
+
+interface ImageStatus {
+  url?: string
+  preview?: string
+  timestamp: string
+}
 
 interface InputFormData {
   plantId: string
@@ -19,21 +25,158 @@ interface InputFormData {
   flow: string
 }
 
+const STORAGE_KEY = 'wastewater_form_data'
+
+/**
+ * Highly memory-safe image compression.
+ * Uses createImageBitmap to decode the image off the main thread.
+ * On modern iOS/Android, passing resizeWidth prevents the massive 12MP+ original
+ * from ever entering the JS heap. We also explicitly release memory.
+ */
+const memorySafeCompress = async (file: File, maxDim = 1000): Promise<File> => {
+  try {
+    const bitmap = await createImageBitmap(file, {
+      resizeWidth: maxDim,
+      resizeQuality: 'high'
+    }).catch(() => createImageBitmap(file)); // Fallback if browser ignores resize options
+
+    let { width, height } = bitmap;
+    if (width > maxDim || height > maxDim) {
+      if (width > height) {
+        height = Math.round((height * maxDim) / width);
+        width = maxDim;
+      } else {
+        width = Math.round((width * maxDim) / height);
+        height = maxDim;
+      }
+    }
+
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    
+    // alpha: false saves 25% of canvas memory allocation
+    const ctx = canvas.getContext('2d', { alpha: false });
+    if (ctx) ctx.drawImage(bitmap, 0, 0, width, height);
+    
+    bitmap.close(); // Immediately free the uncompressed bitmap from RAM!
+
+    return new Promise((resolve) => {
+      canvas.toBlob(
+        (blob) => {
+          // Immediately wipe the canvas backing store from memory
+          canvas.width = 0;
+          canvas.height = 0;
+          resolve(blob ? new File([blob], file.name, { type: 'image/jpeg' }) : file);
+        },
+        'image/jpeg',
+        0.75
+      );
+    });
+  } catch (e) {
+    console.error('Safe compression failed, uploading raw', e);
+    return file;
+  }
+}
+
 const InputPage: React.FC = () => {
   const navigate = useNavigate()
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [capturedImages, setCapturedImages] = useState<Record<string, string>>({})
+  const [capturedImages, setCapturedImages] = useState<Record<string, ImageStatus>>({})
   const [showPreview, setShowPreview] = useState(false)
   const [previewData, setPreviewData] = useState<InputFormData | null>(null)
   const [plants, setPlants] = useState<Array<{ id: string; name: string }>>([])
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  // Track blob URLs so we can revoke them and free memory when images are removed.
+  const blobUrlsRef = useRef<Record<string, string>>({})
 
   const {
     register,
     handleSubmit,
-    watch
+    watch,
+    setValue
   } = useForm<InputFormData>()
 
-  React.useEffect(() => {
+  // Load saved form data on mount (not images - they use too much memory)
+  useEffect(() => {
+    const savedData = localStorage.getItem(STORAGE_KEY)
+    if (savedData) {
+      try {
+        const parsed = JSON.parse(savedData)
+        Object.entries(parsed).forEach(([key, value]) => {
+          if (value && key !== 'plantId') {
+            setValue(key as keyof InputFormData, value as string)
+          }
+        })
+        if (parsed.plantId) {
+          setValue('plantId', parsed.plantId)
+        }
+        toast.success('Previous form data restored')
+      } catch (e) {
+        console.error('Failed to restore form data', e)
+      }
+    }
+    
+    // Load saved image URLs (lightweight - just URLs, not full images)
+    const savedImages = localStorage.getItem('wastewater_images')
+    if (savedImages) {
+      try {
+        const parsed = JSON.parse(savedImages)
+        if (parsed && typeof parsed === 'object') {
+          setCapturedImages(parsed)
+        }
+      } catch (e) {
+        console.error('Failed to restore images', e)
+      }
+    }
+  }, [setValue])
+
+  // Save form data on change (text fields only, not images)
+  useEffect(() => {
+    const subscription = watch((data) => {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(data))
+    })
+    return () => subscription.unsubscribe()
+  }, [])
+
+  // Save image URLs to localStorage when they change (lightweight)
+  useEffect(() => {
+    if (Object.keys(capturedImages).length > 0) {
+      const urlsOnly: Record<string, { url?: string; preview?: string; timestamp: string }> = {}
+      for (const [key, val] of Object.entries(capturedImages)) {
+        if (val.url) {
+          urlsOnly[key] = { url: val.url, timestamp: val.timestamp }
+        }
+      }
+      if (Object.keys(urlsOnly).length > 0) {
+        localStorage.setItem('wastewater_images', JSON.stringify(urlsOnly))
+      }
+    }
+  }, [capturedImages])
+
+  // Revoke all tracked blob URLs to free memory, then optionally clear state.
+  const revokeBlobUrls = useCallback((keys?: string[]) => {
+    const toRevoke = keys ?? Object.keys(blobUrlsRef.current)
+    toRevoke.forEach((k) => {
+      if (blobUrlsRef.current[k]) {
+        URL.revokeObjectURL(blobUrlsRef.current[k])
+        delete blobUrlsRef.current[k]
+      }
+    })
+  }, [])
+
+  // Revoke all blob URLs when the component unmounts.
+  useEffect(() => () => revokeBlobUrls(), [revokeBlobUrls])
+
+  const clearFormData = () => {
+    localStorage.removeItem(STORAGE_KEY)
+    localStorage.removeItem('wastewater_images')
+    revokeBlobUrls()
+    setCapturedImages({})
+    window.location.reload()
+  }
+
+  useEffect(() => {
     const loadPlants = async () => {
       try {
         const plantData = await plantsApi.getAll()
@@ -88,28 +231,71 @@ const InputPage: React.FC = () => {
 
   const captureImage = async (parameter: string) => {
     try {
-      // Simulate camera capture - in real app, use device camera API
-      const input = document.createElement('input')
-      input.type = 'file'
-      input.accept = 'image/*'
-      input.onchange = (e) => {
-        const file = (e.target as HTMLInputElement).files?.[0]
-        if (file) {
-          const reader = new FileReader()
-          reader.onload = (e) => {
-            setCapturedImages(prev => ({
-              ...prev,
-              [parameter]: e.target?.result as string
-            }))
-            toast.success(`${parameter.toUpperCase()} image captured`)
-          }
-          reader.readAsDataURL(file)
-        }
+      if (fileInputRef.current) {
+        fileInputRef.current.value = ''
+        fileInputRef.current.accept = 'image/*'
+        fileInputRef.current.capture = 'environment'
+        fileInputRef.current.dataset.param = parameter
+        fileInputRef.current.click()
       }
-      input.click()
     } catch (error) {
-      toast.error('Failed to capture image')
+      console.error('Camera error:', error)
+      toast.error('Unable to access camera. Please try again.')
     }
+  }
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    const parameter = e.target.dataset.param || ''
+
+    if (!file || !parameter) return
+
+    if (file.size > 20 * 1024 * 1024) {
+      toast.error('Image too large (max 20 MB).')
+      return
+    }
+
+    const timestamp = new Date().toLocaleTimeString()
+
+    // ✅ Memory-safe preview: createObjectURL never copies the file into RAM.
+    // Revoke any previous blob URL for this parameter first.
+    revokeBlobUrls([parameter])
+    const previewUrl = URL.createObjectURL(file)
+    blobUrlsRef.current[parameter] = previewUrl
+    setCapturedImages(prev => ({
+      ...prev,
+      [parameter]: { preview: previewUrl, timestamp },
+    }))
+
+    try {
+      const loadingToast = toast.loading(`Compressing & Uploading ${parameter.toUpperCase()}…`)
+      const safeFile = await memorySafeCompress(file)
+      const uploadedUrl = await uploadImage(safeFile)
+      toast.dismiss(loadingToast)
+
+      if (uploadedUrl) {
+        setCapturedImages(prev => ({
+          ...prev,
+          [parameter]: { url: uploadedUrl, preview: previewUrl, timestamp },
+        }))
+        toast.success(`${parameter.toUpperCase()} uploaded ✓`)
+      } else {
+        toast.error(`Upload failed for ${parameter.toUpperCase()}`)
+      }
+    } catch (err) {
+      console.error('Upload error:', err)
+      toast.error('Upload failed. Please try again.')
+    }
+  }
+
+  const removeImage = (parameter: string) => {
+    // Revoke the blob URL to immediately free the memory.
+    revokeBlobUrls([parameter])
+    setCapturedImages(prev => {
+      const updated = { ...prev }
+      delete updated[parameter]
+      return updated
+    })
   }
 
   const onSubmit = (data: InputFormData) => {
@@ -127,6 +313,48 @@ const InputPage: React.FC = () => {
     setIsSubmitting(true)
     try {
       console.log('🚀 Starting measurement submission...')
+      
+      // Get already uploaded URLs from captured images
+      const imageUrls: Record<string, string> = {}
+      for (const [param, imgData] of Object.entries(capturedImages)) {
+        if (imgData.url) {
+          imageUrls[param] = imgData.url
+        }
+      }
+      
+      if (Object.keys(capturedImages).length > 0 && Object.keys(imageUrls).length === 0) {
+        toast.loading('Uploading pending images...', { icon: '📸' })
+        
+        for (const [param, imgData] of Object.entries(capturedImages)) {
+          try {
+            let fileToUpload: File | string = ''
+            if (imgData.preview && imgData.preview.startsWith('blob:')) {
+              // We must fetch the blob from the object URL so it becomes a File/Blob that uploadImage can handle
+              const res = await fetch(imgData.preview)
+              const blob = await res.blob()
+              fileToUpload = new File([blob], `image_${param}.jpg`, { type: 'image/jpeg' })
+              // Attempt to compress the fallback as well to avoid the 10MB limit
+              fileToUpload = await memorySafeCompress(fileToUpload as File)
+            }
+            
+            if (fileToUpload) {
+              const url = await uploadImage(fileToUpload)
+              if (url) {
+                imageUrls[param] = url
+              }
+            }
+          } catch (err) {
+            console.error(`❌ Upload error for ${param}:`, err)
+          }
+        }
+        
+        toast.dismiss()
+      }
+      
+      const imageNotes = Object.keys(imageUrls).length > 0 
+        ? JSON.stringify({ images: imageUrls, captured: Object.keys(capturedImages).map(k => `${k}@${capturedImages[k].timestamp}`).join(', ') })
+        : `Images: ${Object.keys(capturedImages).map(k => `${k}@${capturedImages[k].timestamp}`).join(', ')}`
+      
       const measurementData = {
         ph: parseFloat(previewData.ph) || null,
         cod: parseFloat(previewData.cod) || null,
@@ -139,7 +367,7 @@ const InputPage: React.FC = () => {
         flow: parseFloat(previewData.flow) || null,
         type: previewData.type,
         plant_id: previewData.plantId,
-        notes: `Images captured: ${Object.keys(capturedImages).join(', ')}`,
+        notes: imageNotes,
         local_timestamp: new Date().toLocaleString()
       }
       
@@ -148,6 +376,10 @@ const InputPage: React.FC = () => {
       const result = await measurementsApi.create(measurementData)
       console.log('✅ API Response:', result)
       window.dispatchEvent(new Event('measurement:created'))
+
+      // Clear saved form data after successful submission
+      localStorage.removeItem(STORAGE_KEY)
+      setCapturedImages({})
 
       toast.success('Measurement submitted successfully!')
       setShowPreview(false)
@@ -164,32 +396,34 @@ const InputPage: React.FC = () => {
     const value = watch(param)
     const validation = value ? validateParameter(param, value) : null
     const hasCamera = parametersWithCamera.includes(param)
+    const imageStatus = capturedImages[param]
 
     return (
       <div key={param} className="space-y-2">
         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
           {label} ({standards[param as keyof typeof standards]?.unit})
         </label>
-        <div className="flex space-x-2">
+        <div className="flex gap-2">
           <div className="flex-1">
             <input
               type="number"
               step="0.01"
               {...register(param, { required: true })}
-              className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 bg-white dark:bg-slate-700 text-gray-900 dark:text-white transition-colors ${
+              className={`w-full px-3 py-3 text-base border rounded-lg focus:ring-2 focus:ring-blue-500 bg-white dark:bg-slate-700 text-gray-900 dark:text-white transition-colors ${
                 validation?.valid === false
                   ? 'border-red-500 bg-red-50 dark:bg-red-900/20'
                   : validation?.warning
                   ? 'border-yellow-500 bg-yellow-50 dark:bg-yellow-900/20'
                   : 'border-gray-300 dark:border-slate-600'
               }`}
-              placeholder={`Enter ${label}`}
+              placeholder={label}
+              inputMode="decimal"
             />
             {validation && (
               <div className={`mt-1 text-xs flex items-center ${
                 validation.valid === false ? 'text-red-600 dark:text-red-400' : 'text-yellow-600 dark:text-yellow-400'
               }`}>
-                <AlertCircle className="w-3 h-3 mr-1" />
+                <AlertCircle className="w-3 h-3 mr-1 flex-shrink-0" />
                 {validation.message}
               </div>
             )}
@@ -198,27 +432,40 @@ const InputPage: React.FC = () => {
             <button
               type="button"
               onClick={() => captureImage(param)}
-              className={`px-3 py-2 rounded-lg border transition-colors ${
-                capturedImages[param]
+              className={`px-3 py-3 rounded-lg border transition-colors flex-shrink-0 ${
+                imageStatus
                   ? 'bg-green-50 border-green-500 text-green-700 dark:bg-green-900/20 dark:text-green-400'
                   : 'bg-gray-50 border-gray-300 text-gray-700 hover:bg-gray-100 dark:bg-slate-700 dark:border-slate-600 dark:text-gray-300 dark:hover:bg-slate-600'
               }`}
             >
-              {capturedImages[param] ? (
-                <Eye className="w-5 h-5" />
+              {imageStatus ? (
+                <CheckCircle className="w-5 h-5" />
               ) : (
                <Camera className="w-5 h-5" />
               )}
             </button>
           )}
         </div>
-        {capturedImages[param] && (
-          <div className="mt-2">
-            <img
-              src={capturedImages[param]}
-              alt={`${param} capture`}
-              className="h-20 w-20 object-cover rounded-lg border border-gray-300 dark:border-slate-600"
-            />
+        {imageStatus && (
+          <div className="flex items-center gap-2 mt-2">
+            <div className="relative">
+              <img
+                src={imageStatus.preview || imageStatus.url}
+                alt={`${param} capture`}
+                className="h-20 w-20 object-cover rounded-lg border border-green-500 dark:border-green-400"
+              />
+              <button
+                type="button"
+                onClick={() => removeImage(param)}
+                className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </div>
+            <div className="flex items-center gap-1 text-xs text-green-600 dark:text-green-400">
+              <CheckCircle className="w-3 h-3" />
+              <span>{imageStatus.url ? 'Uploaded' : 'Captured'} {imageStatus.timestamp}</span>
+            </div>
           </div>
         )}
       </div>
@@ -228,18 +475,18 @@ const InputPage: React.FC = () => {
   if (showPreview && previewData) {
     return (
       <div className="max-w-4xl mx-auto">
-        <div className="bg-white dark:bg-slate-800 rounded-lg shadow-lg p-6 border border-gray-200 dark:border-slate-700 transition-colors">
-          <h2 className="text-2xl font-bold mb-6 text-gray-900 dark:text-white">Preview Submission</h2>
+        <div className="bg-white dark:bg-slate-800 rounded-lg shadow-lg p-4 md:p-6 border border-gray-200 dark:border-slate-700 transition-colors">
+          <h2 className="text-xl md:text-2xl font-bold mb-4 md:mb-6 text-gray-900 dark:text-white">Preview</h2>
           
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6 mb-6">
             <div>
-              <h3 className="font-semibold mb-2 text-gray-900 dark:text-white">Plant Information</h3>
-              <p className="text-gray-700 dark:text-gray-300"><strong>Plant ID:</strong> {previewData.plantId}</p>
-              <p className="text-gray-700 dark:text-gray-300"><strong>Type:</strong> {previewData.type}</p>
+              <h3 className="font-semibold mb-2 text-gray-900 dark:text-white">Plant Info</h3>
+              <p className="text-gray-700 dark:text-gray-300 text-sm"><strong>Plant:</strong> {previewData.plantId}</p>
+              <p className="text-gray-700 dark:text-gray-300 text-sm"><strong>Type:</strong> {previewData.type}</p>
             </div>
             
             <div>
-              <h3 className="font-semibold mb-2 text-gray-900 dark:text-white">Parameter Values</h3>
+              <h3 className="font-semibold mb-2 text-gray-900 dark:text-white">Values</h3>
               <div className="space-y-1 text-sm text-gray-700 dark:text-gray-300">
                 {Object.entries(previewData).map(([key, value]) => {
                   if (key === 'plantId' || key === 'type') return null
@@ -261,31 +508,32 @@ const InputPage: React.FC = () => {
                 {Object.entries(capturedImages).map(([param, image]) => (
                   <div key={param} className="text-center">
                     <img
-                      src={image}
+                      src={image.preview}
                       alt={param}
                       className="h-24 w-24 object-cover rounded-lg border border-gray-300 dark:border-slate-600"
                     />
                     <p className="text-xs mt-1 text-gray-700 dark:text-gray-300">{param.toUpperCase()}</p>
+                    {image.url && <p className="text-xs text-green-600">Uploaded</p>}
                   </div>
                 ))}
               </div>
             </div>
           )}
 
-          <div className="flex space-x-4">
+          <div className="flex flex-col sm:flex-row gap-3 sm:space-x-4">
             <button
               onClick={confirmSubmit}
               disabled={isSubmitting}
-              className="flex items-center space-x-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
+              className="flex items-center justify-center gap-2 px-5 py-3.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors font-medium"
             >
               <Save className="w-5 h-5" />
-              <span>{isSubmitting ? 'Submitting...' : 'Confirm Submit'}</span>
+              <span>{isSubmitting ? 'Submitting...' : 'Confirm'}</span>
             </button>
             <button
               onClick={() => setShowPreview(false)}
-              className="px-6 py-3 bg-gray-200 dark:bg-slate-700 text-gray-800 dark:text-gray-200 rounded-lg hover:bg-gray-300 dark:hover:bg-slate-600 transition-colors"
+              className="px-5 py-3.5 bg-gray-200 dark:bg-slate-700 text-gray-800 dark:text-gray-200 rounded-lg hover:bg-gray-300 dark:hover:bg-slate-600 transition-colors font-medium"
             >
-              Back to Edit
+              Back
             </button>
           </div>
         </div>
@@ -295,19 +543,28 @@ const InputPage: React.FC = () => {
 
   return (
     <div className="max-w-4xl mx-auto">
-      <div className="bg-white dark:bg-slate-800 rounded-lg shadow-lg p-6 border border-gray-200 dark:border-slate-700 transition-colors">
-        <h1 className="text-2xl font-bold mb-6 text-gray-900 dark:text-white">Data Input Form</h1>
+      <div className="bg-white dark:bg-slate-800 rounded-lg shadow-lg p-4 md:p-6 border border-gray-200 dark:border-slate-700 transition-colors">
+        <h1 className="text-xl md:text-2xl font-bold mb-4 md:mb-6 text-gray-900 dark:text-white">Data Input</h1>
         
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-5 md:space-y-6">
+          {/* Hidden file input for camera */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={handleFileChange}
+          />
+          
           {/* Plant Selection */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 md:gap-6">
             <div className="space-y-2">
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                 Plant/Location *
               </label>
               <select
                 {...register('plantId', { required: true })}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-gray-900 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500 transition-colors"
+                className="w-full px-3 py-3 text-base border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-gray-900 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500 transition-colors"
               >
                 <option value="">Select Plant</option>
                 {plants.map((plant) => (
@@ -324,7 +581,7 @@ const InputPage: React.FC = () => {
               </label>
               <select
                 {...register('type', { required: true })}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-gray-900 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500 transition-colors"
+                className="w-full px-3 py-3 text-base border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-gray-900 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500 transition-colors"
               >
                 <option value="">Select Type</option>
                 <option value="influent">Influent</option>
@@ -334,7 +591,7 @@ const InputPage: React.FC = () => {
           </div>
 
           {/* Parameter Inputs */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 md:gap-6">
             {renderParameterInput('ph', 'pH')}
             {renderParameterInput('cod', 'COD')}
             {renderParameterInput('bod', 'BOD')}
@@ -346,13 +603,21 @@ const InputPage: React.FC = () => {
             {renderParameterInput('flow', 'Flow Rate')}
           </div>
 
-          <div className="flex justify-end">
+          <div className="flex flex-col sm:flex-row justify-end gap-3 pt-2">
+            <button
+              type="button"
+              onClick={clearFormData}
+              className="flex items-center justify-center gap-2 w-full sm:w-auto px-4 py-3 bg-gray-200 dark:bg-slate-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-300 dark:hover:bg-slate-600 transition-colors text-base font-medium"
+            >
+              <Trash2 className="w-5 h-5" />
+              <span>Clear</span>
+            </button>
             <button
               type="submit"
-              className="flex items-center space-x-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              className="flex items-center justify-center gap-2 w-full sm:w-auto px-5 py-3.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-base font-medium"
             >
               <Eye className="w-5 h-5" />
-              <span>Preview Submission</span>
+              <span>Preview</span>
             </button>
           </div>
         </form>

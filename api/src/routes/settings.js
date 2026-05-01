@@ -2,7 +2,8 @@
  * Settings routes — managing automated report recipients.
  */
 import { Hono } from 'hono'
-import { authMiddleware, requireAdminRole, errorResponse, createServiceClient, buildSimplePdfBuffer } from '../middleware.js'
+import { authMiddleware, requireAdminRole, errorResponse, createServiceClient, buildFormattedPdfBuffer } from '../middleware.js'
+import { buildRichPdfBuffer } from './richPdf.js'
 import { generateReportHtml, sendEmailViaResend } from '../emailService.js'
 
 const settings = new Hono()
@@ -22,17 +23,29 @@ settings.get('/api/settings/reports', authMiddleware, requireAdminRole, async (c
 // Add a new recipient
 settings.post('/api/settings/reports', authMiddleware, requireAdminRole, async (c) => {
   const supabase = c.get('supabase')
-  const { email, frequency } = await c.req.json()
+  const { email, frequency, send_time, day_of_week, day_of_month } = await c.req.json()
 
   if (!email) return errorResponse(c, 400, 'Email is required', 'MISSING_EMAIL')
 
+  const insertData = { 
+    email, 
+    frequency: frequency || 'daily'
+  }
+  
+  if (send_time) insertData.send_time = send_time
+  if (frequency === 'weekly' && day_of_week) insertData.day_of_week = day_of_week
+  if (frequency === 'monthly' && day_of_month) insertData.day_of_month = day_of_month
+
   const { data, error } = await supabase
     .from('report_settings')
-    .insert({ email, frequency: frequency || 'daily' })
+    .insert(insertData)
     .select()
     .single()
 
-  if (error) return errorResponse(c, 500, error.message, 'ADD_REPORT_FAILED')
+  if (error) {
+    console.error('Insert report_settings error:', error)
+    return errorResponse(c, 500, error.message, 'ADD_REPORT_FAILED')
+  }
   return c.json(data, 201)
 })
 
@@ -93,58 +106,80 @@ settings.post('/api/settings/reports/test', authMiddleware, requireAdminRole, as
     }
 
     const { data: plants } = await supabase.from('plants').select('name').limit(1)
-    const plantName = plants?.[0]?.name || 'Wastewater Plant'
+    const plantName = plants?.[0]?.name || 'Wastewater Treatment Plant'
     
-    const freqGroups = { daily: [], weekly: [], monthly: [] };
+    const htmlContent = await generateReportHtml(supabase, plantName, 'daily')
+
+    const today = new Date();
+    const dayOfWeek = today.getDay();
+
+    // Date ranges
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+    const dailyStart = yesterday.toISOString().slice(0, 10);
+    const dailyEnd = dailyStart;
+
+    const weekStart = new Date(today);
+    weekStart.setDate(weekStart.getDate() - (dayOfWeek === 0 ? 7 : dayOfWeek - 1) - 7 + dayOfWeek);
+    const weekStartDate = new Date(weekStart);
+    const weekEnd = new Date(weekStartDate);
+    weekEnd.setDate(weekEnd.getDate() + 6);
+    const weeklyStart = weekStartDate.toISOString().slice(0, 10);
+    const weeklyEnd = weekEnd.toISOString().slice(0, 10);
+
+    const monthStart = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+    const monthEnd = new Date(today.getFullYear(), today.getMonth(), 0);
+    const monthlyStart = monthStart.toISOString().slice(0, 10);
+    const monthlyEnd = monthEnd.toISOString().slice(0, 10);
+
+    const dateRanges = {
+      daily: { start: dailyStart, end: dailyEnd, label: dailyStart },
+      weekly: { start: weeklyStart, end: weeklyEnd, label: `${weeklyStart} to ${weeklyEnd}` },
+      monthly: { start: monthlyStart, end: monthlyEnd, label: `${monthStart.toLocaleString('en-US', { month: 'long' })} ${monthStart.getFullYear()}` }
+    };
+
+    let sentCount = 0;
     for (const r of recipients) {
-      if (freqGroups[r.frequency]) freqGroups[r.frequency].push(r.email);
-    }
+      const freq = r.frequency;
+      const range = dateRanges[freq];
+      if (!range) continue;
 
-    for (const freq of Object.keys(freqGroups)) {
-      const emails = freqGroups[freq];
-      if (emails.length === 0) continue;
+      console.log(`Building professional PDF for ${freq} (${range.start} to ${range.end})...`);
 
-      const htmlContent = await generateReportHtml(supabase, plantName, freq)
+      try {
+        const pdfBytes = await buildRichPdfBuffer(c.env, supabase, {
+          startDate: range.start,
+          endDate: range.end,
+          title: plantName
+        });
 
-      // Build simple PDF
-      let daysAgo = 1;
-      if (freq === 'weekly') daysAgo = 7;
-      if (freq === 'monthly') daysAgo = 30;
-      const since = new Date(Date.now() - daysAgo * 86400000).toISOString();
-      const { data: rawMs } = await supabase.from('measurements')
-        .select('value,type,timestamp,parameters!inner(name,display_name,unit),plants!inner(name)')
-        .gte('timestamp', since).order('timestamp', { ascending: false }).limit(500);
-
-      const lines = ['Wastewater Monitoring Raw Data Report', `Period: Last ${daysAgo} day(s)`, `Generated: ${new Date().toISOString()}`, '------------------------------------------------------------'];
-      for (const row of (rawMs || [])) {
-        const p = row.parameters?.display_name || row.parameters?.name || 'Unknown';
-        const v = Number(row.value);
-        lines.push(`${String(row.timestamp || '').replace('T', ' ').slice(0, 19)} | ${p} ${Number.isFinite(v) ? v : '-'} ${row.parameters?.unit || ''} | ${row.type || 'effluent'}`);
-      }
-      
-      const pdfBytes = buildSimplePdfBuffer(lines);
-      let binary = '';
-      for (let i = 0; i < pdfBytes.length; i++) {
+        let binary = '';
+        for (let i = 0; i < pdfBytes.length; i++) {
           binary += String.fromCharCode(pdfBytes[i]);
-      }
-      const pdfBase64 = btoa(binary);
+        }
+        const pdfBase64 = btoa(binary);
 
-      const attachments = [{
-        filename: `AquaDash_${freq}_report.pdf`,
-        content: pdfBase64
-      }];
+        const attachments = [{
+          filename: `AquaDash_${freq}_report_${range.start}_${range.end}.pdf`,
+          content: pdfBase64
+        }];
 
-      for (const email of emails) {
+        const subject = `[TEST] ${freq.charAt(0).toUpperCase() + freq.slice(1)} Wastewater Report - ${range.label}`;
+
         await sendEmailViaResend(c.env, {
-          to: email,
-          subject: `[TEST] AquaDash ${freq.charAt(0).toUpperCase() + freq.slice(1)} Report - ${plantName}`,
+          to: r.email,
+          subject,
           htmlContent,
           attachments
-        })
+        });
+        sentCount++;
+        console.log(`Sent ${freq} report to ${r.email}`);
+      } catch (pdfErr) {
+        console.error(`PDF/send failed for ${r.email}: ${pdfErr.message}`);
       }
     }
 
-    return c.json({ success: true, message: `Test report sent to ${recipients.length} recipients` })
+    return c.json({ success: true, message: `Test report sent to ${sentCount} recipients` })
   } catch (error) {
     return errorResponse(c, 500, error.message, 'TEST_REPORT_FAILED')
   }

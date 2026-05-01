@@ -7,13 +7,32 @@ The [connect plan](.cursor/plans/connect_supabase_+_cloudflare_cbd74acc.plan.md)
 
 ## 📊 Current Implementation Status (April 25, 2026)
 
-### 🔖 Checkpoint — April 27, 2026 — UI/UX & Data Fixes ✅
+### 🔖 Checkpoint — April 29, 2026 — Professional PDF & Automated Reports ✅
 
 **Completed in this checkpoint**
-- **Tailwind v4 & Theming:** Migrated to Tailwind CSS v4 and fixed global dark mode inconsistencies, specifically eliminating white flash issues on layout shells and Settings pages.
-- **Timezone Standardization:** Fixed dashboard timezone display issues by explicitly handling UTC offsets on incoming Supabase API timestamps.
-- **User Management RLS Bypass:** Resolved an issue where operators could not see other users in the Settings dashboard. The Cloudflare Worker now utilizes the `SUPABASE_SERVICE_ROLE_KEY` to bypass Row Level Security (RLS) when fetching the user list.
-- **CI/CD Maintenance:** Updated GitHub Actions environment targets to Node.js v24 to prevent deprecation errors.
+- **Cloudflare Browser Run Integration:** Implemented rich PDF generation using `@cloudflare/puppeteer` with professional A4 layout.
+- **Professional PDF Features:**
+  - Blue gradient header with v2.1 tag
+  - Influent vs Effluent charts (blue/red lines) for each parameter
+  - Dynamic parameter scaling - new parameters automatically appear in charts
+  - Measurement data table (no averages, raw timestamps)
+  - Notes section with lined space for observations
+  - Photo grid with 4 placeholders for attachments
+  - Proper page breaks (break-inside: avoid, break-before: page)
+  - @page A4 margins (20mm)
+  - Lato font, corporate design
+- **Automated Email Reports:**
+  - CRON trigger at 8:00 AM daily
+  - Date math: Daily (yesterday), Weekly (Mon-Sun), Monthly (previous month)
+  - Handles varying month lengths (28/30/31 days)
+  - Uses same professional PDF template as manual downloads
+  - Proper email subject format: `[Daily] Wastewater Compliance Report - Apr 28 2026`
+- **Resource Efficiency:** browser.close() called immediately after PDF generation to save Browser Run 10-min free tier.
+- **Test Button Updated:** Settings > Report Settings > "Send Test Report" now sends professional PDF to active recipients.
+
+**Still pending**
+- Real-device PWA testing (install / camera / offline sync)
+- Google Sheets backup
 
 ---
 
@@ -179,9 +198,9 @@ Local Flask + React integration is done. The PWA can use **Supabase + Workers** 
 - [ ] Implement Google Sheets backup
 - [x] Close final gaps: Worker vs Flask feature parity for PWA Settings parameter-write routes (see `IMPLEMENTATION_ROADMAP.md`)
 
-### Phase 5: Advanced Features (UPCOMING)
-- [ ] Implement Google Sheets backup (guide created)
-- [ ] Add email automation (Daily/Weekly/Monthly reports)
+### Phase 5: Advanced Features (NOW COMPLETE)
+- [x] Email automation (Daily/Weekly/Monthly reports) with Cloudflare CRON + Browser Run PDF
+- [ ] Implement Google Sheets backup
 - [ ] Build admin settings panel
 - [ ] Add multi-tenant support
 - [ ] Implement advanced reporting features

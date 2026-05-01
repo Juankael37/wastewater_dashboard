@@ -25,7 +25,7 @@ export type {
 
 // Domain APIs
 export { authApi } from './auth';
-export { measurementsApi, plantsApi } from './measurements';
+export { measurementsApi, plantsApi, uploadImage } from './measurements';
 export { alertsApi } from './alerts';
 export { dashboardApi } from './dashboard';
 export {

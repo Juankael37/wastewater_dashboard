@@ -138,21 +138,23 @@ const DashboardPage: React.FC = () => {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Dashboard Overview</h1>
-          <p className="text-gray-500 dark:text-gray-400">Real-time monitoring of all 9 wastewater parameters</p>
+          <h1 className="text-xl md:text-2xl font-bold text-gray-900 dark:text-white">Dashboard</h1>
+          <p className="text-sm text-gray-500 dark:text-gray-400 hidden sm:block">Real-time monitoring of all 9 wastewater parameters</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 w-full sm:w-auto">
           <button
             onClick={() => fetchData(false)}
-            className="inline-flex items-center gap-2 rounded-md border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-1.5 text-xs text-gray-700 dark:text-slate-200 hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors"
+            className="inline-flex items-center justify-center gap-2 w-full sm:w-auto rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-4 py-2.5 text-sm text-gray-700 dark:text-slate-200 hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors"
           >
-            <RefreshCw className="h-3.5 w-3.5" />
-            Refresh
+            <RefreshCw className="h-4 w-4" />
+            <span className="sm:hidden">Refresh</span>
           </button>
-          <span className="text-sm text-gray-500 dark:text-gray-400">Last updated: {lastUpdated}</span>
-          <span className="text-xs text-gray-400 dark:text-slate-500">Latest measurement: {latestMeasurementAt}</span>
+          <div className="text-xs text-gray-500 dark:text-gray-400 w-full sm:w-auto text-left">
+            <span className="block">Updated: {lastUpdated}</span>
+            <span className="block sm:inline">Latest: {latestMeasurementAt}</span>
+          </div>
         </div>
       </div>
 

@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Wastewater Treatment Plant Data Analysis Report</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: #fff;
+      color: #1a1a2e;
+      font-size: 11pt;
+      line-height: 1.4;
+      padding: 20px;
+    }
+    
+    .header {
+      text-align: center;
+      padding-bottom: 15px;
+      border-bottom: 2px solid #0d9488;
+      margin-bottom: 20px;
+    }
+    
+    .header h1 {
+      color: #0d9488;
+      font-size: 18pt;
+      margin-bottom: 5px;
+    }
+    
+    .header .subtitle {
+      color: #64748b;
+      font-size: 11pt;
+    }
+    
+    .meta-info {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 20px;
+      padding: 10px;
+      background: #f8fafc;
+      border-radius: 6px;
+      font-size: 10pt;
+    }
+    
+    .meta-info div {
+      text-align: center;
+    }
+    
+    .meta-info .label {
+      color: #64748b;
+      font-size: 9pt;
+      text-transform: uppercase;
+    }
+    
+    .meta-info .value {
+      color: #1a1a2e;
+      font-weight: 600;
+    }
+    
+    h2 {
+      color: #0d9488;
+      font-size: 13pt;
+      margin: 20px 0 10px;
+      padding-bottom: 5px;
+      border-bottom: 1px solid #e2e8f0;
+    }
+    
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 15px;
+      margin-bottom: 20px;
+    }
+    
+    .stat-card {
+      padding: 12px;
+      background: #f8fafc;
+      border-radius: 6px;
+      text-align: center;
+    }
+    
+    .stat-card .label {
+      color: #64748b;
+      font-size: 9pt;
+      text-transform: uppercase;
+    }
+    
+    .stat-card .value {
+      font-size: 16pt;
+      font-weight: 700;
+      color: #0d9488;
+      margin-top: 5px;
+    }
+    
+    .stat-card.warning .value {
+      color: #f59e0b;
+    }
+    
+    .stat-card.danger .value {
+      color: #ef4444;
+    }
+    
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 15px 0;
+      font-size: 9pt;
+    }
+    
+    th {
+      background: #0d9488;
+      color: white;
+      padding: 8px;
+      text-align: left;
+      font-weight: 600;
+    }
+    
+    td {
+      padding: 6px 8px;
+      border-bottom: 1px solid #e2e8f0;
+    }
+    
+    tr:nth-child(even) {
+      background: #f8fafc;
+    }
+    
+    .chart-container {
+      margin: 20px 0;
+      page-break-inside: avoid;
+    }
+    
+    .chart-wrapper {
+      height: 250px;
+      position: relative;
+    }
+    
+    .footer {
+      margin-top: 30px;
+      padding-top: 15px;
+      border-top: 1px solid #e2e8f0;
+      text-align: center;
+      color: #64748b;
+      font-size: 9pt;
+    }
+    
+    @media print {
+      body {
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>Wastewater Treatment Plant Data Analysis</h1>
+    <p class="subtitle">Environmental Compliance & Performance Report</p>
+  </div>
+  
+  <div class="meta-info">
+    <div>
+      <div class="label">Report Period</div>
+      <div class="value">{{REPORT_PERIOD}}</div>
+    </div>
+    <div>
+      <div class="label">Generated</div>
+      <div class="value">{{GENERATED_DATE}}</div>
+    </div>
+    <div>
+      <div class="label">Total Readings</div>
+      <div class="value">{{TOTAL_READINGS}}</div>
+    </div>
+    <div>
+      <div class="label">Compliance Rate</div>
+      <div class="value {{COMPLIANCE_CLASS}}">{{COMPLIANCE_RATE}}%</div>
+    </div>
+  </div>
+  
+  <h2>Summary Statistics</h2>
+  <div class="summary-grid">
+    <div class="stat-card {{PH_CLASS}}">
+      <div class="label">pH Level</div>
+      <div class="value">{{PH_VALUE}}</div>
+    </div>
+    <div class="stat-card {{BOD_CLASS}}">
+      <div class="label">BOD</div>
+      <div class="value">{{BOD_VALUE}} mg/L</div>
+    </div>
+    <div class="stat-card {{COD_CLASS}}">
+      <div class="label">COD</div>
+      <div class="value">{{COD_VALUE}} mg/L</div>
+    </div>
+    <div class="stat-card {{FLOW_CLASS}}">
+      <div class="label">Flow Rate</div>
+      <div class="value">{{FLOW_VALUE}} m³/d</div>
+    </div>
+  </div>
+  
+  <h2>Parameter Trend Analysis</h2>
+  <div class="chart-container">
+    <canvas id="trendsChart"></canvas>
+  </div>
+  
+  <h2>Compliance Overview</h2>
+  <div class="chart-container">
+    <canvas id="complianceChart"></canvas>
+  </div>
+  
+  <h2>Recent Measurements</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>Date/Time</th>
+        <th>Parameter</th>
+        <th>Value</th>
+        <th>Unit</th>
+        <th>Status</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{MEASUREMENTS_TABLE}}
+    </tbody>
+  </table>
+  
+  <div class="footer">
+    <p>Wastewater Treatment Plant Monitoring System • Generated automatically</p>
+    <p>This report is automatically generated for environmental compliance purposes.</p>
+  </div>
+  
+  <script>
+    // Chart.js Configuration
+    Chart.defaults.font.family = 'Segoe UI, sans-serif';
+    Chart.defaults.color = '#64748b';
+    
+    // Trends Chart
+    const trendsCtx = document.getElementById('trendsChart').getContext('2d');
+    new Chart(trendsCtx, {
+      type: 'line',
+      data: {
+        labels: {{TREND_LABELS}},
+        datasets: [
+          {
+            label: 'pH',
+            data: {{PH_DATA}},
+            borderColor: '#0d9488',
+            backgroundColor: 'rgba(13, 148, 136, 0.1)',
+            fill: true,
+            tension: 0.3
+          },
+          {
+            label: 'BOD',
+            data: {{BOD_DATA}},
+            borderColor: '#3b82f6',
+            backgroundColor: 'rgba(59, 130, 246, 0.1)',
+            fill: true,
+            tension: 0.3
+          },
+          {
+            label: 'COD',
+            data: {{COD_DATA}},
+            borderColor: '#8b5cf6',
+            backgroundColor: 'rgba(139, 92, 246, 0.1)',
+            fill: true,
+            tension: 0.3
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: {
+            position: 'bottom'
+          }
+        },
+        scales: {
+          y: {
+            beginAtZero: false
+          }
+        }
+      }
+    });
+    
+    // Compliance Chart
+    const complianceCtx = document.getElementById('complianceChart').getContext('2d');
+    new Chart(complianceCtx, {
+      type: 'bar',
+      data: {
+        labels: {{COMPLIANCE_LABELS}},
+        datasets: [{
+          label: 'Compliance %',
+          data: {{COMPLIANCE_DATA}},
+          backgroundColor: [
+            '#22c55e',
+            '#22c55e',
+            '#22c55e',
+            '#f59e0b',
+            '#ef4444'
+          ]
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        indexAxis: 'y',
+        plugins: {
+          legend: {
+            display: false
+          }
+        },
+        scales: {
+          x: {
+            beginAtZero: true,
+            max: 100
+          }
+        }
+      }
+    });
+  </script>
+</body>
+</html>

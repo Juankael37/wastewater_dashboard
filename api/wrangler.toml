@@ -3,19 +3,20 @@ main = "src/index.js"
 compatibility_date = "2024-01-01"
 compatibility_flags = ["nodejs_compat"]
 
-# Non-secret config. Replace SUPABASE_URL after you create the project.
-# For SUPABASE_ANON_KEY use a secret (not committed):
-#   cd api && npx wrangler secret put SUPABASE_ANON_KEY
+# Browser binding for rich PDF generation with Puppeteer
+[browser]
+binding = "BROWSER"
+
+# Cloudflare Tunnels / Preview
+# routes = [{ pattern = "example.com", zone_name = "example.com" }]
+
 [vars]
 SUPABASE_URL = "https://pkyazsrbhjtxbpwsxbwe.supabase.co"
 ALLOWED_ORIGINS = "LAN_DEV_ORIGINS,http://localhost:5173,http://127.0.0.1:5173,http://localhost:4173,http://127.0.0.1:4173,https://wastewater-dashboard.pages.dev,https://main.wastewater-dashboard.pages.dev,https://*.pages.dev"
-# Optional: Google Sheets spreadsheet ID (from /d/<ID>/edit). Set here or via Dashboard → Settings → Variables.
 GOOGLE_SHEETS_ID = "1k-awP_yG3tzLbQ_-t8j5Y0BgZ8eEXP0wk7d_Os7kmfU"
 
-# Optional: production-only vars (uncomment and set your real URLs)
-# [env.production.vars]
-# SUPABASE_URL = "https://xxxx.supabase.co"
-# ALLOWED_ORIGINS = "https://your-frontend.pages.dev,http://localhost:5173"
-
 [triggers]
-crons = ["0 8 * * *"] # Runs at 08:00 UTC daily
+# Daily: Every day at 8:00 AM
+# Weekly: Every Monday at 8:00 AM
+# Monthly: 1st of every month at 8:00 AM
+crons = ["0 8 * * *"]

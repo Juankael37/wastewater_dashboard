@@ -282,3 +282,24 @@
     transition-duration: 0.01ms !important;
   }
 }
+
+/* Safe area padding for mobile PWA */
+.safe-area-pb {
+  padding-bottom: env(safe-area-inset-bottom, 0);
+}
+
+.safe-area-pt {
+  padding-top: env(safe-area-inset-top, 0);
+}
+
+/* Touch-friendly improvements */
+@media (max-width: 768px) {
+  input, select, textarea {
+    font-size: 16px;
+  }
+  
+  button, [role="button"] {
+    min-height: 44px;
+    min-width: 44px;
+  }
+}

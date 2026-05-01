@@ -72,6 +72,14 @@ export const parametersApi = {
 // Reports API
 // ---------------------------------------------------------------------------
 
+export interface ReportSettings {
+  id: string;
+  email: string;
+  frequency: 'daily' | 'weekly' | 'monthly';
+  is_active: boolean;
+  created_at: string;
+}
+
 export const reportsApi = {
   generateDaily: async (): Promise<any> => {
     const capabilities = await getBackendCapabilities();
@@ -81,27 +89,105 @@ export const reportsApi = {
     return apiRequest('/api/reports/daily');
   },
 
-  generatePDF: async (parameters?: string[]): Promise<Blob> => {
+  generatePDF: async (options?: {
+    start?: string;
+    end?: string;
+    parameters?: string[];
+  }): Promise<Blob> => {
     const capabilities = await getBackendCapabilities();
     if (!capabilities.supportsLegacyReportPdfApi) {
       throw new Error('PDF report endpoint is not available on Worker API yet.');
     }
-    const url =
-      parameters && parameters.length > 0
-        ? `/api/reports/pdf?parameters=${parameters.join(',')}`
-        : '/api/reports/pdf';
+    const params = new URLSearchParams();
+    if (options?.start) params.append('start', options.start);
+    if (options?.end) params.append('end', options.end);
+    if (options?.parameters && options.parameters.length > 0) {
+      params.append('parameters', options.parameters.join(','));
+    }
+    const url = `/api/reports/pdf${params.toString() ? '?' + params.toString() : ''}`;
 
     const token = getAccessToken();
     const response = await fetch(`${API_BASE_URL}${url}`, {
       credentials: 'include',
-      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
     });
 
     if (!response.ok) {
-      throw new Error(`Failed to generate PDF: ${response.status}`);
+      const errorText = await response.text();
+      let errorMsg = `Failed to generate PDF (${response.status})`;
+      try {
+        const errJson = JSON.parse(errorText);
+        errorMsg = errJson.error || errJson.message || errorMsg;
+      } catch {}
+      throw new Error(errorMsg);
     }
 
     return await response.blob();
+  },
+
+  generateRichPDF: async (options?: {
+    start?: string;
+    end?: string;
+  }): Promise<Blob> => {
+    const token = getAccessToken();
+    const params = new URLSearchParams();
+    if (options?.start) params.append('start', options.start);
+    if (options?.end) params.append('end', options.end);
+    const url = `/api/reports/rich-pdf${params.toString() ? '?' + params.toString() : ''}`;
+
+    const response = await fetch(`${API_BASE_URL}${url}`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: token ? { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' } : { 'Content-Type': 'application/json' },
+      body: JSON.stringify(options || {})
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Rich PDF failed: ${response.status} - ${errorText}`);
+    }
+
+    return await response.blob();
+  },
+
+  getScheduled: async (): Promise<ReportSettings[]> => {
+    const capabilities = await getBackendCapabilities();
+    if (!capabilities.supportsLegacyAdminApi) {
+      throw new Error('Scheduled reports endpoint is not available on Worker API yet.');
+    }
+    return apiRequest<ReportSettings[]>('/api/settings/reports');
+  },
+
+  addScheduled: async (email: string, frequency: 'daily' | 'weekly' | 'monthly'): Promise<ReportSettings> => {
+    const capabilities = await getBackendCapabilities();
+    if (!capabilities.supportsLegacyAdminApi) {
+      throw new Error('Scheduled reports endpoint is not available on Worker API yet.');
+    }
+    return apiRequest<ReportSettings>('/api/settings/reports', {
+      method: 'POST',
+      body: JSON.stringify({ email, frequency, is_active: true }),
+    });
+  },
+
+  removeScheduled: async (id: string): Promise<{ success: boolean }> => {
+    const capabilities = await getBackendCapabilities();
+    if (!capabilities.supportsLegacyAdminApi) {
+      throw new Error('Scheduled reports endpoint is not available on Worker API yet.');
+    }
+    return apiRequest<{ success: boolean }>(`/api/settings/reports/${id}`, {
+      method: 'DELETE',
+    });
+  },
+
+  sendTestReport: async (email: string, frequency: 'daily' | 'weekly' | 'monthly'): Promise<{ success: boolean; message: string }> => {
+    const capabilities = await getBackendCapabilities();
+    if (!capabilities.supportsLegacyAdminApi) {
+      throw new Error('Test report endpoint is not available on Worker API yet.');
+    }
+    return apiRequest<{ success: boolean; message: string }>('/api/settings/reports/test', {
+      method: 'POST',
+      body: JSON.stringify({ email, frequency }),
+    });
   },
 };
 

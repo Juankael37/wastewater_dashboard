@@ -159,4 +159,48 @@ measurements.post('/api/validation/check', authMiddleware, async (c) => {
   return c.json({ valid: true, message: 'Value is within standard range' })
 })
 
+// Image upload endpoint
+measurements.post('/measurements/upload-image', authMiddleware, async (c) => {
+  const env = c.env
+  const supabase = c.get('supabase')
+  
+  try {
+    const contentType = c.req.header('content-type') || ''
+    if (!contentType.includes('image/')) {
+      return c.json({ error: 'Invalid content type. Image required.' }, 400)
+    }
+
+    const imageData = await c.req.arrayBuffer()
+    const buffer = new Uint8Array(imageData)
+    
+    const timestamp = Date.now()
+    const filename = `measurement_${timestamp}.jpg`
+    
+    const { data: uploadData, error: uploadError } = await supabase.storage
+      .from('measurement-images')
+      .upload(filename, buffer, {
+        contentType: 'image/jpeg',
+        upsert: true
+      })
+
+    if (uploadError) {
+      console.error('Storage upload error:', uploadError)
+      return c.json({ error: 'Failed to upload image', details: uploadError.message }, 500)
+    }
+
+    const { data: urlData } = supabase.storage
+      .from('measurement-images')
+      .getPublicUrl(filename)
+
+    return c.json({ 
+      success: true, 
+      url: urlData.publicUrl,
+      filename 
+    })
+  } catch (err) {
+    console.error('Image upload error:', err)
+    return c.json({ error: err.message }, 500)
+  }
+})
+
 export default measurements

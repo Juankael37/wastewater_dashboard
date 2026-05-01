@@ -127,3 +127,56 @@ export const plantsApi = {
     }));
   },
 };
+
+export const uploadImage = async (data: string | File): Promise<string | null> => {
+  try {
+    let body: BodyInit
+    let contentType: string
+
+    if (typeof data === 'string') {
+      const blob = dataUrlToBlob(data)
+      body = blob
+      contentType = blob.type || 'image/jpeg'
+    } else {
+      body = data
+      contentType = data.type || 'image/jpeg'
+    }
+
+    // Use the correct token key (same as getAccessToken in client.ts)
+    const token = localStorage.getItem('ww_access_token')
+
+    const apiBase = import.meta.env.VITE_API_URL || 'https://wastewater-api.juankael37.workers.dev'
+    const response = await fetch(`${apiBase}/measurements/upload-image`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': contentType,
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+      },
+      body,
+    })
+
+    if (!response.ok) {
+      const errText = await response.text()
+      console.error('Image upload failed:', response.status, errText)
+      return null
+    }
+
+    const result = await response.json()
+    return result.url || null
+  } catch (error) {
+    console.error('Image upload error:', error)
+    return null
+  }
+}
+
+function dataUrlToBlob(dataUrl: string): Blob {
+  const parts = dataUrl.split(',')
+  const mime = parts[0].match(/:(.*?);/)?.[1] || 'image/jpeg'
+  const bstr = atob(parts[1])
+  let n = bstr.length
+  const u8arr = new Uint8Array(n)
+  while (n--) {
+    u8arr[n] = bstr.charCodeAt(n)
+  }
+  return new Blob([u8arr], { type: mime })
+}
