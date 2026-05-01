@@ -134,9 +134,8 @@ export const uploadImage = async (data: string | File): Promise<string | null> =
     let contentType: string
 
     if (typeof data === 'string') {
-      const blob = dataUrlToBlob(data)
-      body = blob
-      contentType = blob.type || 'image/jpeg'
+      body = JSON.stringify({ imageBase64: data })
+      contentType = 'application/json'
     } else {
       body = data
       contentType = data.type || 'image/jpeg'
