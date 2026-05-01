@@ -59,9 +59,10 @@ async function buildPhotoGridHtml(images) {
     return '<p class="note" style="margin-top:15px;color:#64748b;font-size:9pt;">No photo attachments found for this period.</p>'
   }
 
-  // Fetch all images in parallel and embed as data URIs
+  // Fetch the most recent 8 images in parallel
+  const recentImages = [...images].reverse().slice(0, 8)
   const loaded = await Promise.all(
-    images.slice(0, 8).map(async ({ param, url }) => {
+    recentImages.map(async ({ param, url }) => {
       const dataUri = await fetchImageAsDataUri(url)
       return { param, dataUri }
     })
