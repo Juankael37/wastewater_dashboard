@@ -31,12 +31,18 @@ async function fetchImageAsDataUri(url) {
     }
     const contentType = response.headers.get('content-type') || 'image/jpeg'
     const arrayBuffer = await response.arrayBuffer()
-    const bytes = new Uint8Array(arrayBuffer)
-    let binary = ''
-    for (let i = 0; i < bytes.byteLength; i += 8192) {
-      binary += String.fromCharCode.apply(null, bytes.subarray(i, i + 8192))
+    let base64 = ''
+    if (typeof Buffer !== 'undefined') {
+      base64 = Buffer.from(arrayBuffer).toString('base64')
+    } else {
+      const bytes = new Uint8Array(arrayBuffer)
+      let binary = ''
+      const len = bytes.byteLength
+      for (let i = 0; i < len; i++) {
+        binary += String.fromCharCode(bytes[i])
+      }
+      base64 = btoa(binary)
     }
-    const base64 = btoa(binary)
     return `data:${contentType};base64,${base64}`
   } catch (err) {
     console.error(`[pdf-img] Fetch error for ${url}:`, err.message)
@@ -194,18 +200,22 @@ async function generateRichPdfHtml(supabase, options) {
   const imageEntries = []  // [{param, url}]
   const seenUrls = new Set()
   for (const row of tableRows) {
-    if (row.notes && row.notes.startsWith('{')) {
+    let notesObj = null;
+    if (typeof row.notes === 'object' && row.notes !== null) {
+      notesObj = row.notes;
+    } else if (typeof row.notes === 'string' && row.notes.trim().startsWith('{')) {
       try {
-        const notesObj = JSON.parse(row.notes)
-        if (notesObj.images && typeof notesObj.images === 'object') {
-          for (const [param, url] of Object.entries(notesObj.images)) {
-            if (url && typeof url === 'string' && !seenUrls.has(url)) {
-              seenUrls.add(url)
-              imageEntries.push({ param, url })
-            }
-          }
-        }
+        notesObj = JSON.parse(row.notes)
       } catch (e) { /* not JSON, skip */ }
+    }
+
+    if (notesObj && notesObj.images && typeof notesObj.images === 'object') {
+      for (const [param, url] of Object.entries(notesObj.images)) {
+        if (url && typeof url === 'string' && !seenUrls.has(url)) {
+          seenUrls.add(url)
+          imageEntries.push({ param, url })
+        }
+      }
     }
   }
 
