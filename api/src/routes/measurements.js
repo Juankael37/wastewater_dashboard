@@ -179,7 +179,8 @@ measurements.post('/measurements/upload-image', authMiddleware, async (c) => {
       const payload = await c.req.json()
       if (!payload.imageBase64) return c.json({ error: 'Missing imageBase64' }, 400)
       const base64Data = payload.imageBase64.replace(/^data:image\/\w+;base64,/, '')
-      buffer = Uint8Array.from(atob(base64Data), char => char.charCodeAt(0))
+      const { Buffer } = await import('node:buffer')
+      buffer = Buffer.from(base64Data, 'base64')
     } else if (contentType.includes('image/')) {
       const imageData = await c.req.arrayBuffer()
       buffer = new Uint8Array(imageData)
