@@ -33,9 +33,12 @@ const app = new Hono()
 
 const LAN_DEV_ORIGINS_TOKEN = 'LAN_DEV_ORIGINS'
 
-const parseAllowedOrigins = (raw) =>
-  (raw || `${LAN_DEV_ORIGINS_TOKEN},http://localhost,capacitor://localhost,http://localhost:5173,http://127.0.0.1:5173,http://localhost:4173,http://127.0.0.1:4173`)
+const parseAllowedOrigins = (raw) => {
+  const baseList = (raw || `${LAN_DEV_ORIGINS_TOKEN},http://localhost:5173,http://127.0.0.1:5173,http://localhost:4173,http://127.0.0.1:4173`)
     .split(',').map((s) => s.trim()).filter(Boolean)
+  baseList.push('http://localhost', 'capacitor://localhost')
+  return baseList
+}
 
 const isPrivateIpv4Host = (host) => {
   const parts = String(host || '').split('.').map((p) => Number(p))
