@@ -31,6 +31,13 @@ measurements.get('/measurements', authMiddleware, async (c) => {
   return c.json({ data })
 })
 
+measurements.get('/debug-notes', async (c) => {
+  const { createClient } = await import('@supabase/supabase-js')
+  const adminClient = createClient(c.env.SUPABASE_URL, c.env.SUPABASE_SERVICE_ROLE_KEY)
+  const { data } = await adminClient.from('measurements').select('id, notes, timestamp').order('timestamp', { ascending: false }).limit(10)
+  return c.json({ data })
+})
+
 measurements.post('/measurements', authMiddleware, zValidator('json', measurementSchema), async (c) => {
   const supabase = c.get('supabase')
   const user = c.get('user')
