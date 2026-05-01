@@ -34,49 +34,62 @@ const STORAGE_KEY = 'wastewater_form_data'
  * from ever entering the JS heap. We also explicitly release memory.
  */
 const memorySafeCompress = async (file: File, maxDim = 1000): Promise<File> => {
-  try {
-    const bitmap = await createImageBitmap(file, {
-      resizeWidth: maxDim,
-      resizeQuality: 'high'
-    }).catch(() => createImageBitmap(file)); // Fallback if browser ignores resize options
+  return new Promise((resolve) => {
+    // 1. Create a transient object URL for the raw file
+    const url = URL.createObjectURL(file);
+    const img = new Image();
 
-    let { width, height } = bitmap;
-    if (width > maxDim || height > maxDim) {
-      if (width > height) {
-        height = Math.round((height * maxDim) / width);
-        width = maxDim;
-      } else {
-        width = Math.round((width * maxDim) / height);
-        height = maxDim;
+    img.onload = () => {
+      // 2. Immediately revoke the URL to free memory!
+      URL.revokeObjectURL(url);
+
+      let { width, height } = img;
+      if (width > maxDim || height > maxDim) {
+        if (width > height) {
+          height = Math.round((height * maxDim) / width);
+          width = maxDim;
+        } else {
+          width = Math.round((width * maxDim) / height);
+          height = maxDim;
+        }
       }
-    }
 
-    const canvas = document.createElement('canvas');
-    canvas.width = width;
-    canvas.height = height;
-    
-    // alpha: false saves 25% of canvas memory allocation
-    const ctx = canvas.getContext('2d', { alpha: false });
-    if (ctx) ctx.drawImage(bitmap, 0, 0, width, height);
-    
-    bitmap.close(); // Immediately free the uncompressed bitmap from RAM!
+      // 3. Draw to canvas
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      
+      // alpha: false saves memory
+      const ctx = canvas.getContext('2d', { alpha: false });
+      if (ctx) ctx.drawImage(img, 0, 0, width, height);
+      
+      // 4. Wipe the Image from memory
+      img.src = '';
 
-    return new Promise((resolve) => {
+      // 5. Convert to Blob
       canvas.toBlob(
         (blob) => {
-          // Immediately wipe the canvas backing store from memory
+          // 6. Wipe the Canvas from memory
           canvas.width = 0;
           canvas.height = 0;
-          resolve(blob ? new File([blob], file.name, { type: 'image/jpeg' }) : file);
+          if (blob) {
+            resolve(new File([blob], file.name, { type: 'image/jpeg' }));
+          } else {
+            resolve(file); // fallback
+          }
         },
         'image/jpeg',
         0.75
       );
-    });
-  } catch (e) {
-    console.error('Safe compression failed, uploading raw', e);
-    return file;
-  }
+    };
+
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      resolve(file); // fallback
+    };
+
+    img.src = url;
+  });
 }
 
 const InputPage: React.FC = () => {
@@ -256,20 +269,24 @@ const InputPage: React.FC = () => {
     }
 
     const timestamp = new Date().toLocaleTimeString()
-
-    // ✅ Memory-safe preview: createObjectURL never copies the file into RAM.
-    // Revoke any previous blob URL for this parameter first.
-    revokeBlobUrls([parameter])
-    const previewUrl = URL.createObjectURL(file)
-    blobUrlsRef.current[parameter] = previewUrl
-    setCapturedImages(prev => ({
-      ...prev,
-      [parameter]: { preview: previewUrl, timestamp },
-    }))
+    const loadingToast = toast.loading(`Processing & Uploading ${parameter.toUpperCase()}…`)
 
     try {
-      const loadingToast = toast.loading(`Compressing & Uploading ${parameter.toUpperCase()}…`)
+      // 1. Compress immediately before keeping any references to the giant file
       const safeFile = await memorySafeCompress(file)
+
+      // 2. Memory-safe preview: use the TINY compressed file, not the 10MB raw one
+      revokeBlobUrls([parameter])
+      const previewUrl = URL.createObjectURL(safeFile)
+      blobUrlsRef.current[parameter] = previewUrl
+
+      // Update state to show we are processing
+      setCapturedImages(prev => ({
+        ...prev,
+        [parameter]: { preview: previewUrl, timestamp },
+      }))
+
+      // 3. Upload the tiny file
       const uploadedUrl = await uploadImage(safeFile)
       toast.dismiss(loadingToast)
 
@@ -283,6 +300,7 @@ const InputPage: React.FC = () => {
         toast.error(`Upload failed for ${parameter.toUpperCase()}`)
       }
     } catch (err) {
+      toast.dismiss(loadingToast)
       console.error('Upload error:', err)
       toast.error('Upload failed. Please try again.')
     }
