@@ -6,6 +6,7 @@ import toast from 'react-hot-toast'
 import { measurementsApi, plantsApi, uploadImage } from '../../services/api'
 import { Capacitor } from '@capacitor/core'
 import { Camera, CameraResultType, CameraSource } from '@capacitor/camera'
+import { Filesystem } from '@capacitor/filesystem'
 
 interface ImageStatus {
   url?: string
@@ -255,24 +256,25 @@ const InputPage: React.FC = () => {
           width: 1000 // Native downscaling
         });
         
-        if (image.webPath) {
+        if (image.path) {
           const timestamp = new Date().toLocaleTimeString()
           const loadingToast = toast.loading(`Uploading ${parameter.toUpperCase()}…`)
           
           try {
-            // Fetch the native compressed blob
-            const response = await fetch(image.webPath);
-            const blob = await response.blob();
-            const safeFile = new File([blob], `capture_${parameter}.jpg`, { type: 'image/jpeg' });
+            // Read the file natively to avoid CapacitorHttp fetch interception
+            const fileData = await Filesystem.readFile({ path: image.path });
+            const base64Data = fileData.data;
+            const mimeType = `image/${image.format || 'jpeg'}`;
+            const dataUrl = `data:${mimeType};base64,${base64Data}`;
             
             revokeBlobUrls([parameter]);
-            blobUrlsRef.current[parameter] = image.webPath; // Use the local Capacitor URI
+            blobUrlsRef.current[parameter] = image.webPath || dataUrl; 
             setCapturedImages(prev => ({
               ...prev,
-              [parameter]: { preview: image.webPath, timestamp }
+              [parameter]: { preview: image.webPath || dataUrl, timestamp }
             }));
             
-            const uploadedUrl = await uploadImage(safeFile);
+            const uploadedUrl = await uploadImage(dataUrl);
             toast.dismiss(loadingToast);
             
             if (uploadedUrl) {
