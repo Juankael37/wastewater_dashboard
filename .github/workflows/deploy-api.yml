@@ -48,7 +48,11 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: deploy --name ${{ steps.env.outputs.name }} --var SUPABASE_URL:${{ secrets.SUPABASE_URL }} --var ALLOWED_ORIGINS:${{ secrets.ALLOWED_ORIGINS }} --var GOOGLE_SHEETS_ID:${{ secrets.GOOGLE_SHEETS_ID }}
+          command: deploy --name ${{ steps.env.outputs.name }}
           workingDirectory: api
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          ALLOWED_ORIGINS: ${{ secrets.ALLOWED_ORIGINS }}
+          GOOGLE_SHEETS_ID: ${{ secrets.GOOGLE_SHEETS_ID }}
 
       
