@@ -36,6 +36,15 @@ The [connect plan](.cursor/plans/connect_supabase_+_cloudflare_cbd74acc.plan.md)
 
 ---
 
+### 🔖 Checkpoint — May 1, 2026 — Native Android Image Upload Pipeline (In Progress)
+
+**Completed in this checkpoint**
+- **Backend Fix Deployed:** Refactored `/measurements/upload-image` in Cloudflare Worker to use pure Web standard `atob` and a high-speed `Uint8Array` decoding loop to reconstruct an `ArrayBuffer`. Explicitly strips Android-injected line breaks `[\r\n]` from the base64 string to prevent `atob` crashes. This bypasses the Node.js `Buffer` object which the Supabase JS SDK sometimes rejects in a Cloudflare Worker environment. This is currently live on `wastewater-api.juankael37.workers.dev`.
+- **Frontend Fix Developed:** Modified `InputPage.tsx` to use `CameraResultType.Base64` (fetching image data directly from memory, bypassing the filesystem permission restrictions entirely), reduced camera capture resolution to `width: 500` (keeping payload <150KB to respect Android Binder IPC limits), and enhanced error reporting to display raw server errors in the UI. 
+
+**Still pending**
+- The fixes are compiled into the latest `app-debug.apk`, but final user verification failed (suspected caching/stale APK installation on device as the old error string "Upload failed for BOD" was still observed). Session closed for tracking; next session should verify the installation of the new APK to read the exact error diagnostics if the upload still fails.
+
 ### 🔖 Checkpoint — April 25, 2026 — Production Deployment Stabilized ✅
 
 **Completed in this checkpoint**

@@ -2,10 +2,14 @@ name: Deploy API to Cloudflare Workers
 
 on:
   push:
-    branches: [main]
+    branches: ["**"]
     paths:
       - "api/**"
       - ".github/workflows/deploy-api.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "api/**"
   workflow_dispatch:
 
 jobs:
@@ -25,10 +29,26 @@ jobs:
         working-directory: api
         run: npm ci
 
+      - name: Determine environment
+        id: env
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            echo "name=wastewater-api-preview" >> $GITHUB_OUTPUT
+            echo "is_preview=true" >> $GITHUB_OUTPUT
+          elif [ "${{ github.ref_name }}" = "main" ]; then
+            echo "name=wastewater-api" >> $GITHUB_OUTPUT
+            echo "is_preview=false" >> $GITHUB_OUTPUT
+          else
+            echo "name=wastewater-api-preview" >> $GITHUB_OUTPUT
+            echo "is_preview=true" >> $GITHUB_OUTPUT
+          fi
+
       - name: Deploy to Cloudflare Workers
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: deploy
+          command: deploy --name ${{ steps.env.outputs.name }} --var SUPABASE_URL:${{ secrets.SUPABASE_URL }} --var ALLOWED_ORIGINS:${{ secrets.ALLOWED_ORIGINS }} --var GOOGLE_SHEETS_ID:${{ secrets.GOOGLE_SHEETS_ID }}
           workingDirectory: api
+
+      

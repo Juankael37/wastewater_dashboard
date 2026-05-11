@@ -6,7 +6,6 @@ import toast from 'react-hot-toast'
 import { measurementsApi, plantsApi, uploadImage } from '../../services/api'
 import { Capacitor } from '@capacitor/core'
 import { Camera, CameraResultType, CameraSource } from '@capacitor/camera'
-import { Filesystem } from '@capacitor/filesystem'
 
 interface ImageStatus {
   url?: string
@@ -61,11 +60,11 @@ const memorySafeCompress = async (file: File, maxDim = 1000): Promise<File> => {
       const canvas = document.createElement('canvas');
       canvas.width = width;
       canvas.height = height;
-      
+
       // alpha: false saves memory
       const ctx = canvas.getContext('2d', { alpha: false });
       if (ctx) ctx.drawImage(img, 0, 0, width, height);
-      
+
       // 4. Wipe the Image from memory
       img.src = '';
 
@@ -132,7 +131,7 @@ const InputPage: React.FC = () => {
         console.error('Failed to restore form data', e)
       }
     }
-    
+
     // Load saved image URLs (lightweight - just URLs, not full images)
     const savedImages = localStorage.getItem('wastewater_images')
     if (savedImages) {
@@ -249,42 +248,39 @@ const InputPage: React.FC = () => {
     try {
       if (Capacitor.isNativePlatform()) {
         const image = await Camera.getPhoto({
-          quality: 70, // Native compression saves RAM immediately!
+          quality: 50,
           allowEditing: false,
-          resultType: CameraResultType.Uri,
+          resultType: CameraResultType.Base64,
           source: CameraSource.Camera,
-          width: 1000 // Native downscaling
+          width: 500
         });
-        
-        if (image.path) {
+
+        if (image.base64String) {
           const timestamp = new Date().toLocaleTimeString()
           const loadingToast = toast.loading(`Uploading ${parameter.toUpperCase()}…`)
-          
+
           try {
-            // Read the file natively to avoid CapacitorHttp fetch interception
-            const fileData = await Filesystem.readFile({ path: image.path });
-            const base64Data = fileData.data;
             const mimeType = `image/${image.format || 'jpeg'}`;
-            const dataUrl = `data:${mimeType};base64,${base64Data}`;
-            
+            const dataUrl = `data:${mimeType};base64,${image.base64String}`;
+
             revokeBlobUrls([parameter]);
-            blobUrlsRef.current[parameter] = image.webPath || dataUrl; 
+            blobUrlsRef.current[parameter] = image.webPath || dataUrl;
             setCapturedImages(prev => ({
               ...prev,
               [parameter]: { preview: image.webPath || dataUrl, timestamp }
             }));
-            
-            const uploadedUrl = await uploadImage(dataUrl);
+
+            const uploadResult = await uploadImage(dataUrl);
             toast.dismiss(loadingToast);
-            
-            if (uploadedUrl) {
+
+            if (uploadResult) {
               setCapturedImages(prev => ({
                 ...prev,
-                [parameter]: { url: uploadedUrl, preview: image.webPath, timestamp },
+                [parameter]: { url: uploadResult, preview: image.webPath || dataUrl, timestamp },
               }))
               toast.success(`${parameter.toUpperCase()} uploaded ✓`)
             } else {
-              toast.error(`Upload failed for ${parameter.toUpperCase()}`)
+              toast.error('Upload failed: Unknown error')
             }
           } catch (err) {
             toast.dismiss(loadingToast);
@@ -379,11 +375,11 @@ const InputPage: React.FC = () => {
       toast.error('Please fill out the form first')
       return
     }
-    
+
     setIsSubmitting(true)
     try {
       console.log('🚀 Starting measurement submission...')
-      
+
       // Get already uploaded URLs from captured images
       const imageUrls: Record<string, string> = {}
       for (const [param, imgData] of Object.entries(capturedImages)) {
@@ -391,10 +387,10 @@ const InputPage: React.FC = () => {
           imageUrls[param] = imgData.url
         }
       }
-      
+
       if (Object.keys(capturedImages).length > 0 && Object.keys(imageUrls).length === 0) {
         toast.loading('Uploading pending images...', { icon: '📸' })
-        
+
         for (const [param, imgData] of Object.entries(capturedImages)) {
           try {
             let fileToUpload: File | string = ''
@@ -406,7 +402,7 @@ const InputPage: React.FC = () => {
               // Attempt to compress the fallback as well to avoid the 10MB limit
               fileToUpload = await memorySafeCompress(fileToUpload as File)
             }
-            
+
             if (fileToUpload) {
               const url = await uploadImage(fileToUpload)
               if (url) {
@@ -417,14 +413,14 @@ const InputPage: React.FC = () => {
             console.error(`❌ Upload error for ${param}:`, err)
           }
         }
-        
+
         toast.dismiss()
       }
-      
-      const imageNotes = Object.keys(imageUrls).length > 0 
+
+      const imageNotes = Object.keys(imageUrls).length > 0
         ? JSON.stringify({ images: imageUrls, captured: Object.keys(capturedImages).map(k => `${k}@${capturedImages[k].timestamp}`).join(', ') })
         : `Images: ${Object.keys(capturedImages).map(k => `${k}@${capturedImages[k].timestamp}`).join(', ')}`
-      
+
       const measurementData = {
         ph: parseFloat(previewData.ph) || null,
         cod: parseFloat(previewData.cod) || null,
@@ -440,9 +436,9 @@ const InputPage: React.FC = () => {
         notes: imageNotes,
         local_timestamp: new Date().toLocaleString()
       }
-      
+
       console.log('📡 Sending measurement data:', measurementData)
-      
+
       const result = await measurementsApi.create(measurementData)
       console.log('✅ API Response:', result)
       window.dispatchEvent(new Event('measurement:created'))
@@ -479,20 +475,18 @@ const InputPage: React.FC = () => {
               type="number"
               step="0.01"
               {...register(param, { required: true })}
-              className={`w-full px-3 py-3 text-base border rounded-lg focus:ring-2 focus:ring-blue-500 bg-white dark:bg-slate-700 text-gray-900 dark:text-white transition-colors ${
-                validation?.valid === false
+              className={`w-full px-3 py-3 text-base border rounded-lg focus:ring-2 focus:ring-blue-500 bg-white dark:bg-slate-700 text-gray-900 dark:text-white transition-colors ${validation?.valid === false
                   ? 'border-red-500 bg-red-50 dark:bg-red-900/20'
                   : validation?.warning
-                  ? 'border-yellow-500 bg-yellow-50 dark:bg-yellow-900/20'
-                  : 'border-gray-300 dark:border-slate-600'
-              }`}
+                    ? 'border-yellow-500 bg-yellow-50 dark:bg-yellow-900/20'
+                    : 'border-gray-300 dark:border-slate-600'
+                }`}
               placeholder={label}
               inputMode="decimal"
             />
             {validation && (
-              <div className={`mt-1 text-xs flex items-center ${
-                validation.valid === false ? 'text-red-600 dark:text-red-400' : 'text-yellow-600 dark:text-yellow-400'
-              }`}>
+              <div className={`mt-1 text-xs flex items-center ${validation.valid === false ? 'text-red-600 dark:text-red-400' : 'text-yellow-600 dark:text-yellow-400'
+                }`}>
                 <AlertCircle className="w-3 h-3 mr-1 flex-shrink-0" />
                 {validation.message}
               </div>
@@ -502,16 +496,15 @@ const InputPage: React.FC = () => {
             <button
               type="button"
               onClick={() => captureImage(param)}
-              className={`px-3 py-3 rounded-lg border transition-colors flex-shrink-0 ${
-                imageStatus
+              className={`px-3 py-3 rounded-lg border transition-colors flex-shrink-0 ${imageStatus
                   ? 'bg-green-50 border-green-500 text-green-700 dark:bg-green-900/20 dark:text-green-400'
                   : 'bg-gray-50 border-gray-300 text-gray-700 hover:bg-gray-100 dark:bg-slate-700 dark:border-slate-600 dark:text-gray-300 dark:hover:bg-slate-600'
-              }`}
+                }`}
             >
               {imageStatus ? (
                 <CheckCircle className="w-5 h-5" />
               ) : (
-               <CameraIcon className="w-5 h-5" />
+                <CameraIcon className="w-5 h-5" />
               )}
             </button>
           )}
@@ -547,14 +540,14 @@ const InputPage: React.FC = () => {
       <div className="max-w-4xl mx-auto">
         <div className="bg-white dark:bg-slate-800 rounded-lg shadow-lg p-4 md:p-6 border border-gray-200 dark:border-slate-700 transition-colors">
           <h2 className="text-xl md:text-2xl font-bold mb-4 md:mb-6 text-gray-900 dark:text-white">Preview</h2>
-          
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6 mb-6">
             <div>
               <h3 className="font-semibold mb-2 text-gray-900 dark:text-white">Plant Info</h3>
               <p className="text-gray-700 dark:text-gray-300 text-sm"><strong>Plant:</strong> {previewData.plantId}</p>
               <p className="text-gray-700 dark:text-gray-300 text-sm"><strong>Type:</strong> {previewData.type}</p>
             </div>
-            
+
             <div>
               <h3 className="font-semibold mb-2 text-gray-900 dark:text-white">Values</h3>
               <div className="space-y-1 text-sm text-gray-700 dark:text-gray-300">
@@ -615,7 +608,7 @@ const InputPage: React.FC = () => {
     <div className="max-w-4xl mx-auto">
       <div className="bg-white dark:bg-slate-800 rounded-lg shadow-lg p-4 md:p-6 border border-gray-200 dark:border-slate-700 transition-colors">
         <h1 className="text-xl md:text-2xl font-bold mb-4 md:mb-6 text-gray-900 dark:text-white">Data Input</h1>
-        
+
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-5 md:space-y-6">
           {/* Hidden file input for camera */}
           <input
@@ -625,7 +618,7 @@ const InputPage: React.FC = () => {
             className="hidden"
             onChange={handleFileChange}
           />
-          
+
           {/* Plant Selection */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 md:gap-6">
             <div className="space-y-2">
