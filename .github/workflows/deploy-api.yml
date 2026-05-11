@@ -2,10 +2,14 @@ name: Deploy API to Cloudflare Workers
 
 on:
   push:
-    branches: [main]
+    branches: ["**"]
     paths:
       - "api/**"
       - ".github/workflows/deploy-api.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "api/**"
   workflow_dispatch:
 
 jobs:
@@ -25,10 +29,47 @@ jobs:
         working-directory: api
         run: npm ci
 
+      - name: Determine environment
+        id: env
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            echo "name=wastewater-api-preview" >> $GITHUB_OUTPUT
+            echo "is_preview=true" >> $GITHUB_OUTPUT
+          elif [ "${{ github.ref_name }}" = "main" ]; then
+            echo "name=wastewater-api" >> $GITHUB_OUTPUT
+            echo "is_preview=false" >> $GITHUB_OUTPUT
+          else
+            echo "name=wastewater-api-preview" >> $GITHUB_OUTPUT
+            echo "is_preview=true" >> $GITHUB_OUTPUT
+          fi
+
       - name: Deploy to Cloudflare Workers
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: deploy
+          command: deploy --name ${{ steps.env.outputs.name }}
           workingDirectory: api
+
+      - name: Add PR comment with preview URL
+        if: steps.env.outputs.is_preview == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const previewUrl = `https://wastewater-api-preview.${{ secrets.CLOUDFLARE_ACCOUNT_ID }}.workers.dev`;
+            const branchName = '${{ github.head_ref || github.ref_name }}';
+            
+            const prNumber = context.payload.pull_request?.number;
+            if (!prNumber) {
+              console.log('No PR found, skipping comment');
+              return;
+            }
+            
+            const commentBody = `🚀 **Preview Deployment Ready**\n\nBranch: \`${branchName}\`\nURL: ${previewUrl}`;
+            
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber,
+              body: commentBody
+            });
