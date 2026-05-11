@@ -31,8 +31,19 @@ jobs:
         working-directory: frontend
         run: npm ci
 
+      - name: Determine environment
+        id: env
+        run: |
+          if [ "${{ github.ref_name }}" = "main" ]; then
+            echo "api_url=https://wastewater-api.juankael37.workers.dev" >> $GITHUB_OUTPUT
+          else
+            echo "api_url=https://wastewater-api-preview.juankael37.workers.dev" >> $GITHUB_OUTPUT
+          fi
+
       - name: Build
         working-directory: frontend
+        env:
+          VITE_API_URL: ${{ steps.env.outputs.api_url }}
         run: npm run build
 
       - name: Determine branch name
