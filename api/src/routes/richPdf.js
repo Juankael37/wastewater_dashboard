@@ -248,10 +248,10 @@ async function generatePdfBytes(supabase, options) {
 
   let page = pdfDoc.addPage()
   
-  helveticaBold.drawText(title, { x: margin, y: yPosition - 20, size: 18, font: helveticaBold, color: primaryColor })
+  page.drawText(title, { x: margin, y: yPosition - 20, size: 18, font: helveticaBold, color: primaryColor })
   yPosition -= 45
   
-  helveticaFont.drawText('Environmental Compliance Report', { x: margin, y: yPosition - 10, size: 12, font: helveticaFont, color: secondaryColor })
+  page.drawText('Environmental Compliance Report', { x: margin, y: yPosition - 10, size: 12, font: helveticaFont, color: secondaryColor })
   yPosition -= 30
   
   pdfDoc.drawRectangle({ x: margin, y: yPosition - 15, width: contentWidth, height: 50, color: primaryColor })
@@ -265,20 +265,20 @@ async function generatePdfBytes(supabase, options) {
   const colWidth = contentWidth / 3
   metaItems.forEach((item, idx) => {
     const x = margin + idx * colWidth + 10
-    helveticaFont.drawText(item.label.toUpperCase(), { x, y: yPosition - 5, size: 7, font: helveticaFont, color: rgb(1, 1, 1) })
-    helveticaBold.drawText(item.value, { x, y: yPosition - 20, size: 11, font: helveticaBold, color: rgb(1, 1, 1) })
+    page.drawText(item.label.toUpperCase(), { x, y: yPosition - 5, size: 7, font: helveticaFont, color: rgb(1, 1, 1) })
+    page.drawText(item.value, { x, y: yPosition - 20, size: 11, font: helveticaBold, color: rgb(1, 1, 1) })
   })
   
   yPosition -= 60
 
   if (Object.keys(paramData).length > 0) {
-    helveticaBold.drawText('Parameter Summary', { x: margin, y: yPosition, size: 14, font: helveticaBold, color: primaryColor })
+    page.drawText('Parameter Summary', { x: margin, y: yPosition, size: 14, font: helveticaBold, color: primaryColor })
     pdfDoc.drawLine({ start: { x: margin, y: yPosition - 5 }, end: { x: margin + contentWidth, y: yPosition - 5 }, thickness: 2, color: rgb(0.23, 0.51, 0.96) })
     yPosition -= 25
     
     for (const [key, data] of Object.entries(paramData)) {
       checkNewPage()
-      helveticaBold.drawText(`${data.config.display} (${data.config.unit})`, { x: margin, y: yPosition, size: 11, font: helveticaBold, color: secondaryColor })
+      page.drawText(`${data.config.display} (${data.config.unit})`, { x: margin, y: yPosition, size: 11, font: helveticaBold, color: secondaryColor })
       yPosition -= 18
       
       const influentVals = data.influent.values.slice(-5)
@@ -286,7 +286,7 @@ async function generatePdfBytes(supabase, options) {
       
       if (influentVals.length > 0) {
         const infAvg = (influentVals.reduce((a, b) => a + b, 0) / influentVals.length).toFixed(2)
-        helveticaFont.drawText(`Influent (avg): ${infAvg} ${data.config.unit}`, { x: margin + 10, y: yPosition, size: 9, font: helveticaFont, color: rgb(0.86, 0.15, 0.15) })
+        page.drawText(`Influent (avg): ${infAvg} ${data.config.unit}`, { x: margin + 10, y: yPosition, size: 9, font: helveticaFont, color: rgb(0.86, 0.15, 0.15) })
         yPosition -= 14
       }
       
@@ -297,12 +297,12 @@ async function generatePdfBytes(supabase, options) {
           const pass = effAvg <= data.config.standard.max_limit
           statusColor = pass ? passColor : failColor
         }
-        helveticaFont.drawText(`Effluent (avg): ${effAvg} ${data.config.unit}`, { x: margin + 10, y: yPosition, size: 9, font: helveticaFont, color: rgb(0.15, 0.39, 0.92) })
+        page.drawText(`Effluent (avg): ${effAvg} ${data.config.unit}`, { x: margin + 10, y: yPosition, size: 9, font: helveticaFont, color: rgb(0.15, 0.39, 0.92) })
         yPosition -= 14
         
         if (data.config.standard) {
           const limit = data.config.standard.max_limit
-          helveticaFont.drawText(`Standard: ≤ ${limit} ${data.config.unit}`, { x: margin + 10, y: yPosition, size: 8, font: helveticaFont, color: statusColor })
+          page.drawText(`Standard: ≤ ${limit} ${data.config.unit}`, { x: margin + 10, y: yPosition, size: 8, font: helveticaFont, color: statusColor })
           yPosition -= 12
         }
       }
@@ -312,7 +312,7 @@ async function generatePdfBytes(supabase, options) {
 
   if (standards && standards.length > 0) {
     checkNewPage()
-    helveticaBold.drawText('Effluent Standards (Class C)', { x: margin, y: yPosition, size: 14, font: helveticaBold, color: primaryColor })
+    page.drawText('Effluent Standards (Class C)', { x: margin, y: yPosition, size: 14, font: helveticaBold, color: primaryColor })
     pdfDoc.drawLine({ start: { x: margin, y: yPosition - 5 }, end: { x: margin + contentWidth, y: yPosition - 5 }, thickness: 2, color: rgb(0.23, 0.51, 0.96) })
     yPosition -= 25
     
@@ -330,14 +330,14 @@ async function generatePdfBytes(supabase, options) {
         limitStr = `≥ ${std.min_limit}`
       }
       
-      helveticaFont.drawText(`${pConfig.display}: ${limitStr} ${pConfig.unit}`, { x: margin, y: yPosition, size: 10, font: helveticaFont, color: secondaryColor })
+      page.drawText(`${pConfig.display}: ${limitStr} ${pConfig.unit}`, { x: margin, y: yPosition, size: 10, font: helveticaFont, color: secondaryColor })
       yPosition -= 16
     }
   }
 
   if (tableRows.length > 0) {
     checkNewPage()
-    helveticaBold.drawText('Measurement Data (Recent 30 Records)', { x: margin, y: yPosition, size: 14, font: helveticaBold, color: primaryColor })
+    page.drawText('Measurement Data (Recent 30 Records)', { x: margin, y: yPosition, size: 14, font: helveticaBold, color: primaryColor })
     pdfDoc.drawLine({ start: { x: margin, y: yPosition - 5 }, end: { x: margin + contentWidth, y: yPosition - 5 }, thickness: 2, color: rgb(0.23, 0.51, 0.96) })
     yPosition -= 25
     
@@ -347,7 +347,7 @@ async function generatePdfBytes(supabase, options) {
     pdfDoc.drawRectangle({ x: margin, y: yPosition - 12, width: contentWidth, height: 16, color: primaryColor })
     let xOffset = margin + 5
     headers.forEach((header, i) => {
-      helveticaBold.drawText(header, { x: xOffset, y: yPosition - 10, size: 8, font: helveticaBold, color: rgb(1, 1, 1) })
+      page.drawText(header, { x: xOffset, y: yPosition - 10, size: 8, font: helveticaBold, color: rgb(1, 1, 1) })
       xOffset += colWidths[i]
     })
     yPosition -= 20
@@ -359,34 +359,34 @@ async function generatePdfBytes(supabase, options) {
       pdfDoc.drawRectangle({ x: margin, y: yPosition - 10, width: contentWidth, height: 14, color: bgColor })
       
       xOffset = margin + 5
-      helveticaFont.drawText(row.date.slice(0, 16), { x: xOffset, y: yPosition - 8, size: 7, font: helveticaFont, color: secondaryColor })
+      page.drawText(row.date.slice(0, 16), { x: xOffset, y: yPosition - 8, size: 7, font: helveticaFont, color: secondaryColor })
       xOffset += colWidths[0]
       
-      helveticaBold.drawText(row.param, { x: xOffset, y: yPosition - 8, size: 7, font: helveticaBold, color: secondaryColor })
+      page.drawText(row.param, { x: xOffset, y: yPosition - 8, size: 7, font: helveticaBold, color: secondaryColor })
       xOffset += colWidths[1]
       
       const typeColor = row.type === 'influent' ? rgb(0.86, 0.15, 0.15) : rgb(0.15, 0.39, 0.92)
-      helveticaFont.drawText(row.type, { x: xOffset, y: yPosition - 8, size: 7, font: helveticaFont, color: typeColor })
+      page.drawText(row.type, { x: xOffset, y: yPosition - 8, size: 7, font: helveticaFont, color: typeColor })
       xOffset += colWidths[2]
       
-      helveticaFont.drawText(String(row.value), { x: xOffset, y: yPosition - 8, size: 7, font: helveticaFont, color: secondaryColor })
+      page.drawText(String(row.value), { x: xOffset, y: yPosition - 8, size: 7, font: helveticaFont, color: secondaryColor })
       xOffset += colWidths[3]
       
-      helveticaFont.drawText(row.unit, { x: xOffset, y: yPosition - 8, size: 7, font: helveticaFont, color: secondaryColor })
+      page.drawText(row.unit, { x: xOffset, y: yPosition - 8, size: 7, font: helveticaFont, color: secondaryColor })
       xOffset += colWidths[4]
       
       let statusColor = secondaryColor
       if (row.status === 'PASS') statusColor = passColor
       else if (row.status === 'FAIL') statusColor = failColor
       
-      helveticaBold.drawText(row.status, { x: xOffset, y: yPosition - 8, size: 7, font: helveticaBold, color: statusColor })
+      page.drawText(row.status, { x: xOffset, y: yPosition - 8, size: 7, font: helveticaBold, color: statusColor })
       yPosition -= 14
     }
   }
 
   if (imageEntries.length > 0) {
     checkNewPage()
-    helveticaBold.drawText('Field Photographs', { x: margin, y: yPosition, size: 14, font: helveticaBold, color: primaryColor })
+    page.drawText('Field Photographs', { x: margin, y: yPosition, size: 14, font: helveticaBold, color: primaryColor })
     pdfDoc.drawLine({ start: { x: margin, y: yPosition - 5 }, end: { x: margin + contentWidth, y: yPosition - 5 }, thickness: 2, color: rgb(0.23, 0.51, 0.96) })
     yPosition -= 25
     
@@ -416,7 +416,7 @@ async function generatePdfBytes(supabase, options) {
           height: scaledHeight
         })
         
-        helveticaBold.drawText(param, { x: xOffset + 5, y: yPosition - scaledHeight - 28, size: 8, font: helveticaBold, color: primaryColor })
+        page.drawText(param, { x: xOffset + 5, y: yPosition - scaledHeight - 28, size: 8, font: helveticaBold, color: primaryColor })
         
         if (i % 2 === 0) {
           xOffset = margin + imgWidth + 15
@@ -430,7 +430,7 @@ async function generatePdfBytes(supabase, options) {
         yPosition -= imgHeight + 35
       }
     } else {
-      helveticaFont.drawText('Could not load image attachments', { x: margin, y: yPosition - 10, size: 9, font: helveticaFont, color: secondaryColor })
+      page.drawText('Could not load image attachments', { x: margin, y: yPosition - 10, size: 9, font: helveticaFont, color: secondaryColor })
       yPosition -= 20
     }
   }
@@ -438,7 +438,7 @@ async function generatePdfBytes(supabase, options) {
   checkNewPage()
   const footerY = 30
   pdfDoc.drawLine({ start: { x: margin, y: footerY + 10 }, end: { x: pageWidth - margin, y: footerY + 10 }, thickness: 1, color: lightGray })
-  helveticaFont.drawText('Generated by AquaDash - Wastewater Monitoring System', { x: margin, y: footerY, size: 8, font: helveticaFont, color: rgb(0.58, 0.64, 0.72) })
+  page.drawText('Generated by AquaDash - Wastewater Monitoring System', { x: margin, y: footerY, size: 8, font: helveticaFont, color: rgb(0.58, 0.64, 0.72) })
 
   const pdfBytes = await pdfDoc.save()
   return pdfBytes
