@@ -160,6 +160,15 @@ Real‑time warnings when values exceed valid ranges (see detailed table in orig
 - **Resource Efficiency:** browser.close() called immediately after PDF generation to save Browser Run minutes.
 - **Test Button Updated:** Settings > Report Settings > "Send Test Report" now sends professional PDF.
 
+## Checkpoint (May 1, 2026) — Native Android Image Upload Pipeline (In Progress)
+
+- **Issue Identified:** Capacitor native Android application experienced "Upload failed" errors during image capture and upload.
+- **Root Cause 1 (Backend):** Cloudflare Worker was attempting to use a Node.js `Buffer` to reconstruct the image. The Supabase Storage JS SDK uses Web standard `fetch` which sometimes rejects Node.js `Buffer` objects, causing a silent 500 server crash.
+- **Backend Fix Deployed:** Refactored `/measurements/upload-image` in Cloudflare Worker to use pure Web standard `atob` and a high-speed `Uint8Array` decoding loop to reconstruct an `ArrayBuffer`. Explicitly strips Android-injected line breaks `[\r\n]` from the base64 string to prevent `atob` crashes. This is currently live on `wastewater-api.juankael37.workers.dev`.
+- **Root Cause 2 (Frontend/Capacitor):** Large binary data passed across the Capacitor JS-to-Java bridge exceeded the Android Binder transaction limits (1MB), and Android scoped-storage restrictions blocked the app from reading its own temporary `content://` image URIs.
+- **Frontend Fix Developed:** Modified `InputPage.tsx` to use `CameraResultType.Base64` (fetching image data directly from memory, bypassing the filesystem), reduced camera capture resolution to `width: 500` (keeping payload <150KB), and enhanced error reporting to display raw server errors in the UI. 
+- **Current Status:** The fixes are compiled into the latest `app-debug.apk`, but final user verification failed (suspected caching/stale APK installation on device as the old error string "Upload failed for BOD" was still observed). Session closed for tracking; next session should verify the installation of the new APK to read the exact error diagnostics.
+
 ## Key Constraints
 - Zero‑cost deployment (Cloudflare + Supabase)
 - Offline‑capable mobile app
