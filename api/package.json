@@ -9,7 +9,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@cloudflare/puppeteer": "^1.1.0",
+    "pdf-lib": "^1.17.1",
     "@hono/zod-validator": "^0.7.6",
     "@supabase/supabase-js": "^2.39.0",
     "hono": "^4.0.0",
