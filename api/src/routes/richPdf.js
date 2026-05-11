@@ -1,5 +1,5 @@
 /**
- * Rich PDF Report Generation using pdf-lib (Edge-compatible)
+ * Rich PDF Report Generation using pdf-lib (Edge-compatible) - v3
  * 
  * Usage: POST /api/reports/rich-pdf
  * Body: { start?: '2026-01-01', end?: '2026-01-31', parameters?: ['ph','cod','bod','tss'] }
