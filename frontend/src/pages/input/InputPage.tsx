@@ -6,7 +6,6 @@ import toast from 'react-hot-toast'
 import { measurementsApi, plantsApi, uploadImage } from '../../services/api'
 import { Capacitor } from '@capacitor/core'
 import { Camera, CameraResultType, CameraSource } from '@capacitor/camera'
-import { Filesystem } from '@capacitor/filesystem'
 
 interface ImageStatus {
   url?: string
@@ -274,14 +273,14 @@ const InputPage: React.FC = () => {
             const uploadResult = await uploadImage(dataUrl);
             toast.dismiss(loadingToast);
 
-            if (uploadResult && uploadResult.url) {
+            if (uploadResult) {
               setCapturedImages(prev => ({
                 ...prev,
-                [parameter]: { url: uploadResult.url, preview: image.webPath || dataUrl, timestamp },
+                [parameter]: { url: uploadResult, preview: image.webPath || dataUrl, timestamp },
               }))
               toast.success(`${parameter.toUpperCase()} uploaded ✓`)
             } else {
-              toast.error(`Upload failed: ${uploadResult?.error || 'Unknown error'}`)
+              toast.error('Upload failed: Unknown error')
             }
           } catch (err) {
             toast.dismiss(loadingToast);
