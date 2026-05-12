@@ -157,7 +157,13 @@ export const uploadImage = async (data: string | File): Promise<string | null> =
     if (!response.ok) {
       const errText = await response.text()
       console.error('Image upload failed:', response.status, errText)
-      return null
+      // Throw so callers can surface the real server error in the UI.
+      let errMsg = `Server error ${response.status}`
+      try {
+        const errJson = JSON.parse(errText)
+        errMsg = errJson.error || errJson.message || errMsg
+      } catch { errMsg = errText || errMsg }
+      throw new Error(errMsg)
     }
 
     const result = await response.json()
