@@ -274,21 +274,14 @@ const InputPage: React.FC = () => {
 
             const uploadResult = await uploadImage(dataUrl);
             toast.dismiss(loadingToast);
-
-            if (uploadResult) {
-              setCapturedImages(prev => ({
-                ...prev,
-                [parameter]: { url: uploadResult, preview: dataUrl, timestamp },
-              }))
-              toast.success(`${parameter.toUpperCase()} uploaded ✓`)
-            } else {
-              // FIX: Show a clear error that includes server details.
-              toast.error(`Upload failed for ${parameter.toUpperCase()} — check console for details`)
-            }
+            setCapturedImages(prev => ({
+              ...prev,
+              [parameter]: { url: uploadResult, preview: dataUrl, timestamp },
+            }))
+            toast.success(`${parameter.toUpperCase()} uploaded ✓`)
           } catch (err: any) {
             toast.dismiss(loadingToast);
             console.error('Upload error:', err);
-            // FIX: Surface the real error message so it's visible in the UI.
             toast.error(`Upload error: ${err?.message || String(err)}`);
           }
         }
@@ -341,20 +334,15 @@ const InputPage: React.FC = () => {
       // 3. Upload the tiny file
       const uploadedUrl = await uploadImage(safeFile)
       toast.dismiss(loadingToast)
-
-      if (uploadedUrl) {
-        setCapturedImages(prev => ({
-          ...prev,
-          [parameter]: { url: uploadedUrl, preview: previewUrl, timestamp },
-        }))
-        toast.success(`${parameter.toUpperCase()} uploaded ✓`)
-      } else {
-        toast.error(`Upload failed for ${parameter.toUpperCase()}`)
-      }
-    } catch (err) {
+      setCapturedImages(prev => ({
+        ...prev,
+        [parameter]: { url: uploadedUrl, preview: previewUrl, timestamp },
+      }))
+      toast.success(`${parameter.toUpperCase()} uploaded ✓`)
+    } catch (err: any) {
       toast.dismiss(loadingToast)
       console.error('Upload error:', err)
-      toast.error('Upload failed. Please try again.')
+      toast.error(`Upload error: ${err?.message || String(err)}`);
     }
   }
 
@@ -399,22 +387,21 @@ const InputPage: React.FC = () => {
           try {
             let fileToUpload: File | string = ''
             if (imgData.preview && imgData.preview.startsWith('blob:')) {
-              // We must fetch the blob from the object URL so it becomes a File/Blob that uploadImage can handle
               const res = await fetch(imgData.preview)
               const blob = await res.blob()
               fileToUpload = new File([blob], `image_${param}.jpg`, { type: 'image/jpeg' })
-              // Attempt to compress the fallback as well to avoid the 10MB limit
               fileToUpload = await memorySafeCompress(fileToUpload as File)
+            } else if (imgData.preview && imgData.preview.startsWith('data:')) {
+              // Native camera path: preview is a data URL, upload directly
+              fileToUpload = imgData.preview
             }
 
             if (fileToUpload) {
               const url = await uploadImage(fileToUpload)
-              if (url) {
-                imageUrls[param] = url
-              }
+              imageUrls[param] = url
             }
           } catch (err) {
-            console.error(`❌ Upload error for ${param}:`, err)
+            console.error(`Upload error for ${param}:`, err)
           }
         }
 

@@ -128,23 +128,26 @@ export const plantsApi = {
   },
 };
 
-export const uploadImage = async (data: string | File): Promise<string | null> => {
+export const uploadImage = async (data: string | File): Promise<string> => {
+  let body: BodyInit
+  let contentType: string
+
+  if (typeof data === 'string') {
+    body = JSON.stringify({ imageBase64: data })
+    contentType = 'application/json'
+  } else {
+    body = data
+    contentType = data.type || 'image/jpeg'
+  }
+
+  const token = localStorage.getItem('ww_access_token')
+  const apiBase = import.meta.env.VITE_API_URL || 'https://wastewater-api.juankael37.workers.dev'
+
+  // Add a 60-second timeout to prevent infinite hangs on slow networks
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), 60000)
+
   try {
-    let body: BodyInit
-    let contentType: string
-
-    if (typeof data === 'string') {
-      body = JSON.stringify({ imageBase64: data })
-      contentType = 'application/json'
-    } else {
-      body = data
-      contentType = data.type || 'image/jpeg'
-    }
-
-    // Use the correct token key (same as getAccessToken in client.ts)
-    const token = localStorage.getItem('ww_access_token')
-
-    const apiBase = import.meta.env.VITE_API_URL || 'https://wastewater-api.juankael37.workers.dev'
     const response = await fetch(`${apiBase}/measurements/upload-image`, {
       method: 'POST',
       headers: {
@@ -152,12 +155,12 @@ export const uploadImage = async (data: string | File): Promise<string | null> =
         ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
       },
       body,
+      signal: controller.signal,
     })
 
     if (!response.ok) {
       const errText = await response.text()
       console.error('Image upload failed:', response.status, errText)
-      // Throw so callers can surface the real server error in the UI.
       let errMsg = `Server error ${response.status}`
       try {
         const errJson = JSON.parse(errText)
@@ -167,10 +170,15 @@ export const uploadImage = async (data: string | File): Promise<string | null> =
     }
 
     const result = await response.json()
-    return result.url || null
-  } catch (error) {
-    console.error('Image upload error:', error)
-    return null
+    if (!result.url) throw new Error('Server returned no URL')
+    return result.url
+  } catch (error: any) {
+    if (error?.name === 'AbortError') {
+      throw new Error('Upload timed out. Check your connection and try again.')
+    }
+    throw error
+  } finally {
+    clearTimeout(timeout)
   }
 }
 

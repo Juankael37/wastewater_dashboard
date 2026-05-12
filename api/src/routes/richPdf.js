@@ -1,151 +1,65 @@
 /**
- * Rich PDF Report Generation using pdf-lib (Edge-compatible) - v4
- *
- * Usage: POST /api/reports/rich-pdf
- * Body: { start?: '2026-01-01', end?: '2026-01-31', parameters?: ['ph','cod','bod','tss'] }
- *
- * Requires: pdf-lib (edge-compatible, no Node.js APIs)
+ * Rich PDF Report v5 — Professional layout with charts, tables & images.
+ * Uses pdf-lib (edge-compatible, no Node.js APIs).
  */
-
 import { Hono } from 'hono'
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib'
 import { authMiddleware } from '../middleware.js'
+import {
+  CLR, safe, drawBarChart, drawTable, drawSectionHeading,
+  drawStatCard, addFooters, fetchImageBytes, getImageFormat, embedImages,
+} from './pdfHelpers.js'
 
 const richPdf = new Hono()
 
-/**
- * Fetch image bytes from URL (Supabase Storage or external)
- */
-async function fetchImageBytes(url) {
-  try {
-    const response = await fetch(url, { redirect: 'follow' })
-    if (!response.ok) {
-      console.error(`[pdf-img] Failed to fetch ${url}: HTTP ${response.status}`)
-      return null
-    }
-    const contentType = response.headers.get('content-type') || 'image/jpeg'
-    const arrayBuffer = await response.arrayBuffer()
-    return {
-      bytes: new Uint8Array(arrayBuffer),
-      contentType
-    }
-  } catch (err) {
-    console.error(`[pdf-img] Fetch error for ${url}:`, err.message)
-    return null
-  }
-}
+// ── Data fetching ──────────────────────────────────────────────────────────
+async function fetchReportData(supabase, startDate, endDate, requestedParams) {
+  const [mRes, pRes, sRes] = await Promise.all([
+    supabase.from('measurements').select('*, parameters!inner(id, name, display_name, unit)')
+      .gte('timestamp', startDate + 'T00:00:00Z').lte('timestamp', endDate + 'T23:59:59Z')
+      .order('timestamp', { ascending: true }).limit(500),
+    supabase.from('parameters').select('id, name, display_name, unit').order('name'),
+    supabase.from('standards').select('parameter_id, min_limit, max_limit').eq('class', 'C'),
+  ])
 
-/**
- * Detect image format from content-type or URL extension
- */
-function getImageFormat(contentType, url) {
-  if (contentType?.includes('png')) return 'png'
-  if (contentType?.includes('gif')) return 'gif'
-  if (contentType?.includes('webp')) return 'webp'
-  if (url?.endsWith('.png')) return 'png'
-  if (url?.endsWith('.gif')) return 'gif'
-  if (url?.endsWith('.webp')) return 'webp'
-  return 'jpg'
-}
-
-/**
- * Fetch images and embed them into PDF
- */
-async function embedImages(pdfDoc, imageUrls, maxImages = 8) {
-  const embeddedImages = []
-  const recentImages = imageUrls.slice(-maxImages)
-
-  for (const { param, url } of recentImages) {
-    const imgData = await fetchImageBytes(url)
-    if (!imgData) continue
-
-    try {
-      const format = getImageFormat(imgData.contentType, url)
-      let embeddedImg
-
-      if (format === 'png') {
-        embeddedImg = await pdfDoc.embedPng(imgData.bytes)
-      } else if (format === 'jpg' || format === 'jpeg') {
-        embeddedImg = await pdfDoc.embedJpg(imgData.bytes)
-      } else {
-        console.warn(`[pdf-img] Unsupported format: ${format}, skipping ${url}`)
-        continue
-      }
-
-      embeddedImages.push({
-        image: embeddedImg,
-        param: param.toUpperCase()
-      })
-    } catch (err) {
-      console.error(`[pdf-img] Embed error for ${url}:`, err.message)
-    }
-  }
-
-  return embeddedImages
-}
-
-/**
- * Generate PDF data using pdf-lib
- */
-async function generatePdfBytes(supabase, options) {
-  const { startDate, endDate, parameters: requestedParams, title = 'Wastewater Treatment Plant' } = options
-
-  const { data: measurements } = await supabase
-    .from('measurements')
-    .select('*, parameters!inner(id, name, display_name, unit)')
-    .gte('timestamp', startDate + 'T00:00:00Z')
-    .lte('timestamp', endDate + 'T23:59:59Z')
-    .order('timestamp', { ascending: true })
-    .limit(500)
-
-  const { data: allParameters } = await supabase
-    .from('parameters')
-    .select('id, name, display_name, unit')
-    .order('name')
-
-  const { data: standards } = await supabase
-    .from('standards')
-    .select('parameter_id, min_limit, max_limit')
-    .eq('class', 'C')
-
-  const stdMap = new Map((standards || []).map(s => [s.parameter_id, s]))
+  const measurements = mRes.data || []
+  const allParameters = pRes.data || []
+  const standards = sRes.data || []
+  const stdMap = new Map(standards.map(s => [s.parameter_id, s]))
 
   const paramConfigs = {}
-  for (const p of (allParameters || [])) {
-    const key = p.name.toLowerCase()
-    const std = stdMap.get(p.id)
-    paramConfigs[key] = {
-      id: p.id,
-      display: p.display_name || p.name,
-      unit: p.unit || '',
-      standard: std || null
+  for (const p of allParameters) {
+    paramConfigs[p.name.toLowerCase()] = {
+      id: p.id, display: p.display_name || p.name,
+      unit: p.unit || '', standard: stdMap.get(p.id) || null,
     }
   }
 
-  const filteredMeasurements = (measurements || []).filter(m => {
+  const filtered = measurements.filter(m => {
     if (!requestedParams || requestedParams.length === 0) return true
-    const pName = m.parameters?.name?.toLowerCase()
-    return requestedParams.some(rp => rp.toLowerCase() === pName)
+    return requestedParams.some(rp => rp.toLowerCase() === m.parameters?.name?.toLowerCase())
   })
 
+  // Build per-parameter chart data + table rows
   const paramData = {}
   const tableRows = []
 
-  for (const m of filteredMeasurements) {
+  for (const m of filtered) {
     const pName = m.parameters?.name?.toLowerCase() || 'unknown'
     const pId = m.parameters?.id
     if (!paramData[pName]) {
       paramData[pName] = {
         influent: { labels: [], values: [] },
         effluent: { labels: [], values: [] },
-        config: paramConfigs[pName] || { id: pId, display: pName, unit: '', standard: stdMap.get(pId) || null }
+        config: paramConfigs[pName] || { id: pId, display: pName, unit: '', standard: stdMap.get(pId) || null },
       }
     }
     const type = m.type === 'effluent' ? 'effluent' : 'influent'
     if (paramData[pName][type].values.length < 20) {
       const d = new Date(m.timestamp)
-      const timeStr = d.getHours().toString().padStart(2, '0') + ':' + d.getMinutes().toString().padStart(2, '0')
-      paramData[pName][type].labels.push(d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ' ' + timeStr)
+      const lbl = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ' ' +
+        d.getHours().toString().padStart(2, '0') + ':' + d.getMinutes().toString().padStart(2, '0')
+      paramData[pName][type].labels.push(lbl)
       paramData[pName][type].values.push(Number(m.value))
     }
 
@@ -154,341 +68,278 @@ async function generatePdfBytes(supabase, options) {
       const std = paramData[pName].config.standard
       if (std) {
         const val = Number(m.value)
-        if ((std.min_limit === null || val >= std.min_limit) &&
-            (std.max_limit === null || val <= std.max_limit)) {
-          status = 'PASS'
-        } else {
-          status = 'FAIL'
-        }
-      } else {
-        status = 'NO STD'
-      }
+        status = ((std.min_limit === null || val >= std.min_limit) && (std.max_limit === null || val <= std.max_limit)) ? 'PASS' : 'FAIL'
+      } else { status = 'NO STD' }
     }
 
     tableRows.push({
       date: new Date(m.timestamp).toLocaleString(),
-      param: m.parameters?.display_name || m.parameters?.name,
-      type: m.type,
-      value: m.value,
-      unit: m.parameters?.unit || '',
-      status,
-      notes: m.notes
+      param: m.parameters?.display_name || m.parameters?.name || '',
+      type: m.type || '', value: m.value, unit: m.parameters?.unit || '',
+      status, notes: m.notes,
     })
   }
 
-  const imageEntries = []
-  const seenUrls = new Set()
+  // Extract image URLs from notes JSON
+  const imageEntries = [], seenUrls = new Set()
   for (const row of tableRows) {
-    let notesObj = null
-    if (typeof row.notes === 'object' && row.notes !== null) {
-      notesObj = row.notes
-    } else if (typeof row.notes === 'string' && row.notes.trim().startsWith('{')) {
-      try {
-        notesObj = JSON.parse(row.notes)
-      } catch (e) { }
+    let obj = null
+    if (typeof row.notes === 'object' && row.notes) obj = row.notes
+    else if (typeof row.notes === 'string' && row.notes.trim().startsWith('{')) {
+      try { obj = JSON.parse(row.notes) } catch {}
     }
-
-    if (notesObj && notesObj.images && typeof notesObj.images === 'object') {
-      for (const [param, url] of Object.entries(notesObj.images)) {
+    if (obj?.images && typeof obj.images === 'object') {
+      for (const [param, url] of Object.entries(obj.images)) {
         if (url && typeof url === 'string' && !seenUrls.has(url)) {
-          seenUrls.add(url)
-          imageEntries.push({ param, url })
+          seenUrls.add(url); imageEntries.push({ param, url })
         }
       }
     }
   }
 
-  const pdfDoc = await PDFDocument.create()
-  const helveticaFont = await pdfDoc.embedFont(StandardFonts.Helvetica)
-  const helveticaBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold)
-
-  const pageWidth = 595.28
-  const pageHeight = 841.89
-  const margin = 40
-  const contentWidth = pageWidth - margin * 2
-  let yPosition = pageHeight - margin
-
-  const primaryColor = rgb(0.118, 0.251, 0.682)
-  const secondaryColor = rgb(0.145, 0.161, 0.212)
-  const lightGray = rgb(0.9, 0.9, 0.9)
-  const passColor = rgb(0.22, 0.78, 0.22)
-  const failColor = rgb(0.93, 0.27, 0.27)
-
-  // FIX: drawWrappedText receives the current page as a parameter so it can
-  // call page.drawText() on the correct page object.
-  function drawWrappedText(currentPage, text, x, y, maxWidth, font, fontSize, color = secondaryColor) {
-    const words = text.split(' ')
-    let line = ''
-    let currentY = y
-
-    for (const word of words) {
-      const testLine = line + word + ' '
-      const textWidth = font.widthOfTextAtSize(testLine, fontSize)
-      if (textWidth > maxWidth && line !== '') {
-        currentPage.drawText(line.trim(), { x, y: currentY, size: fontSize, font, color })
-        line = word + ' '
-        currentY -= fontSize + 4
-      } else {
-        line = testLine
-      }
-    }
-    if (line.trim()) {
-      currentPage.drawText(line.trim(), { x, y: currentY, size: fontSize, font, color })
-      currentY -= fontSize + 4
-    }
-    return currentY
-  }
-
-  // FIX: checkNewPage() now returns the active page (new or unchanged) so
-  // callers always write to the correct page reference.
-  function checkNewPage(currentPage) {
-    if (yPosition < 100) {
-      const newPage = pdfDoc.addPage([pageWidth, pageHeight])
-      yPosition = pageHeight - margin
-      return newPage
-    }
-    return currentPage
-  }
-
-  // FIX: Use page.addPage() with explicit dimensions so we control page size.
-  let page = pdfDoc.addPage([pageWidth, pageHeight])
-
-  // --- Header ---
-  page.drawText(title, { x: margin, y: yPosition - 20, size: 18, font: helveticaBold, color: primaryColor })
-  yPosition -= 45
-
-  page.drawText('Environmental Compliance Report', { x: margin, y: yPosition - 10, size: 12, font: helveticaFont, color: secondaryColor })
-  yPosition -= 30
-
-  // FIX: drawRectangle, drawLine, drawImage must be called on a page, not pdfDoc.
-  page.drawRectangle({ x: margin, y: yPosition - 15, width: contentWidth, height: 50, color: primaryColor })
-
-  const metaItems = [
-    { label: 'Report Period', value: `${startDate} to ${endDate}` },
-    { label: 'Total Records', value: tableRows.length.toString() },
-    { label: 'Generated', value: new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) }
-  ]
-
-  const colWidth = contentWidth / 3
-  metaItems.forEach((item, idx) => {
-    const x = margin + idx * colWidth + 10
-    page.drawText(item.label.toUpperCase(), { x, y: yPosition - 5, size: 7, font: helveticaFont, color: rgb(1, 1, 1) })
-    page.drawText(item.value, { x, y: yPosition - 20, size: 11, font: helveticaBold, color: rgb(1, 1, 1) })
-  })
-
-  yPosition -= 60
-
-  // --- Parameter Summary ---
-  if (Object.keys(paramData).length > 0) {
-    page.drawText('Parameter Summary', { x: margin, y: yPosition, size: 14, font: helveticaBold, color: primaryColor })
-    page.drawLine({ start: { x: margin, y: yPosition - 5 }, end: { x: margin + contentWidth, y: yPosition - 5 }, thickness: 2, color: rgb(0.23, 0.51, 0.96) })
-    yPosition -= 25
-
-    for (const [, data] of Object.entries(paramData)) {
-      page = checkNewPage(page)
-      page.drawText(`${data.config.display} (${data.config.unit})`, { x: margin, y: yPosition, size: 11, font: helveticaBold, color: secondaryColor })
-      yPosition -= 18
-
-      const influentVals = data.influent.values.slice(-5)
-      const effluentVals = data.effluent.values.slice(-5)
-
-      if (influentVals.length > 0) {
-        const infAvg = (influentVals.reduce((a, b) => a + b, 0) / influentVals.length).toFixed(2)
-        page.drawText(`Influent (avg): ${infAvg} ${data.config.unit}`, { x: margin + 10, y: yPosition, size: 9, font: helveticaFont, color: rgb(0.86, 0.15, 0.15) })
-        yPosition -= 14
-      }
-
-      if (effluentVals.length > 0) {
-        const effAvg = (effluentVals.reduce((a, b) => a + b, 0) / effluentVals.length).toFixed(2)
-        let statusColor = secondaryColor
-        if (data.config.standard) {
-          const pass = Number(effAvg) <= data.config.standard.max_limit
-          statusColor = pass ? passColor : failColor
-        }
-        page.drawText(`Effluent (avg): ${effAvg} ${data.config.unit}`, { x: margin + 10, y: yPosition, size: 9, font: helveticaFont, color: rgb(0.15, 0.39, 0.92) })
-        yPosition -= 14
-
-        if (data.config.standard) {
-          const limit = data.config.standard.max_limit
-          page.drawText(`Standard: <= ${limit} ${data.config.unit}`, { x: margin + 10, y: yPosition, size: 8, font: helveticaFont, color: statusColor })
-          yPosition -= 12
-        }
-      }
-      yPosition -= 10
-    }
-  }
-
-  // --- Effluent Standards ---
-  if (standards && standards.length > 0) {
-    page = checkNewPage(page)
-    page.drawText('Effluent Standards (Class C)', { x: margin, y: yPosition, size: 14, font: helveticaBold, color: primaryColor })
-    page.drawLine({ start: { x: margin, y: yPosition - 5 }, end: { x: margin + contentWidth, y: yPosition - 5 }, thickness: 2, color: rgb(0.23, 0.51, 0.96) })
-    yPosition -= 25
-
-    for (const std of standards) {
-      page = checkNewPage(page)
-      const pConfig = Object.values(paramConfigs).find(p => p.id === std.parameter_id)
-      if (!pConfig) continue
-
-      let limitStr = ''
-      if (std.min_limit !== null && std.max_limit !== null) {
-        limitStr = `${std.min_limit} - ${std.max_limit}`
-      } else if (std.max_limit !== null) {
-        limitStr = `<= ${std.max_limit}`
-      } else if (std.min_limit !== null) {
-        limitStr = `>= ${std.min_limit}`
-      }
-
-      page.drawText(`${pConfig.display}: ${limitStr} ${pConfig.unit}`, { x: margin, y: yPosition, size: 10, font: helveticaFont, color: secondaryColor })
-      yPosition -= 16
-    }
-  }
-
-  // --- Measurement Data Table ---
-  if (tableRows.length > 0) {
-    page = checkNewPage(page)
-    page.drawText('Measurement Data (Recent 30 Records)', { x: margin, y: yPosition, size: 14, font: helveticaBold, color: primaryColor })
-    page.drawLine({ start: { x: margin, y: yPosition - 5 }, end: { x: margin + contentWidth, y: yPosition - 5 }, thickness: 2, color: rgb(0.23, 0.51, 0.96) })
-    yPosition -= 25
-
-    const colWidths = [160, 80, 60, 60, 50, 50]
-    const headers = ['Date', 'Parameter', 'Type', 'Value', 'Unit', 'Status']
-
-    // Header row background
-    page.drawRectangle({ x: margin, y: yPosition - 12, width: contentWidth, height: 16, color: primaryColor })
-    let xOffset = margin + 5
-    headers.forEach((header, i) => {
-      page.drawText(header, { x: xOffset, y: yPosition - 10, size: 8, font: helveticaBold, color: rgb(1, 1, 1) })
-      xOffset += colWidths[i]
-    })
-    yPosition -= 20
-
-    const displayRows = tableRows.slice(0, 30)
-    for (let rowIdx = 0; rowIdx < displayRows.length; rowIdx++) {
-      const row = displayRows[rowIdx]
-      page = checkNewPage(page)
-
-      const bgColor = rowIdx % 2 === 0 ? lightGray : rgb(1, 1, 1)
-      page.drawRectangle({ x: margin, y: yPosition - 10, width: contentWidth, height: 14, color: bgColor })
-
-      xOffset = margin + 5
-      page.drawText(row.date.slice(0, 16), { x: xOffset, y: yPosition - 8, size: 7, font: helveticaFont, color: secondaryColor })
-      xOffset += colWidths[0]
-
-      page.drawText(String(row.param || ''), { x: xOffset, y: yPosition - 8, size: 7, font: helveticaBold, color: secondaryColor })
-      xOffset += colWidths[1]
-
-      const typeColor = row.type === 'influent' ? rgb(0.86, 0.15, 0.15) : rgb(0.15, 0.39, 0.92)
-      page.drawText(String(row.type || ''), { x: xOffset, y: yPosition - 8, size: 7, font: helveticaFont, color: typeColor })
-      xOffset += colWidths[2]
-
-      page.drawText(String(row.value ?? ''), { x: xOffset, y: yPosition - 8, size: 7, font: helveticaFont, color: secondaryColor })
-      xOffset += colWidths[3]
-
-      page.drawText(String(row.unit || ''), { x: xOffset, y: yPosition - 8, size: 7, font: helveticaFont, color: secondaryColor })
-      xOffset += colWidths[4]
-
-      let statusColor = secondaryColor
-      if (row.status === 'PASS') statusColor = passColor
-      else if (row.status === 'FAIL') statusColor = failColor
-
-      page.drawText(String(row.status || ''), { x: xOffset, y: yPosition - 8, size: 7, font: helveticaBold, color: statusColor })
-      yPosition -= 14
-    }
-  }
-
-  // --- Field Photographs ---
-  if (imageEntries.length > 0) {
-    page = checkNewPage(page)
-    page.drawText('Field Photographs', { x: margin, y: yPosition, size: 14, font: helveticaBold, color: primaryColor })
-    page.drawLine({ start: { x: margin, y: yPosition - 5 }, end: { x: margin + contentWidth, y: yPosition - 5 }, thickness: 2, color: rgb(0.23, 0.51, 0.96) })
-    yPosition -= 25
-
-    const embeddedImages = await embedImages(pdfDoc, imageEntries, 8)
-
-    if (embeddedImages.length > 0) {
-      const imgWidth = (contentWidth - 15) / 2
-      const imgHeight = 100
-      let xOffset = margin
-
-      for (let i = 0; i < embeddedImages.length; i++) {
-        const { image, param } = embeddedImages[i]
-
-        const scale = Math.min(imgWidth / image.width, imgHeight / image.height)
-        const scaledWidth = image.width * scale
-        const scaledHeight = image.height * scale
-
-        page = checkNewPage(page)
-
-        // FIX: drawRectangle and drawImage must be on the page, not pdfDoc
-        page.drawRectangle({
-          x: xOffset,
-          y: yPosition - scaledHeight - 20,
-          width: scaledWidth + 10,
-          height: scaledHeight + 25,
-          color: lightGray,
-          borderColor: rgb(0.8, 0.8, 0.8),
-          borderWidth: 1
-        })
-
-        page.drawImage(image, {
-          x: xOffset + 5,
-          y: yPosition - scaledHeight - 15,
-          width: scaledWidth,
-          height: scaledHeight
-        })
-
-        page.drawText(param, { x: xOffset + 5, y: yPosition - scaledHeight - 28, size: 8, font: helveticaBold, color: primaryColor })
-
-        if (i % 2 === 0) {
-          xOffset = margin + imgWidth + 15
-        } else {
-          xOffset = margin
-          yPosition -= imgHeight + 35
-        }
-      }
-
-      if (embeddedImages.length % 2 === 1) {
-        yPosition -= imgHeight + 35
-      }
-    } else {
-      page.drawText('Could not load image attachments', { x: margin, y: yPosition - 10, size: 9, font: helveticaFont, color: secondaryColor })
-      yPosition -= 20
-    }
-  }
-
-  // --- Footer ---
-  page = checkNewPage(page)
-  const footerY = 30
-  page.drawLine({ start: { x: margin, y: footerY + 10 }, end: { x: pageWidth - margin, y: footerY + 10 }, thickness: 1, color: lightGray })
-  page.drawText('Generated by AquaDash - Wastewater Monitoring System', { x: margin, y: footerY, size: 8, font: helveticaFont, color: rgb(0.58, 0.64, 0.72) })
-
-  const pdfBytes = await pdfDoc.save()
-  return pdfBytes
+  return { paramData, tableRows, standards, paramConfigs, imageEntries }
 }
 
+// ── Main PDF builder ───────────────────────────────────────────────────────
+async function generatePdfBytes(supabase, options) {
+  const { startDate, endDate, parameters: requestedParams, title = 'Wastewater Treatment Plant' } = options
+  const { paramData, tableRows, standards, paramConfigs, imageEntries } = await fetchReportData(supabase, startDate, endDate, requestedParams)
+
+  const pdfDoc = await PDFDocument.create()
+  const reg = await pdfDoc.embedFont(StandardFonts.Helvetica)
+  const bold = await pdfDoc.embedFont(StandardFonts.HelveticaBold)
+  const fonts = { reg, bold }
+
+  const W = 595.28, H = 841.89, M = 45, CW = W - 2 * M
+  const allPages = []
+  let page, y
+
+  function newPage() { page = pdfDoc.addPage([W, H]); allPages.push(page); y = H - M; return page }
+  function need(h) { if (y - h < M + 45) newPage() }
+
+  // ────────────────────────────────────────────────────────────────────────
+  // PAGE 1: Cover
+  // ────────────────────────────────────────────────────────────────────────
+  newPage()
+
+  // Header banner (gradient effect with layered rectangles)
+  page.drawRectangle({ x: 0, y: H - 110, width: W, height: 110, color: CLR.primary })
+  page.drawRectangle({ x: 0, y: H - 110, width: W, height: 4, color: CLR.primaryLt })
+  page.drawText(safe(title), { x: M, y: H - 50, size: 22, font: bold, color: CLR.white })
+  page.drawText('Environmental Compliance Report', { x: M, y: H - 72, size: 12, font: reg, color: rgb(0.75, 0.82, 0.95) })
+  page.drawText('v5.0', { x: W - M - 28, y: H - 50, size: 9, font: bold, color: rgb(0.6, 0.72, 0.92) })
+  y = H - 130
+
+  // Info cards row
+  const cardW = (CW - 20) / 4
+  const complianceRate = tableRows.length > 0
+    ? Math.round(tableRows.filter(r => r.status === 'PASS').length / tableRows.filter(r => r.status !== 'N/A').length * 100) || 0 : 100
+
+  drawStatCard(page, 'REPORT PERIOD', `${startDate} to ${endDate}`, M, y, cardW, fonts)
+  drawStatCard(page, 'TOTAL RECORDS', String(tableRows.length), M + cardW + 7, y, cardW, fonts)
+  drawStatCard(page, 'COMPLIANCE', `${complianceRate}%`, M + (cardW + 7) * 2, y, cardW, fonts, complianceRate >= 80 ? CLR.pass : CLR.fail)
+  drawStatCard(page, 'GENERATED', new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }), M + (cardW + 7) * 3, y, cardW, fonts)
+  y -= 60
+
+  // ── Parameter Overview Table ──────────────────────────────────────────
+  if (Object.keys(paramData).length > 0) {
+    y = drawSectionHeading(page, 'Parameter Overview', M, y, CW, fonts)
+    const overviewHeaders = ['Parameter', 'Unit', 'Influent Avg', 'Effluent Avg', 'Std Limit', 'Status']
+    const overviewWidths = [110, 50, 80, 80, 80, 80]
+    const overviewRows = []
+
+    for (const [, data] of Object.entries(paramData)) {
+      const infVals = data.influent.values, effVals = data.effluent.values
+      const infAvg = infVals.length > 0 ? (infVals.reduce((a, b) => a + b, 0) / infVals.length).toFixed(2) : '-'
+      const effAvg = effVals.length > 0 ? (effVals.reduce((a, b) => a + b, 0) / effVals.length).toFixed(2) : '-'
+      const std = data.config.standard
+      const limitStr = std ? (std.min_limit !== null && std.max_limit !== null ? `${std.min_limit} - ${std.max_limit}` : std.max_limit !== null ? `<= ${std.max_limit}` : `>= ${std.min_limit}`) : '-'
+      let status = '-'
+      if (effVals.length > 0 && std?.max_limit !== null && std?.max_limit !== undefined) {
+        status = Number(effAvg) <= std.max_limit ? 'PASS' : 'FAIL'
+      }
+      overviewRows.push([data.config.display, data.config.unit, infAvg, effAvg, limitStr, status])
+    }
+    y = drawTable(page, overviewHeaders, overviewRows, overviewWidths, fonts, { x: M, startY: y })
+    y -= 20
+  }
+
+  // ── Effluent Standards Reference ──────────────────────────────────────
+  if (standards && standards.length > 0) {
+    need(120)
+    y = drawSectionHeading(page, 'Effluent Standards (Class C)', M, y, CW, fonts)
+    const stdHeaders = ['Parameter', 'Min Limit', 'Max Limit', 'Unit']
+    const stdWidths = [180, 100, 100, 100]
+    const stdRows = []
+    for (const std of standards) {
+      const pc = Object.values(paramConfigs).find(p => p.id === std.parameter_id)
+      if (!pc) continue
+      stdRows.push([pc.display, std.min_limit !== null ? String(std.min_limit) : '-', std.max_limit !== null ? String(std.max_limit) : '-', pc.unit])
+    }
+    y = drawTable(page, stdHeaders, stdRows, stdWidths, fonts, { x: M, startY: y })
+    y -= 20
+  }
+
+  // ────────────────────────────────────────────────────────────────────────
+  // PARAMETER DETAIL PAGES: Chart + mini table per parameter
+  // ────────────────────────────────────────────────────────────────────────
+  for (const [key, data] of Object.entries(paramData)) {
+    const hasData = data.influent.values.length > 0 || data.effluent.values.length > 0
+    if (!hasData) continue
+
+    newPage() // Each parameter gets its own page
+
+    // Parameter heading
+    y = drawSectionHeading(page, `${data.config.display} (${data.config.unit})`, M, y, CW, fonts)
+
+    // Summary stat cards
+    const infVals = data.influent.values, effVals = data.effluent.values
+    const sCardW = (CW - 30) / 5
+    const allVals = [...infVals, ...effVals]
+    const avg = allVals.length > 0 ? (allVals.reduce((a, b) => a + b, 0) / allVals.length).toFixed(2) : '-'
+    const mn = allVals.length > 0 ? Math.min(...allVals).toFixed(2) : '-'
+    const mx = allVals.length > 0 ? Math.max(...allVals).toFixed(2) : '-'
+    const stdLim = data.config.standard?.max_limit
+    const statusTxt = effVals.length > 0 && stdLim != null ? (effVals.every(v => v <= stdLim) ? 'PASS' : 'FAIL') : 'N/A'
+
+    drawStatCard(page, 'AVERAGE', avg, M, y, sCardW, fonts)
+    drawStatCard(page, 'MIN', mn, M + (sCardW + 8) * 1, y, sCardW, fonts)
+    drawStatCard(page, 'MAX', mx, M + (sCardW + 8) * 2, y, sCardW, fonts)
+    drawStatCard(page, 'STD LIMIT', stdLim != null ? `<= ${stdLim}` : '-', M + (sCardW + 8) * 3, y, sCardW, fonts)
+    drawStatCard(page, 'STATUS', statusTxt, M + (sCardW + 8) * 4, y, sCardW, fonts, statusTxt === 'PASS' ? CLR.pass : statusTxt === 'FAIL' ? CLR.fail : CLR.text)
+    y -= 60
+
+    // Bar chart
+    const chartH = 200
+    drawBarChart(page, data, fonts, { x: M, y: y - chartH, width: CW, height: chartH })
+    y -= chartH + 25
+
+    // Recent values mini-table
+    need(100)
+    page.drawText('Recent Measurements', { x: M, y, size: 10, font: bold, color: CLR.text })
+    y -= 14
+    const miniHeaders = ['Date/Time', 'Type', 'Value', 'Unit']
+    const miniWidths = [200, 80, 100, 100]
+    const miniRows = []
+    const combined = [
+      ...infVals.map((v, i) => ({ label: data.influent.labels[i], type: 'influent', value: v })),
+      ...effVals.map((v, i) => ({ label: data.effluent.labels[i], type: 'effluent', value: v })),
+    ].slice(-10)
+    for (const item of combined) {
+      miniRows.push([item.label, item.type, String(item.value), data.config.unit])
+    }
+    if (miniRows.length > 0) {
+      y = drawTable(page, miniHeaders, miniRows, miniWidths, fonts, { x: M, startY: y })
+    }
+  }
+
+  // ────────────────────────────────────────────────────────────────────────
+  // FULL MEASUREMENT DATA TABLE
+  // ────────────────────────────────────────────────────────────────────────
+  if (tableRows.length > 0) {
+    newPage()
+    y = drawSectionHeading(page, `Measurement Data (${Math.min(tableRows.length, 50)} Records)`, M, y, CW, fonts)
+
+    const dataHeaders = ['Date', 'Parameter', 'Type', 'Value', 'Unit', 'Status']
+    const dataWidths = [130, 105, 60, 65, 55, 65]
+
+    // Draw header
+    page.drawRectangle({ x: M, y: y - 16, width: CW, height: 16, color: CLR.tblHead })
+    let cx = M + 5
+    dataHeaders.forEach((h, i) => {
+      page.drawText(safe(h), { x: cx, y: y - 13, size: 7.5, font: bold, color: CLR.white })
+      cx += dataWidths[i]
+    })
+    y -= 16
+
+    const displayRows = tableRows.slice(0, 50)
+    for (let r = 0; r < displayRows.length; r++) {
+      if (y - 15 < M + 45) {
+        newPage()
+        // Re-draw header on new page
+        page.drawRectangle({ x: M, y: y - 16, width: CW, height: 16, color: CLR.tblHead })
+        cx = M + 5
+        dataHeaders.forEach((h, i) => {
+          page.drawText(safe(h), { x: cx, y: y - 13, size: 7.5, font: bold, color: CLR.white })
+          cx += dataWidths[i]
+        })
+        y -= 16
+      }
+
+      const row = displayRows[r]
+      const rowColor = r % 2 === 0 ? CLR.rowAlt : CLR.rowWhite
+      page.drawRectangle({ x: M, y: y - 15, width: CW, height: 15, color: rowColor })
+      page.drawLine({ start: { x: M, y: y - 15 }, end: { x: M + CW, y: y - 15 }, thickness: 0.3, color: CLR.border })
+
+      cx = M + 5
+      const cells = [
+        row.date.slice(0, 18), String(row.param).slice(0, 22), row.type,
+        String(row.value), row.unit, row.status
+      ]
+      cells.forEach((cell, i) => {
+        let color = CLR.text
+        const s = safe(cell)
+        if (s === 'PASS') color = CLR.pass
+        else if (s === 'FAIL') color = CLR.fail
+        else if (s === 'influent') color = CLR.influent
+        else if (s === 'effluent') color = CLR.effluent
+        const f = (i === 5 || s === 'PASS' || s === 'FAIL') ? bold : reg
+        page.drawText(s, { x: cx, y: y - 12, size: 7, font: f, color })
+        cx += dataWidths[i]
+      })
+      y -= 15
+    }
+  }
+
+  // ────────────────────────────────────────────────────────────────────────
+  // FIELD PHOTOGRAPHS
+  // ────────────────────────────────────────────────────────────────────────
+  if (imageEntries.length > 0) {
+    newPage()
+    y = drawSectionHeading(page, 'Field Photographs', M, y, CW, fonts)
+
+    const embeddedImages = await embedImages(pdfDoc, imageEntries, 8)
+    if (embeddedImages.length > 0) {
+      const imgW = (CW - 15) / 2, imgH = 140
+      let xOff = M
+      for (let i = 0; i < embeddedImages.length; i++) {
+        const { image, param } = embeddedImages[i]
+        const scale = Math.min(imgW / image.width, imgH / image.height)
+        const sw = image.width * scale, sh = image.height * scale
+
+        need(sh + 40)
+        page.drawRectangle({ x: xOff, y: y - sh - 22, width: sw + 10, height: sh + 28, color: CLR.chartBg, borderColor: CLR.border, borderWidth: 0.5 })
+        page.drawImage(image, { x: xOff + 5, y: y - sh - 16, width: sw, height: sh })
+        page.drawText(safe(param), { x: xOff + 5, y: y - sh - 32, size: 8, font: bold, color: CLR.primary })
+
+        if (i % 2 === 0) { xOff = M + imgW + 15 }
+        else { xOff = M; y -= imgH + 40 }
+      }
+      if (embeddedImages.length % 2 === 1) y -= imgH + 40
+    } else {
+      page.drawText('Could not load image attachments', { x: M, y: y - 14, size: 9, font: reg, color: CLR.textSec })
+    }
+  }
+
+  // ── Footers on all pages ──────────────────────────────────────────────
+  addFooters(allPages, fonts, W, M)
+
+  return await pdfDoc.save()
+}
+
+// ── Route handler ──────────────────────────────────────────────────────────
 richPdf.post('/api/reports/rich-pdf', authMiddleware, async (c) => {
   let body
   try { body = await c.req.json() } catch { body = {} }
   const { start, end, parameters: requestedParams } = body
-
   const supabase = c.get('supabase')
   const startDate = start || new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10)
   const endDate = end || new Date().toISOString().slice(0, 10)
 
   try {
-    const pdfBytes = await generatePdfBytes(supabase, {
-      startDate,
-      endDate,
-      parameters: requestedParams,
-      title: 'Wastewater Treatment Plant'
-    })
-
+    const pdfBytes = await generatePdfBytes(supabase, { startDate, endDate, parameters: requestedParams, title: 'Wastewater Treatment Plant' })
     return new Response(pdfBytes, {
-      headers: {
-        'Content-Type': 'application/pdf',
-        'Content-Disposition': `attachment; filename="wastewater_report_${startDate}_${endDate}.pdf"`
-      }
+      headers: { 'Content-Type': 'application/pdf', 'Content-Disposition': `attachment; filename="wastewater_report_${startDate}_${endDate}.pdf"` },
     })
   } catch (err) {
     console.error('[pdf] Generation error:', err.message, err.stack)
@@ -496,8 +347,5 @@ richPdf.post('/api/reports/rich-pdf', authMiddleware, async (c) => {
   }
 })
 
-export const buildRichPdfBuffer = async (env, supabase, options) => {
-  return generatePdfBytes(supabase, options)
-}
-
+export const buildRichPdfBuffer = async (env, supabase, options) => generatePdfBytes(supabase, options)
 export default richPdf

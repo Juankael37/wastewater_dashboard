@@ -179,8 +179,21 @@ measurements.post('/measurements/upload-image', authMiddleware, async (c) => {
       const payload = await c.req.json()
       if (!payload.imageBase64) return c.json({ error: 'Missing imageBase64' }, 400)
       const rawBase64 = payload.imageBase64.replace(/^data:image\/\w+;base64,/, '')
-      const cleanBase64 = rawBase64.replace(/[\r\n]/g, '')
-      const binaryString = atob(cleanBase64)
+      const cleanBase64 = rawBase64.replace(/[\r\n\s]/g, '')
+
+      // Validate base64 size before decoding (prevent OOM crashes)
+      if (cleanBase64.length > 10 * 1024 * 1024) {
+        return c.json({ error: 'Image too large (max 10 MB base64)' }, 413)
+      }
+
+      let binaryString
+      try {
+        binaryString = atob(cleanBase64)
+      } catch (e) {
+        console.error('atob decode error:', e.message)
+        return c.json({ error: 'Invalid base64 data' }, 400)
+      }
+
       const len = binaryString.length
       const bytes = new Uint8Array(len)
       for (let i = 0; i < len; i++) {
@@ -189,6 +202,9 @@ measurements.post('/measurements/upload-image', authMiddleware, async (c) => {
       buffer = bytes.buffer
     } else if (contentType.includes('image/')) {
       const imageData = await c.req.arrayBuffer()
+      if (imageData.byteLength > 10 * 1024 * 1024) {
+        return c.json({ error: 'Image too large (max 10 MB)' }, 413)
+      }
       buffer = new Uint8Array(imageData)
     } else {
       return c.json({ error: 'Invalid content type. Image or JSON required.' }, 400)
@@ -220,7 +236,7 @@ measurements.post('/measurements/upload-image', authMiddleware, async (c) => {
     })
   } catch (err) {
     console.error('Image upload error:', err)
-    return c.json({ error: err.message }, 500)
+    return c.json({ error: err.message || 'Unknown upload error' }, 500)
   }
 })
 
