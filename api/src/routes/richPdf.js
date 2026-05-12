@@ -310,7 +310,7 @@ async function generatePdfBytes(supabase, options) {
 
         if (data.config.standard) {
           const limit = data.config.standard.max_limit
-          page.drawText(`Standard: \u2264 ${limit} ${data.config.unit}`, { x: margin + 10, y: yPosition, size: 8, font: helveticaFont, color: statusColor })
+          page.drawText(`Standard: <= ${limit} ${data.config.unit}`, { x: margin + 10, y: yPosition, size: 8, font: helveticaFont, color: statusColor })
           yPosition -= 12
         }
       }
@@ -334,9 +334,9 @@ async function generatePdfBytes(supabase, options) {
       if (std.min_limit !== null && std.max_limit !== null) {
         limitStr = `${std.min_limit} - ${std.max_limit}`
       } else if (std.max_limit !== null) {
-        limitStr = `\u2264 ${std.max_limit}`
+        limitStr = `<= ${std.max_limit}`
       } else if (std.min_limit !== null) {
-        limitStr = `\u2265 ${std.min_limit}`
+        limitStr = `>= ${std.min_limit}`
       }
 
       page.drawText(`${pConfig.display}: ${limitStr} ${pConfig.unit}`, { x: margin, y: yPosition, size: 10, font: helveticaFont, color: secondaryColor })
