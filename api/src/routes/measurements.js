@@ -169,9 +169,22 @@ measurements.post('/api/validation/check', authMiddleware, async (c) => {
 // Image upload endpoint
 measurements.post('/measurements/upload-image', authMiddleware, async (c) => {
   const env = c.env
-  const supabase = c.get('supabase')
   
   try {
+    // Use service-role client for storage uploads — bypasses RLS.
+    // The per-request client forwards JWT via global headers, but the Supabase
+    // storage SDK doesn't honour that for upload auth. Service role is the
+    // correct server-side pattern.
+    const { createClient } = await import('@supabase/supabase-js')
+    const serviceKey = env.SUPABASE_SERVICE_ROLE_KEY
+    if (!serviceKey) {
+      console.error('[upload] SUPABASE_SERVICE_ROLE_KEY is not set')
+      return c.json({ error: 'Server storage configuration error' }, 500)
+    }
+    const adminClient = createClient(env.SUPABASE_URL, serviceKey, {
+      auth: { persistSession: false },
+    })
+
     const contentType = c.req.header('content-type') || ''
     let buffer;
     
@@ -199,7 +212,7 @@ measurements.post('/measurements/upload-image', authMiddleware, async (c) => {
       for (let i = 0; i < len; i++) {
         bytes[i] = binaryString.charCodeAt(i)
       }
-      buffer = bytes.buffer
+      buffer = bytes
     } else if (contentType.includes('image/')) {
       const imageData = await c.req.arrayBuffer()
       if (imageData.byteLength > 10 * 1024 * 1024) {
@@ -212,8 +225,10 @@ measurements.post('/measurements/upload-image', authMiddleware, async (c) => {
     
     const timestamp = Date.now()
     const filename = `measurement_${timestamp}.jpg`
+
+    console.log(`[upload] Uploading ${filename} (${buffer.byteLength} bytes)`)
     
-    const { data: uploadData, error: uploadError } = await supabase.storage
+    const { data: uploadData, error: uploadError } = await adminClient.storage
       .from('measurement-images')
       .upload(filename, buffer, {
         contentType: 'image/jpeg',
@@ -221,11 +236,13 @@ measurements.post('/measurements/upload-image', authMiddleware, async (c) => {
       })
 
     if (uploadError) {
-      console.error('Storage upload error:', uploadError)
+      console.error('[upload] Storage error:', JSON.stringify(uploadError))
       return c.json({ error: 'Failed to upload image', details: uploadError.message }, 500)
     }
 
-    const { data: urlData } = supabase.storage
+    console.log('[upload] Success:', JSON.stringify(uploadData))
+
+    const { data: urlData } = adminClient.storage
       .from('measurement-images')
       .getPublicUrl(filename)
 
@@ -235,7 +252,7 @@ measurements.post('/measurements/upload-image', authMiddleware, async (c) => {
       filename 
     })
   } catch (err) {
-    console.error('Image upload error:', err)
+    console.error('[upload] Unhandled error:', err?.message, err?.stack)
     return c.json({ error: err.message || 'Unknown upload error' }, 500)
   }
 })

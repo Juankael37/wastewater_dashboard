@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { Mail, Plus, Trash2, ToggleLeft, ToggleRight, Loader2, Send, Clock, Info } from 'lucide-react'
 import { apiRequest } from '../../services/api/client'
 import toast from 'react-hot-toast'
+import { detectTimezone, getTimezoneAbbr, getUtcOffset } from '../../utils/timezone'
 
 interface ReportSetting {
   id: string
@@ -205,7 +206,7 @@ const ReportSettingsSection: React.FC = () => {
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">Time (UTC)</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">Time ({getTimezoneAbbr()})</label>
               <input
                 type="time"
                 value={newSendTime}
@@ -303,7 +304,8 @@ const ReportSettingsSection: React.FC = () => {
           <div className="text-sm text-blue-700 dark:text-blue-300">
             <p className="font-medium mb-1">Schedule Information</p>
             <ul className="list-disc list-inside space-y-1">
-              <li>Reports are sent at the configured UTC time</li>
+              <li>Detected timezone: <strong>{detectTimezone()}</strong> ({getTimezoneAbbr()} / {getUtcOffset()})</li>
+              <li>Reports are sent at the configured time in your local timezone</li>
               <li>Weekly reports are sent on the selected day</li>
               <li>Monthly reports are sent on the selected day of each month</li>
             </ul>

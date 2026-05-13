@@ -4,8 +4,9 @@ import { useForm } from 'react-hook-form'
 import { Camera as CameraIcon, Save, Eye, AlertCircle, CheckCircle, X, Trash2 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { measurementsApi, plantsApi, uploadImage } from '../../services/api'
-import { Capacitor } from '@capacitor/core'
-import { Camera, CameraResultType, CameraSource } from '@capacitor/camera'
+import { nowLocalTime, formatDateTime } from '../../utils/timezone'
+import { stampImageFile } from '../../utils/imageStamp'
+import TimestampCamera from '../../components/TimestampCamera'
 
 interface ImageStatus {
   url?: string
@@ -101,6 +102,7 @@ const InputPage: React.FC = () => {
   const [showPreview, setShowPreview] = useState(false)
   const [previewData, setPreviewData] = useState<InputFormData | null>(null)
   const [plants, setPlants] = useState<Array<{ id: string; name: string }>>([])
+  const [cameraParam, setCameraParam] = useState<string | null>(null) // which param is being captured
   const fileInputRef = useRef<HTMLInputElement>(null)
   // Track blob URLs so we can revoke them and free memory when images are removed.
   const blobUrlsRef = useRef<Record<string, string>>({})
@@ -244,61 +246,39 @@ const InputPage: React.FC = () => {
     return { valid: true }
   }
 
-  const captureImage = async (parameter: string) => {
+  // Open the custom timestamp camera for any platform (native or web)
+  const captureImage = (parameter: string) => {
+    setCameraParam(parameter)
+  }
+
+  // Called when the custom camera captures a stamped image
+  const handleCameraCapture = async (dataUrl: string) => {
+    const parameter = cameraParam
+    setCameraParam(null) // close camera
+    if (!parameter) return
+
+    const timestamp = nowLocalTime()
+    const loadingToast = toast.loading(`Uploading ${parameter.toUpperCase()}…`)
+
     try {
-      if (Capacitor.isNativePlatform()) {
-        const image = await Camera.getPhoto({
-          quality: 50,
-          allowEditing: false,
-          resultType: CameraResultType.Base64,
-          source: CameraSource.Camera,
-          width: 500
-        });
+      revokeBlobUrls([parameter])
+      blobUrlsRef.current[parameter] = dataUrl
+      setCapturedImages(prev => ({
+        ...prev,
+        [parameter]: { preview: dataUrl, timestamp }
+      }))
 
-        if (image.base64String) {
-          const timestamp = new Date().toLocaleTimeString()
-          const loadingToast = toast.loading(`Uploading ${parameter.toUpperCase()}…`)
-
-          try {
-            const mimeType = `image/${image.format || 'jpeg'}`;
-            // FIX: Always use the base64 data URL as preview.
-            // image.webPath is a capacitor:// URI that the browser cannot render.
-            const dataUrl = `data:${mimeType};base64,${image.base64String}`;
-
-            revokeBlobUrls([parameter]);
-            blobUrlsRef.current[parameter] = dataUrl;
-            setCapturedImages(prev => ({
-              ...prev,
-              [parameter]: { preview: dataUrl, timestamp }
-            }));
-
-            const uploadResult = await uploadImage(dataUrl);
-            toast.dismiss(loadingToast);
-            setCapturedImages(prev => ({
-              ...prev,
-              [parameter]: { url: uploadResult, preview: dataUrl, timestamp },
-            }))
-            toast.success(`${parameter.toUpperCase()} uploaded ✓`)
-          } catch (err: any) {
-            toast.dismiss(loadingToast);
-            console.error('Upload error:', err);
-            toast.error(`Upload error: ${err?.message || String(err)}`);
-          }
-        }
-      } else {
-        // Web fallback (PWA on iOS/Desktop)
-        if (fileInputRef.current) {
-          fileInputRef.current.value = ''
-          fileInputRef.current.accept = 'image/*'
-          fileInputRef.current.capture = 'environment'
-          fileInputRef.current.dataset.param = parameter
-          fileInputRef.current.click()
-        }
-      }
-    } catch (error) {
-      console.error('Camera error:', error)
-      if (String(error).includes('User cancelled')) return;
-      toast.error('Unable to access camera. Please try again.')
+      const uploadResult = await uploadImage(dataUrl)
+      toast.dismiss(loadingToast)
+      setCapturedImages(prev => ({
+        ...prev,
+        [parameter]: { url: uploadResult, preview: dataUrl, timestamp },
+      }))
+      toast.success(`${parameter.toUpperCase()} uploaded ✓`)
+    } catch (err: any) {
+      toast.dismiss(loadingToast)
+      console.error('Upload error:', err)
+      toast.error(`Upload error: ${err?.message || String(err)}`)
     }
   }
 
@@ -313,16 +293,19 @@ const InputPage: React.FC = () => {
       return
     }
 
-    const timestamp = new Date().toLocaleTimeString()
+    const timestamp = nowLocalTime()
     const loadingToast = toast.loading(`Processing & Uploading ${parameter.toUpperCase()}…`)
 
     try {
       // 1. Compress immediately before keeping any references to the giant file
       const safeFile = await memorySafeCompress(file)
 
-      // 2. Memory-safe preview: use the TINY compressed file, not the 10MB raw one
+      // 2. Stamp the compressed image with date/time watermark
+      const stampedFile = await stampImageFile(safeFile, parameter)
+
+      // 3. Memory-safe preview: use the stamped file
       revokeBlobUrls([parameter])
-      const previewUrl = URL.createObjectURL(safeFile)
+      const previewUrl = URL.createObjectURL(stampedFile)
       blobUrlsRef.current[parameter] = previewUrl
 
       // Update state to show we are processing
@@ -331,8 +314,8 @@ const InputPage: React.FC = () => {
         [parameter]: { preview: previewUrl, timestamp },
       }))
 
-      // 3. Upload the tiny file
-      const uploadedUrl = await uploadImage(safeFile)
+      // 4. Upload the stamped file
+      const uploadedUrl = await uploadImage(stampedFile)
       toast.dismiss(loadingToast)
       setCapturedImages(prev => ({
         ...prev,
@@ -425,7 +408,7 @@ const InputPage: React.FC = () => {
         type: previewData.type,
         plant_id: previewData.plantId,
         notes: imageNotes,
-        local_timestamp: new Date().toLocaleString()
+        local_timestamp: formatDateTime(new Date())
       }
 
       console.log('📡 Sending measurement data:', measurementData)
@@ -596,6 +579,16 @@ const InputPage: React.FC = () => {
   }
 
   return (
+    <>
+    {/* Custom timestamp camera overlay */}
+    {cameraParam && (
+      <TimestampCamera
+        parameter={cameraParam}
+        onCapture={handleCameraCapture}
+        onClose={() => setCameraParam(null)}
+      />
+    )}
+
     <div className="max-w-4xl mx-auto">
       <div className="bg-white dark:bg-slate-800 rounded-lg shadow-lg p-4 md:p-6 border border-gray-200 dark:border-slate-700 transition-colors">
         <h1 className="text-xl md:text-2xl font-bold mb-4 md:mb-6 text-gray-900 dark:text-white">Data Input</h1>
@@ -677,6 +670,7 @@ const InputPage: React.FC = () => {
         </form>
       </div>
     </div>
+    </>
   )
 }
 

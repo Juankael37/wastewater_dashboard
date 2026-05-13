@@ -11,6 +11,7 @@ import {
   RefreshCw,
 } from 'lucide-react'
 import { dashboardApi, type Alert as AlertDTO } from '../../services/api'
+import { nowLocalTime, formatDateTime, getTimezoneAbbr } from '../../utils/timezone'
 
 interface ParameterData {
   name: string
@@ -37,7 +38,7 @@ const DashboardPage: React.FC = () => {
   const [loading, setLoading] = useState(true)
   const [complianceRate, setComplianceRate] = useState<number>(0)
   const [totalReadings, setTotalReadings] = useState<number>(0)
-  const [lastUpdated, setLastUpdated] = useState<string>(new Date().toLocaleTimeString())
+  const [lastUpdated, setLastUpdated] = useState<string>(nowLocalTime())
   const [latestMeasurementAt, setLatestMeasurementAt] = useState<string>('n/a')
 
   // Parameter configuration with icons and colors
@@ -83,14 +84,10 @@ const DashboardPage: React.FC = () => {
       setRecentAlerts(processedAlerts)
       setComplianceRate(snapshot.complianceRate)
       setTotalReadings(snapshot.totalReadings)
-      setLastUpdated(new Date().toLocaleTimeString())
+      setLastUpdated(nowLocalTime())
       setLatestMeasurementAt(() => {
         if (!snapshot.latestMeasurementTimestamp) return 'n/a';
-        const tsWithZ = snapshot.latestMeasurementTimestamp.endsWith('Z') || snapshot.latestMeasurementTimestamp.includes('+') 
-          ? snapshot.latestMeasurementTimestamp 
-          : `${snapshot.latestMeasurementTimestamp}Z`;
-        const dt = new Date(tsWithZ);
-        return `${dt.toLocaleString()} (server UTC ${dt.toISOString().slice(11, 16)})`;
+        return `${formatDateTime(snapshot.latestMeasurementTimestamp)} ${getTimezoneAbbr()}`;
       })
     } catch (error) {
       console.error('Failed to fetch dashboard data:', error)

@@ -13,6 +13,7 @@ import {
   Filler
 } from 'chart.js'
 import { dashboardApi } from '../../services/api'
+import { nowLocalTime } from '../../utils/timezone'
 
 // Register Chart.js components
 ChartJS.register(
@@ -47,7 +48,7 @@ const paramConfig: Record<string, { label: string, category: string, color: stri
 const GraphsPage: React.FC = () => {
   const [chartData, setChartData] = useState<Record<string, ChartData>>({})
   const [loading, setLoading] = useState(true)
-  const [lastUpdated, setLastUpdated] = useState<string>(new Date().toLocaleTimeString())
+  const [lastUpdated, setLastUpdated] = useState<string>(nowLocalTime())
   const [activeCategory, setActiveCategory] = useState<string>('Physical')
 
   const fetchData = async (showLoader: boolean = false) => {
@@ -65,7 +66,7 @@ const GraphsPage: React.FC = () => {
       })
       
       setChartData(processedChartData)
-      setLastUpdated(new Date().toLocaleTimeString())
+      setLastUpdated(nowLocalTime())
     } catch (error) {
       console.error('Failed to fetch graph data:', error)
     } finally {

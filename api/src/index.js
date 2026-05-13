@@ -207,25 +207,28 @@ export default {
         if (freqGroups[r.frequency]) freqGroups[r.frequency].push(r.email);
       }
 
-      // CRON Date Logic
-      // Daily: Previous full calendar day (yesterday)
+      // ── CRON Date Logic ──────────────────────────────────────────────
+      // Daily: Yesterday only (today's data isn't complete yet)
       const yesterday = new Date(today);
       yesterday.setDate(yesterday.getDate() - 1);
       const dailyStart = yesterday.toISOString().slice(0, 10);
-      const dailyEnd = dailyStart;
+      const dailyEnd = dailyStart; // same day
 
-      // Weekly: Previous full week (Mon-Sun)
-      const weekStart = new Date(today);
-      weekStart.setDate(weekStart.getDate() - (dayOfWeek === 0 ? 7 : dayOfWeek - 1) - 7 + dayOfWeek);
-      const weekStartDate = new Date(weekStart);
-      const weekEnd = new Date(weekStartDate);
-      weekEnd.setDate(weekEnd.getDate() + 6);
-      const weeklyStart = weekStartDate.toISOString().slice(0, 10);
-      const weeklyEnd = weekEnd.toISOString().slice(0, 10);
+      // Weekly: Previous full week Mon–Sun
+      // If today is Monday (1), the previous week was 7 days ago (Mon) to 1 day ago (Sun).
+      // If today is Tuesday (2), previous week was 8 days ago (Mon) to 2 days ago (Sun). Etc.
+      const dow = today.getDay(); // 0=Sun, 1=Mon...
+      const daysSinceLastMonday = dow === 0 ? 6 : dow - 1; // days since THIS Monday
+      const prevWeekEnd = new Date(today);
+      prevWeekEnd.setDate(prevWeekEnd.getDate() - daysSinceLastMonday - 1); // last Sunday
+      const prevWeekStart = new Date(prevWeekEnd);
+      prevWeekStart.setDate(prevWeekStart.getDate() - 6); // that Monday
+      const weeklyStart = prevWeekStart.toISOString().slice(0, 10);
+      const weeklyEnd = prevWeekEnd.toISOString().slice(0, 10);
 
       // Monthly: Previous full calendar month
       const monthStart = new Date(today.getFullYear(), today.getMonth() - 1, 1);
-      const monthEnd = new Date(today.getFullYear(), today.getMonth(), 0);
+      const monthEnd = new Date(today.getFullYear(), today.getMonth(), 0); // last day of prev month
       const monthlyStart = monthStart.toISOString().slice(0, 10);
       const monthlyEnd = monthEnd.toISOString().slice(0, 10);
 

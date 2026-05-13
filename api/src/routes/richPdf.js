@@ -82,19 +82,26 @@ async function fetchReportData(supabase, startDate, endDate, requestedParams) {
 
   // Extract image URLs from notes JSON
   const imageEntries = [], seenUrls = new Set()
+  let notesChecked = 0, notesWithImages = 0
   for (const row of tableRows) {
     let obj = null
     if (typeof row.notes === 'object' && row.notes) obj = row.notes
     else if (typeof row.notes === 'string' && row.notes.trim().startsWith('{')) {
       try { obj = JSON.parse(row.notes) } catch {}
     }
+    if (obj) notesChecked++
     if (obj?.images && typeof obj.images === 'object') {
+      notesWithImages++
       for (const [param, url] of Object.entries(obj.images)) {
         if (url && typeof url === 'string' && !seenUrls.has(url)) {
           seenUrls.add(url); imageEntries.push({ param, url })
         }
       }
     }
+  }
+  console.log(`[pdf] Notes: ${tableRows.length} rows, ${notesChecked} with JSON, ${notesWithImages} with images, ${imageEntries.length} unique URLs`)
+  if (imageEntries.length > 0) {
+    console.log(`[pdf] Image URLs found:`, imageEntries.map(e => `${e.param}: ${e.url.slice(0, 80)}...`))
   }
 
   return { paramData, tableRows, standards, paramConfigs, imageEntries }
@@ -130,15 +137,23 @@ async function generatePdfBytes(supabase, options) {
   page.drawText('v5.0', { x: W - M - 28, y: H - 50, size: 9, font: bold, color: rgb(0.6, 0.72, 0.92) })
   y = H - 130
 
-  // Info cards row
-  const cardW = (CW - 20) / 4
+  // Info cards row — give REPORT PERIOD a wider card so dates fit
+  const gap = 7
+  const periodW = Math.round((CW - gap * 3) * 0.38)  // ~38% width for the date range card
+  const smallW = Math.round((CW - gap * 3 - periodW) / 3)
   const complianceRate = tableRows.length > 0
     ? Math.round(tableRows.filter(r => r.status === 'PASS').length / tableRows.filter(r => r.status !== 'N/A').length * 100) || 0 : 100
 
-  drawStatCard(page, 'REPORT PERIOD', `${startDate} to ${endDate}`, M, y, cardW, fonts)
-  drawStatCard(page, 'TOTAL RECORDS', String(tableRows.length), M + cardW + 7, y, cardW, fonts)
-  drawStatCard(page, 'COMPLIANCE', `${complianceRate}%`, M + (cardW + 7) * 2, y, cardW, fonts, complianceRate >= 80 ? CLR.pass : CLR.fail)
-  drawStatCard(page, 'GENERATED', new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }), M + (cardW + 7) * 3, y, cardW, fonts)
+  // Format dates compactly: "May 13 - May 19, 2026"
+  const fmtD = (d) => { const dt = new Date(d + 'T00:00:00Z'); return dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) }
+  const endYear = new Date(endDate + 'T00:00:00Z').getFullYear()
+  const periodStr = `${fmtD(startDate)} - ${fmtD(endDate)}, ${endYear}`
+
+  let cx = M
+  drawStatCard(page, 'REPORT PERIOD', periodStr, cx, y, periodW, fonts); cx += periodW + gap
+  drawStatCard(page, 'TOTAL RECORDS', String(tableRows.length), cx, y, smallW, fonts); cx += smallW + gap
+  drawStatCard(page, 'COMPLIANCE', `${complianceRate}%`, cx, y, smallW, fonts, complianceRate >= 80 ? CLR.pass : CLR.fail); cx += smallW + gap
+  drawStatCard(page, 'GENERATED', new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }), cx, y, smallW, fonts)
   y -= 60
 
   // ── Parameter Overview Table ──────────────────────────────────────────

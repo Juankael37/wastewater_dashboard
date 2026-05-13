@@ -200,7 +200,12 @@ export function drawSectionHeading(page, text, x, y, width, fonts) {
 export function drawStatCard(page, label, value, x, y, w, fonts, valueColor = CLR.text) {
   page.drawRectangle({ x, y: y - 40, width: w, height: 40, color: CLR.chartBg, borderColor: CLR.border, borderWidth: 0.5 })
   page.drawText(safe(label), { x: x + 8, y: y - 14, size: 7, font: fonts.reg, color: CLR.textSec })
-  page.drawText(safe(value), { x: x + 8, y: y - 30, size: 12, font: fonts.bold, color: valueColor })
+  // Auto-scale value font so it never overflows the card
+  const safeVal = safe(value)
+  const pad = 16 // left + right padding
+  let sz = 12
+  while (sz > 6 && fonts.bold.widthOfTextAtSize(safeVal, sz) > w - pad) { sz -= 0.5 }
+  page.drawText(safeVal, { x: x + 8, y: y - 30, size: sz, font: fonts.bold, color: valueColor })
 }
 
 // ── Add page footers with page numbers ─────────────────────────────────────
@@ -217,12 +222,41 @@ export function addFooters(pages, fonts, pageWidth, margin) {
 // ── Fetch image bytes from URL ─────────────────────────────────────────────
 export async function fetchImageBytes(url) {
   try {
-    const response = await fetch(url, { redirect: 'follow' })
-    if (!response.ok) { console.error(`[pdf-img] Failed to fetch ${url}: HTTP ${response.status}`); return null }
-    const contentType = response.headers.get('content-type') || 'image/jpeg'
+    console.log(`[pdf-img] Fetching: ${url}`)
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), 15000)
+    
+    const response = await fetch(url, {
+      redirect: 'follow',
+      signal: controller.signal,
+      headers: { 'Accept': 'image/*' },
+    })
+    clearTimeout(timeout)
+
+    if (!response.ok) {
+      console.error(`[pdf-img] HTTP ${response.status} for ${url}`)
+      return null
+    }
+
+    const contentType = response.headers.get('content-type') || ''
+    // Guard: if the response is HTML (e.g. Supabase error page), skip it
+    if (contentType.includes('text/html') || contentType.includes('application/json')) {
+      console.error(`[pdf-img] Got ${contentType} instead of image for ${url}`)
+      return null
+    }
+
     const arrayBuffer = await response.arrayBuffer()
+    if (!arrayBuffer || arrayBuffer.byteLength < 100) {
+      console.error(`[pdf-img] Empty or tiny response (${arrayBuffer?.byteLength ?? 0} bytes) for ${url}`)
+      return null
+    }
+
+    console.log(`[pdf-img] OK — ${arrayBuffer.byteLength} bytes, type: ${contentType}`)
     return { bytes: new Uint8Array(arrayBuffer), contentType }
-  } catch (err) { console.error(`[pdf-img] Fetch error for ${url}:`, err.message); return null }
+  } catch (err) {
+    console.error(`[pdf-img] Fetch error for ${url}:`, err.message)
+    return null
+  }
 }
 
 // ── Detect image format ────────────────────────────────────────────────────
@@ -240,17 +274,27 @@ export function getImageFormat(contentType, url) {
 export async function embedImages(pdfDoc, imageUrls, maxImages = 8) {
   const embeddedImages = []
   const recentImages = imageUrls.slice(-maxImages)
+  console.log(`[pdf-img] Attempting to embed ${recentImages.length} images`)
+
   for (const { param, url } of recentImages) {
     const imgData = await fetchImageBytes(url)
-    if (!imgData) continue
+    if (!imgData) {
+      console.warn(`[pdf-img] Skipping ${param} — fetch returned null`)
+      continue
+    }
     try {
       const format = getImageFormat(imgData.contentType, url)
       let embeddedImg
       if (format === 'png') embeddedImg = await pdfDoc.embedPng(imgData.bytes)
       else if (format === 'jpg' || format === 'jpeg') embeddedImg = await pdfDoc.embedJpg(imgData.bytes)
-      else { console.warn(`[pdf-img] Unsupported format: ${format}`); continue }
+      else { console.warn(`[pdf-img] Unsupported format: ${format} for ${param}`); continue }
       embeddedImages.push({ image: embeddedImg, param: param.toUpperCase() })
-    } catch (err) { console.error(`[pdf-img] Embed error for ${url}:`, err.message) }
+      console.log(`[pdf-img] Embedded ${param} (${format})`)
+    } catch (err) {
+      console.error(`[pdf-img] Embed error for ${param} (${url}):`, err.message)
+    }
   }
+
+  console.log(`[pdf-img] Successfully embedded ${embeddedImages.length}/${recentImages.length} images`)
   return embeddedImages
 }

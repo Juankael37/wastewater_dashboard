@@ -27,18 +27,10 @@ settings.post('/api/settings/reports', authMiddleware, requireAdminRole, async (
 
   if (!email) return errorResponse(c, 400, 'Email is required', 'MISSING_EMAIL')
 
-  const insertData = { 
-    email, 
-    frequency: frequency || 'daily'
-  }
-  
-  if (send_time) insertData.send_time = send_time
-  if (frequency === 'weekly' && day_of_week) insertData.day_of_week = day_of_week
-  if (frequency === 'monthly' && day_of_month) insertData.day_of_month = day_of_month
-
+  // Step 1: Insert core fields only (guaranteed to exist in every DB)
   const { data, error } = await supabase
     .from('report_settings')
-    .insert(insertData)
+    .insert({ email, frequency: frequency || 'daily', is_active: true })
     .select()
     .single()
 
@@ -46,6 +38,26 @@ settings.post('/api/settings/reports', authMiddleware, requireAdminRole, async (
     console.error('Insert report_settings error:', error)
     return errorResponse(c, 500, error.message, 'ADD_REPORT_FAILED')
   }
+
+  // Step 2: Try to update optional schedule columns (may not exist if migration wasn't applied)
+  if (data && (send_time || day_of_week || day_of_month)) {
+    const extras = {}
+    if (send_time) extras.send_time = send_time
+    if (frequency === 'weekly' && day_of_week) extras.day_of_week = day_of_week
+    if (frequency === 'monthly' && day_of_month) extras.day_of_month = day_of_month
+
+    if (Object.keys(extras).length > 0) {
+      const { error: updateErr } = await supabase
+        .from('report_settings')
+        .update(extras)
+        .eq('id', data.id)
+      if (updateErr) {
+        console.warn('[settings] Optional schedule columns not available:', updateErr.message)
+        // Not a fatal error — recipient was already created
+      }
+    }
+  }
+
   return c.json(data, 201)
 })
 
@@ -107,46 +119,49 @@ settings.post('/api/settings/reports/test', authMiddleware, requireAdminRole, as
 
     const { data: plants } = await supabase.from('plants').select('name').limit(1)
     const plantName = plants?.[0]?.name || 'Wastewater Treatment Plant'
-    
-    const htmlContent = await generateReportHtml(supabase, plantName, 'daily')
 
+    // ── Date ranges (same logic as the CRON scheduled handler) ──────
     const today = new Date();
-    const dayOfWeek = today.getDay();
 
-    // Date ranges
+    // Daily: yesterday only
     const yesterday = new Date(today);
     yesterday.setDate(yesterday.getDate() - 1);
     const dailyStart = yesterday.toISOString().slice(0, 10);
     const dailyEnd = dailyStart;
 
-    const weekStart = new Date(today);
-    weekStart.setDate(weekStart.getDate() - (dayOfWeek === 0 ? 7 : dayOfWeek - 1) - 7 + dayOfWeek);
-    const weekStartDate = new Date(weekStart);
-    const weekEnd = new Date(weekStartDate);
-    weekEnd.setDate(weekEnd.getDate() + 6);
-    const weeklyStart = weekStartDate.toISOString().slice(0, 10);
-    const weeklyEnd = weekEnd.toISOString().slice(0, 10);
+    // Weekly: previous Mon–Sun
+    const dow = today.getDay();
+    const daysSinceLastMonday = dow === 0 ? 6 : dow - 1;
+    const prevWeekEnd = new Date(today);
+    prevWeekEnd.setDate(prevWeekEnd.getDate() - daysSinceLastMonday - 1);
+    const prevWeekStart = new Date(prevWeekEnd);
+    prevWeekStart.setDate(prevWeekStart.getDate() - 6);
+    const weeklyStart = prevWeekStart.toISOString().slice(0, 10);
+    const weeklyEnd = prevWeekEnd.toISOString().slice(0, 10);
 
+    // Monthly: previous full calendar month
     const monthStart = new Date(today.getFullYear(), today.getMonth() - 1, 1);
     const monthEnd = new Date(today.getFullYear(), today.getMonth(), 0);
     const monthlyStart = monthStart.toISOString().slice(0, 10);
     const monthlyEnd = monthEnd.toISOString().slice(0, 10);
 
     const dateRanges = {
-      daily: { start: dailyStart, end: dailyEnd, label: dailyStart },
-      weekly: { start: weeklyStart, end: weeklyEnd, label: `${weeklyStart} to ${weeklyEnd}` },
+      daily:   { start: dailyStart,   end: dailyEnd,   label: dailyStart },
+      weekly:  { start: weeklyStart,  end: weeklyEnd,  label: `${weeklyStart} to ${weeklyEnd}` },
       monthly: { start: monthlyStart, end: monthlyEnd, label: `${monthStart.toLocaleString('en-US', { month: 'long' })} ${monthStart.getFullYear()}` }
     };
 
     let sentCount = 0;
     for (const r of recipients) {
-      const freq = r.frequency;
+      const freq = r.frequency || 'daily';
       const range = dateRanges[freq];
       if (!range) continue;
 
-      console.log(`Building professional PDF for ${freq} (${range.start} to ${range.end})...`);
+      console.log(`[test-report] Building ${freq} PDF for ${range.start} to ${range.end}...`);
 
       try {
+        const htmlContent = await generateReportHtml(supabase, plantName, freq)
+
         const pdfBytes = await buildRichPdfBuffer(c.env, supabase, {
           startDate: range.start,
           endDate: range.end,
@@ -173,14 +188,15 @@ settings.post('/api/settings/reports/test', authMiddleware, requireAdminRole, as
           attachments
         });
         sentCount++;
-        console.log(`Sent ${freq} report to ${r.email}`);
+        console.log(`[test-report] Sent ${freq} report to ${r.email}`);
       } catch (pdfErr) {
-        console.error(`PDF/send failed for ${r.email}: ${pdfErr.message}`);
+        console.error(`[test-report] Failed for ${r.email}: ${pdfErr.message}`);
       }
     }
 
     return c.json({ success: true, message: `Test report sent to ${sentCount} recipients` })
   } catch (error) {
+    console.error('[test-report] Error:', error.message, error.stack)
     return errorResponse(c, 500, error.message, 'TEST_REPORT_FAILED')
   }
 })
