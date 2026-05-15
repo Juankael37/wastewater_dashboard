@@ -5,7 +5,7 @@
 ### Connect plan vs rest of migration
 The [connect plan](.cursor/plans/connect_supabase_+_cloudflare_cbd74acc.plan.md) scoped **wiring** this repo to Supabase + a deployed Worker + PWA env + minimal RLS + E2E checks. **Outside that plan** (still tracked below): Flask `/api/*` parity for some PWA screens, optional SQLite → Postgres migration, Google Sheets backup, email automation, multi-tenant, full camera→Storage QA.
 
-## 📊 Current Implementation Status (April 25, 2026)
+## 📊 Current Implementation Status (May 13, 2026)
 
 ### 🔖 Checkpoint — April 29, 2026 — Professional PDF & Automated Reports ✅
 
@@ -44,6 +44,21 @@ The [connect plan](.cursor/plans/connect_supabase_+_cloudflare_cbd74acc.plan.md)
 
 **Still pending**
 - The fixes are compiled into the latest `app-debug.apk`, but final user verification failed (suspected caching/stale APK installation on device as the old error string "Upload failed for BOD" was still observed). Session closed for tracking; next session should verify the installation of the new APK to read the exact error diagnostics if the upload still fails.
+
+### 🔖 Checkpoint — May 13, 2026 — Timezone Detection, Custom Camera Timestamps & Report Fixes ✅
+
+**Completed in this checkpoint**
+- **Timezone Auto-Detection:** Created centralized `frontend/src/utils/timezone.ts` utility — auto-detects IANA timezone via `Intl.DateTimeFormat`, provides `formatDateTime()`, `nowLocalTime()`, `getTimezoneAbbr()`, `getUtcOffset()`. All pages updated (Dashboard, Graphs, Input, Settings).
+- **Custom In-App Timestamp Camera:** Created `frontend/src/components/TimestampCamera.tsx` using `getUserMedia()` — shows live date/time overlay at bottom of viewfinder (updates every second), bakes timestamp into captured JPEG via Canvas. Replaced native Capacitor camera to avoid silent WebView failures.
+- **Android Permission Fix:** Added `CAMERA` permission to `AndroidManifest.xml` and overrode `onPermissionRequest` in `MainActivity.java` to auto-grant WebView camera access (Android WebView denies `getUserMedia()` by default).
+- **Image Watermark Utility:** Created `frontend/src/utils/imageStamp.ts` — stamps uploaded images with date/time bar using `createImageBitmap()` + Canvas.
+- **PDF Fixes:** Auto-scaling font for stat cards, wider date column, graceful fallback for missing scheduling DB columns.
+- **Report Date Logic Corrected:** Daily=yesterday only, Weekly=previous Mon–Sun, Monthly=previous full calendar month. Both CRON and Test Report use identical logic. Test report respects each recipient's frequency setting.
+
+**Still pending**
+- Run SQL migration for scheduling columns in Supabase (`send_time`, `day_of_week`, `day_of_month`, `include_charts`)
+- Real-device verification of custom timestamp camera on Android
+- Google Sheets backup implementation
 
 ### 🔖 Checkpoint — April 25, 2026 — Production Deployment Stabilized ✅
 
@@ -101,7 +116,7 @@ The [connect plan](.cursor/plans/connect_supabase_+_cloudflare_cbd74acc.plan.md)
 
 #### Frontend (React PWA - Complete)
 - **Mobile-optimized input forms** with real-time validation for all 9 parameters
-- **Camera integration** for COD, BOD, Ammonia, Nitrate, Phosphate parameters
+- **Camera integration** for COD, BOD, Ammonia, Nitrate, Phosphate parameters — now uses **custom in-app camera with live timestamp overlay** (replaced native Capacitor camera)
 - **PWA features**: Manifest, service worker, offline capabilities
 - **Complete page structure**: Login, Register, Dashboard, Input, Reports, Alerts, Settings
 - **Offline capabilities**: IndexedDB with Dexie.js, background sync
@@ -139,7 +154,7 @@ The [connect plan](.cursor/plans/connect_supabase_+_cloudflare_cbd74acc.plan.md)
 - **Auth**: Supabase Auth for PWA when using Worker URL
 - **Storage**: Supabase Storage for parameter images (⚠️ finish E2E if not done)
 - **Backup**: Google Sheets API integration (⚠️ Implementation guide created)
-- **Email**: Supabase Edge Functions + Resend/SendGrid (📅 Future phase)
+- **Email**: Automated via CRON (daily/weekly/monthly) with Resend API + professional PDF attachments ✅
 
 ## 🔄 Migration Strategy - CURRENT STATUS
 
@@ -207,8 +222,10 @@ Local Flask + React integration is done. The PWA can use **Supabase + Workers** 
 - [ ] Implement Google Sheets backup
 - [x] Close final gaps: Worker vs Flask feature parity for PWA Settings parameter-write routes (see `IMPLEMENTATION_ROADMAP.md`)
 
-### Phase 5: Advanced Features (NOW COMPLETE)
-- [x] Email automation (Daily/Weekly/Monthly reports) with Cloudflare CRON + Browser Run PDF
+### Phase 5: Advanced Features
+- [x] Email automation (Daily/Weekly/Monthly reports) with Cloudflare CRON + PDF-lib PDF ✅
+- [x] Timezone auto-detection and camera timestamp watermark ✅
+- [x] Custom in-app camera with live timestamp overlay ✅
 - [ ] Implement Google Sheets backup
 - [ ] Build admin settings panel
 - [ ] Add multi-tenant support
@@ -325,11 +342,12 @@ Migration is complete when **all** of the following are true:
 
 ## 📈 Project Health Status
 
-- **Overall Progress**: ✅ **Production cloud path LIVE** — both portals deployed and login working; Google Sheets backup + device QA remain
+- **Overall Progress**: ✅ **Production cloud path LIVE** — timezone-aware, camera timestamps, report automation all deployed
 - **Frontend**: React PWA live on Cloudflare Pages; both AquaDash and Operator portals functional on `wastewater-dashboard.pages.dev`
-- **Backend**: Worker live at `wastewater-api.juankael37.workers.dev`; CORS wildcard fix deployed; Flask local-only
+- **Backend**: Worker live at `wastewater-api.juankael37.workers.dev`; CRON daily reports with correct date ranges
+- **Mobile**: Custom in-app camera with live timestamp overlay; APK built with camera permissions
 - **CI/CD**: GitHub Actions auto-deploys to Cloudflare Pages production on every push to `main` touching `frontend/`
-- **Documentation**: Updated April 25, 2026
+- **Documentation**: Updated May 13, 2026
 - **Testing**: Exercise smoke tests (`scripts/smoke-test-worker.ps1`) and `PWA_TESTING_GUIDE.md` on real devices
 
 The system is fully functional with two interfaces:
@@ -337,11 +355,14 @@ The system is fully functional with two interfaces:
 2. **React PWA** - Operator data input and settings; **Worker + Supabase** when configured
 
 ### Latest features (recent sessions):
-- Worker + Supabase integration; RLS/migration artifacts in `supabase/migrations/`
-- Export PDF with trend graphs for all 9 parameters (Flask / AquaDash)
-- Report Settings tab in Settings page
+- Timezone auto-detection across all pages (uses `Intl.DateTimeFormat`)
+- Custom in-app camera with live date/time watermark (replaces native camera)
+- Image timestamp watermarking on capture and upload
+- Fixed automated report date ranges (daily=yesterday, weekly=prev Mon-Sun, monthly=prev month)
+- PDF stat card overflow fix with auto-scaling fonts
+- Android WebView camera permission handling
 
-**Next focus:** Google Sheets backup, optional SQLite migration, production device testing, and release-safety hardening in CI.
+**Next focus:** Google Sheets backup, real-device camera testing, optional SQLite migration, and multi-tenant groundwork.
 
 ## Sprint-ready execution plan (from analysis steps 1-3)
 

@@ -169,10 +169,70 @@ Real‑time warnings when values exceed valid ranges (see detailed table in orig
 - **Frontend Fix Developed:** Modified `InputPage.tsx` to use `CameraResultType.Base64` (fetching image data directly from memory, bypassing the filesystem), reduced camera capture resolution to `width: 500` (keeping payload <150KB), and enhanced error reporting to display raw server errors in the UI. 
 - **Current Status:** The fixes are compiled into the latest `app-debug.apk`, but final user verification failed (suspected caching/stale APK installation on device as the old error string "Upload failed for BOD" was still observed). Session closed for tracking; next session should verify the installation of the new APK to read the exact error diagnostics.
 
+## Checkpoint (May 13, 2026) — Timezone, Camera Timestamps & Report Fixes ✅
+
+### Timezone Auto-Detection
+- **Created `frontend/src/utils/timezone.ts`** — centralized timezone utility that auto-detects the user's IANA timezone via `Intl.DateTimeFormat().resolvedOptions().timeZone`
+- Provides: `detectTimezone()`, `formatDateTime()`, `formatDate()`, `formatTime()`, `nowLocalTime()`, `getTimezoneAbbr()`, `getUtcOffset()`
+- Supports manual override via `localStorage`
+- **Updated all pages** to use timezone-aware formatting:
+  - `DashboardPage.tsx` — "Updated" and "Latest measurement" timestamps
+  - `GraphsPage.tsx` — "Last updated" timestamp
+  - `InputPage.tsx` — capture timestamps and form submission
+  - `ReportSettingsSection.tsx` — shows detected timezone in schedule info, time label shows local abbreviation (e.g. `GMT+8`) instead of `UTC`
+
+### Custom In-App Timestamp Camera
+- **Created `frontend/src/components/TimestampCamera.tsx`** — full-screen custom camera using `navigator.mediaDevices.getUserMedia()`
+- Shows **live real-time timestamp overlay** at the bottom of the camera viewfinder (updates every second)
+- Timestamp bar includes: parameter name, date/time, timezone abbreviation (e.g. `COD | 2026-05-13 10:44 AM GMT+8`)
+- On capture, timestamp is **baked into the image** via Canvas API — guaranteed in the final JPEG
+- Features: capture button, flip camera (front/back), close button, touch feedback animations
+- **Replaced native Capacitor camera** — no longer uses `@capacitor/camera` for image capture, avoiding silent WebView failures
+- **Android permissions fixed:**
+  - Added `<uses-permission android:name="android.permission.CAMERA" />` to `AndroidManifest.xml`
+  - Added `<uses-feature>` declarations for camera hardware
+  - Updated `MainActivity.java` to override `onPermissionRequest` in WebChromeClient — auto-grants `getUserMedia()` camera access to the WebView (Android WebView denies this by default even with manifest permission)
+
+### Image Watermark Utility
+- **Created `frontend/src/utils/imageStamp.ts`** — stamps uploaded images with timestamps using `createImageBitmap()` + Canvas
+- Works for both camera capture and file upload flows
+- Font size: 5% of image width (clamped 14–36px), dark bar with teal accent line
+
+### PDF Report Fixes
+- **Fixed stat card overflow** — auto-scaling font in `pdfHelpers.js` (shrinks from 12pt to 6pt if text exceeds container)
+- **Fixed report period card width** — wider column for date range in `richPdf.js`
+- **Fixed recipient insert failure** — graceful fallback in `settings.js` for missing scheduling DB columns (`send_time`, `day_of_week`, etc.)
+- **Fixed report images not appearing** — expanded date range for image queries
+
+### Automated Report Date Logic Fix ✅
+- **Daily:** Yesterday only (not 30 days or yesterday+today)
+- **Weekly:** Previous full Mon–Sun week
+- **Monthly:** Previous full calendar month
+- Both **CRON scheduled handler** (`index.js`) and **Test Report button** (`settings.js`) now use identical date range logic
+- Test report respects each recipient's configured frequency (daily recipients get yesterday's report, weekly get last week, etc.)
+
+### Deployments
+- Frontend deployed to Cloudflare Pages
+- API Worker deployed to `wastewater-api.juankael37.workers.dev`
+- New APK built with all camera/timestamp features
+- All changes committed and pushed to `main` branch
+
+### Outstanding Items
+- **Database migration needed** for full scheduling features:
+  ```sql
+  ALTER TABLE report_settings 
+  ADD COLUMN IF NOT EXISTS send_time TEXT DEFAULT '08:00',
+  ADD COLUMN IF NOT EXISTS day_of_week INTEGER CHECK (day_of_week IS NULL OR (day_of_week >= 1 AND day_of_week <= 7)),
+  ADD COLUMN IF NOT EXISTS day_of_month INTEGER CHECK (day_of_month IS NULL OR (day_of_month >= 1 AND day_of_month <= 28)),
+  ADD COLUMN IF NOT EXISTS include_charts BOOLEAN DEFAULT TRUE;
+  ```
+- Real-device testing of timestamp camera on Android
+- Google Sheets backup implementation
+
 ## Key Constraints
 - Zero‑cost deployment (Cloudflare + Supabase)
 - Offline‑capable mobile app
 - Real‑time validation
 - Email automation with images
 - Google Sheets backup
-- Camera integration per parameter
+- Camera integration per parameter with timestamp watermark
