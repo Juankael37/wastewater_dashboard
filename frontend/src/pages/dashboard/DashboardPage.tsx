@@ -14,7 +14,7 @@ import {
   BarChart3,
 } from 'lucide-react'
 import { dashboardApi, type Alert as AlertDTO } from '../../services/api'
-import { nowLocalTime, formatDateTime, getTimezoneAbbr } from '../../utils/timezone'
+import { nowLocalTime } from '../../utils/timezone'
 
 interface ParameterData {
   name: string
