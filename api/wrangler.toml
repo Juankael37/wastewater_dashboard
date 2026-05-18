@@ -12,7 +12,5 @@ ALLOWED_ORIGINS = "LAN_DEV_ORIGINS,http://localhost:5173,http://127.0.0.1:5173,h
 GOOGLE_SHEETS_ID = "1k-awP_yG3tzLbQ_-t8j5Y0BgZ8eEXP0wk7d_Os7kmfU"
 
 [triggers]
-# Daily: Every day at 8:00 AM
-# Weekly: Every Monday at 8:00 AM
-# Monthly: 1st of every month at 8:00 AM
-crons = ["0 8 * * *"]
+# Cloudflare CRON runs in UTC. 0:00 UTC = 8:00 AM GMT+8 (Philippines)
+crons = ["0 0 * * *"]

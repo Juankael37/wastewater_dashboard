@@ -1,17 +1,18 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
-import { Eye, EyeOff, Mail, Lock, UserPlus } from 'lucide-react'
+import { Eye, EyeOff, Mail, Lock, User, UserPlus } from 'lucide-react'
 import WaterBubbles from '../../components/landing/WaterBubbles'
 
-const AquaLoginPage = () => {
+const SignupPage = () => {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [fullName, setFullName] = useState('')
   const [error, setError] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
   
-  const { signIn } = useAuth()
+  const { signUp } = useAuth()
   const navigate = useNavigate()
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -20,25 +21,10 @@ const AquaLoginPage = () => {
     setIsLoading(true)
 
     try {
-      localStorage.clear()
-      await signIn(email, password)
-      localStorage.setItem('active_portal', 'aquadash')
-      
-      const userStr = localStorage.getItem('ww_access_token')
-      if (userStr) {
-        try {
-          const payload = JSON.parse(atob(userStr.split('.')[1]))
-          const role = payload?.user_metadata?.role || payload?.role || 'client'
-          if (role === 'operator') {
-            window.location.href = '/login/operator'
-            return
-          }
-        } catch {}
-      }
-      
-      window.location.href = '/dashboard'
+      await signUp(fullName, password, email, 'client')
+      navigate('/login/aquadash')
     } catch (err: any) {
-      setError(err.message || 'Failed to sign in')
+      setError(err.message || 'Failed to create account')
     } finally {
       setIsLoading(false)
     }
@@ -62,13 +48,28 @@ const AquaLoginPage = () => {
         {/* Logo */}
         <div className="text-center mb-8">
           <img src="/Official Header logo.png" alt="Logo" className="h-20 w-auto mx-auto mb-4" />
-          <h2 className="text-2xl font-bold text-white">Client & Admin Portal</h2>
-          <p className="mt-2 text-sm text-slate-400">Sign in to access your dashboard</p>
+          <h2 className="text-2xl font-bold text-white">Create Account</h2>
+          <p className="mt-2 text-sm text-slate-400">Join the wastewater monitoring platform</p>
         </div>
 
         {/* Card */}
         <div className="bg-slate-800/50 backdrop-blur-xl rounded-2xl border border-slate-700/50 p-8 shadow-2xl">
           <form onSubmit={handleSubmit} className="space-y-5">
+            <div>
+              <label className="block text-sm font-medium text-slate-300 mb-2">Full Name</label>
+              <div className="relative">
+                <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+                <input
+                  type="text"
+                  value={fullName}
+                  onChange={(e) => setFullName(e.target.value)}
+                  className="w-full pl-10 pr-4 py-3 bg-slate-700/50 border border-slate-600 rounded-xl text-white placeholder-slate-500 focus:ring-2 focus:ring-teal-400 focus:border-transparent transition-all"
+                  placeholder="John Doe"
+                  required
+                />
+              </div>
+            </div>
+
             <div>
               <label className="block text-sm font-medium text-slate-300 mb-2">Email</label>
               <div className="relative">
@@ -78,7 +79,7 @@ const AquaLoginPage = () => {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   className="w-full pl-10 pr-4 py-3 bg-slate-700/50 border border-slate-600 rounded-xl text-white placeholder-slate-500 focus:ring-2 focus:ring-teal-400 focus:border-transparent transition-all"
-                  placeholder="admin@company.com"
+                  placeholder="you@company.com"
                   required
                 />
               </div>
@@ -93,8 +94,9 @@ const AquaLoginPage = () => {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   className="w-full pl-10 pr-12 py-3 bg-slate-700/50 border border-slate-600 rounded-xl text-white placeholder-slate-500 focus:ring-2 focus:ring-teal-400 focus:border-transparent transition-all"
-                  placeholder="••••••••"
+                  placeholder="Min 6 characters"
                   required
+                  minLength={6}
                 />
                 <button
                   type="button"
@@ -115,15 +117,17 @@ const AquaLoginPage = () => {
               disabled={isLoading}
               className="w-full bg-gradient-to-r from-teal-500 to-cyan-500 text-white py-3 rounded-xl font-semibold hover:from-teal-400 hover:to-cyan-400 disabled:opacity-50 transition-all shadow-lg shadow-teal-500/25 hover:shadow-teal-500/40"
             >
-              {isLoading ? 'Signing in...' : 'Sign In'}
+              {isLoading ? 'Creating account...' : 'Create Account'}
             </button>
           </form>
 
           <div className="mt-6 text-center">
-            <Link to="/signup" className="inline-flex items-center gap-2 text-sm text-slate-400 hover:text-teal-400 transition-colors">
-              <UserPlus className="w-4 h-4" />
-              Create an account
-            </Link>
+            <p className="text-sm text-slate-400">
+              Already have an account?{' '}
+              <Link to="/login/aquadash" className="text-teal-400 hover:text-teal-300 transition-colors">
+                Sign in
+              </Link>
+            </p>
           </div>
         </div>
       </div>
@@ -131,4 +135,4 @@ const AquaLoginPage = () => {
   )
 }
 
-export default AquaLoginPage
+export default SignupPage

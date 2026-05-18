@@ -14,6 +14,7 @@ import LoadingSpinner from './components/common/LoadingSpinner'
 // Lazy-loaded pages — each gets its own chunk for faster initial load
 const AquaLoginPage = lazy(() => import('./pages/auth/AquaLoginPage'))
 const OperatorLoginPage = lazy(() => import('./pages/auth/OperatorLoginPage'))
+const SignupPage = lazy(() => import('./pages/auth/SignupPage'))
 const DashboardPage = lazy(() => import('./pages/dashboard/DashboardPage'))
 const GraphsPage = lazy(() => import('./pages/dashboard/GraphsPage'))
 const InputPage = lazy(() => import('./pages/input/InputPage'))
@@ -21,6 +22,7 @@ const ReportsPage = lazy(() => import('./pages/reports/ReportsPage'))
 const AlertsPage = lazy(() => import('./pages/alerts/AlertsPage'))
 const SettingsPage = lazy(() => import('./pages/settings/SettingsPage'))
 const NotFoundPage = lazy(() => import('./pages/NotFoundPage'))
+const LandingPage = lazy(() => import('./pages/landing/LandingPage'))
 
 // Dynamically select the layout based on user role
 const DynamicLayout = () => {
@@ -65,14 +67,17 @@ function App() {
         
         <Suspense fallback={<LoadingSpinner />}>
           <Routes>
+            {/* Public landing page */}
+            <Route path="/" element={<LandingPage />} />
+
             {/* TWO SEPARATE LOGINS - per project.md */}
             <Route path="/login/aquadash" element={<AquaLoginPage />} />
             <Route path="/login/operator" element={<OperatorLoginPage />} />
+            <Route path="/signup" element={<SignupPage />} />
             
             {/* Shared routes (Dynamic Layout) */}
             <Route element={<ProtectedRoute />}>
               <Route element={<DynamicLayout />}>
-                <Route path="/" element={<Navigate to="/dashboard" replace />} />
                 <Route path="/dashboard" element={<DashboardPage />} />
                 <Route path="/graphs" element={<GraphsPage />} />
                 <Route path="/alerts" element={<AlertsPage />} />
