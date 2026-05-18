@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 import { Eye, EyeOff, Mail, Lock, UserPlus } from 'lucide-react'
 import WaterBubbles from '../../components/landing/WaterBubbles'
@@ -12,7 +12,6 @@ const AquaLoginPage = () => {
   const [showPassword, setShowPassword] = useState(false)
   
   const { signIn } = useAuth()
-  const navigate = useNavigate()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()

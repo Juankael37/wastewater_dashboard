@@ -9,7 +9,6 @@ import {
   Activity,
   Wind,
   RefreshCw,
-  TrendingUp,
   AlertCircle,
   Shield,
   BarChart3,
@@ -43,7 +42,6 @@ const DashboardPage: React.FC = () => {
   const [complianceRate, setComplianceRate] = useState<number>(0)
   const [totalReadings, setTotalReadings] = useState<number>(0)
   const [lastUpdated, setLastUpdated] = useState<string>(nowLocalTime())
-  const [latestMeasurementAt, setLatestMeasurementAt] = useState<string>('n/a')
 
   const paramConfig: Record<string, { unit: string; icon: React.ReactNode; color: string; min: number; max: number }> = {
     ph: { unit: '', icon: <Beaker className="w-4 h-4" />, color: '#3b82f6', min: 6.0, max: 9.5 },
@@ -87,10 +85,6 @@ const DashboardPage: React.FC = () => {
       setComplianceRate(snapshot.complianceRate)
       setTotalReadings(snapshot.totalReadings)
       setLastUpdated(nowLocalTime())
-      setLatestMeasurementAt(() => {
-        if (!snapshot.latestMeasurementTimestamp) return 'n/a';
-        return `${formatDateTime(snapshot.latestMeasurementTimestamp)} ${getTimezoneAbbr()}`;
-      })
     } catch (error) {
       console.error('Failed to fetch dashboard data:', error)
     } finally {

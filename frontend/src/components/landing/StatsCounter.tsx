@@ -24,7 +24,6 @@ const StatsCounter = ({ end, suffix = '', label, icon: Icon }: StatsCounterProps
     const duration = 2000
     const steps = 60
     const stepTime = duration / steps
-    const increment = end / steps
     let current = 0
     let step = 0
 
