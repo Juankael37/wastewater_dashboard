@@ -8,6 +8,7 @@ import { authMiddleware } from '../middleware.js'
 import {
   CLR, safe, drawBarChart, drawTable, drawSectionHeading,
   drawStatCard, addFooters, fetchImageBytes, getImageFormat, embedImages,
+  embedLogo,
 } from './pdfHelpers.js'
 
 const richPdf = new Hono()
@@ -108,7 +109,7 @@ async function fetchReportData(supabase, startDate, endDate, requestedParams) {
 }
 
 // ── Main PDF builder ───────────────────────────────────────────────────────
-async function generatePdfBytes(supabase, options) {
+async function generatePdfBytes(supabase, options, env = null) {
   const { startDate, endDate, parameters: requestedParams, title = 'Wastewater Treatment Plant' } = options
   const { paramData, tableRows, standards, paramConfigs, imageEntries } = await fetchReportData(supabase, startDate, endDate, requestedParams)
 
@@ -132,8 +133,18 @@ async function generatePdfBytes(supabase, options) {
   // Header banner (gradient effect with layered rectangles)
   page.drawRectangle({ x: 0, y: H - 110, width: W, height: 110, color: CLR.primary })
   page.drawRectangle({ x: 0, y: H - 110, width: W, height: 4, color: CLR.primaryLt })
-  page.drawText(safe(title), { x: M, y: H - 50, size: 22, font: bold, color: CLR.white })
-  page.drawText('Environmental Compliance Report', { x: M, y: H - 72, size: 12, font: reg, color: rgb(0.75, 0.82, 0.95) })
+  
+  // Embed Wil-C logo
+  const logoImage = await embedLogo(pdfDoc, env)
+  if (logoImage) {
+    const logoW = 80, logoH = Math.min((logoImage.height / logoImage.width) * logoW, 90)
+    page.drawImage(logoImage, { x: M, y: H - 55 - logoH / 2, width: logoW, height: logoH })
+    page.drawText('Wil-C', { x: M + logoW + 15, y: H - 45, size: 18, font: bold, color: CLR.white })
+    page.drawText(safe(title), { x: M + logoW + 15, y: H - 65, size: 11, font: reg, color: rgb(0.75, 0.82, 0.95) })
+  } else {
+    page.drawText('Wil-C', { x: M, y: H - 45, size: 22, font: bold, color: CLR.white })
+    page.drawText(safe(title), { x: M, y: H - 65, size: 12, font: reg, color: rgb(0.75, 0.82, 0.95) })
+  }
   page.drawText('v5.0', { x: W - M - 28, y: H - 50, size: 9, font: bold, color: rgb(0.6, 0.72, 0.92) })
   y = H - 130
 
@@ -352,7 +363,7 @@ richPdf.post('/api/reports/rich-pdf', authMiddleware, async (c) => {
   const endDate = end || new Date().toISOString().slice(0, 10)
 
   try {
-    const pdfBytes = await generatePdfBytes(supabase, { startDate, endDate, parameters: requestedParams, title: 'Wastewater Treatment Plant' })
+    const pdfBytes = await generatePdfBytes(supabase, { startDate, endDate, parameters: requestedParams, title: 'Wastewater Treatment Plant' }, c.env)
     return new Response(pdfBytes, {
       headers: { 'Content-Type': 'application/pdf', 'Content-Disposition': `attachment; filename="wastewater_report_${startDate}_${endDate}.pdf"` },
     })
@@ -362,5 +373,5 @@ richPdf.post('/api/reports/rich-pdf', authMiddleware, async (c) => {
   }
 })
 
-export const buildRichPdfBuffer = async (env, supabase, options) => generatePdfBytes(supabase, options)
+export const buildRichPdfBuffer = async (env, supabase, options) => generatePdfBytes(supabase, options, env)
 export default richPdf
