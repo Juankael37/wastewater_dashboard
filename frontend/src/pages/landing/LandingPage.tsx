@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom'
 import {
   Shield, BarChart3, Bell, FileText, Smartphone,
   Wifi, WifiOff, Camera, Clock, Users, ChevronRight,
-  Activity, Zap, Globe, ArrowRight, Menu, X
+  Activity, Zap, Globe, ArrowRight, Menu, X, Download
 } from 'lucide-react'
 import { useState } from 'react'
 import WaterBackground from '../../components/landing/WaterBackground'
@@ -157,6 +157,13 @@ const LandingPage = () => {
             </div>
 
             <div className="hidden md:flex items-center gap-3">
+              <a href="/Wil-C-Operator.apk" download
+                className="px-4 py-2 text-sm text-teal-400 hover:text-teal-300 border border-teal-500/30
+                           hover:border-teal-400 rounded-xl transition-all duration-200 cursor-pointer
+                           flex items-center gap-1.5">
+                <Download className="w-3.5 h-3.5" />
+                Download App
+              </a>
               <Link to="/login/operator"
                 className="px-4 py-2 text-sm text-slate-300 hover:text-white border border-slate-600
                            hover:border-slate-500 rounded-xl transition-all duration-200 cursor-pointer">
@@ -196,10 +203,15 @@ const LandingPage = () => {
                    className="text-slate-300 hover:text-teal-400 transition-colors py-2 cursor-pointer">How It Works</a>
                 <a href="#stats" onClick={() => setMobileMenuOpen(false)}
                    className="text-slate-300 hover:text-teal-400 transition-colors py-2 cursor-pointer">Impact</a>
-                <hr className="border-slate-700" />
-                <Link to="/login/operator" className="text-slate-300 hover:text-white py-2 cursor-pointer">
-                  Operator Login
-                </Link>
+              <hr className="border-slate-700" />
+              <a href="/Wil-C-Operator.apk" download
+                className="text-teal-400 hover:text-teal-300 py-2 cursor-pointer flex items-center gap-2">
+                <Download className="w-4 h-4" />
+                Download Operator App
+              </a>
+              <Link to="/login/operator" className="text-slate-300 hover:text-white py-2 cursor-pointer">
+                Operator Login
+              </Link>
                 <Link to="/login/aquadash"
                   className="w-full text-center px-5 py-3 font-medium text-white bg-gradient-to-r from-teal-500
                              to-cyan-500 rounded-xl cursor-pointer">
@@ -398,14 +410,14 @@ const LandingPage = () => {
                 zero infrastructure costs.
               </p>
               <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                <Link to="/login/aquadash"
+                <a href="/Wil-C-Operator.apk" download
                   className="group inline-flex items-center justify-center gap-2 px-8 py-4 text-lg font-semibold
                              text-white bg-gradient-to-r from-teal-500 to-cyan-500 rounded-2xl
                              shadow-2xl shadow-teal-500/30 hover:shadow-teal-500/50
                              hover:from-teal-400 hover:to-cyan-400 transition-all duration-300 cursor-pointer">
-                  Get Started Free
-                  <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform duration-200" />
-                </Link>
+                  <Download className="w-5 h-5" />
+                  Download Operator App
+                </a>
                 <Link to="/login/operator"
                   className="inline-flex items-center justify-center gap-2 px-8 py-4 text-lg font-medium
                              text-slate-300 border border-slate-600 hover:border-teal-500/50

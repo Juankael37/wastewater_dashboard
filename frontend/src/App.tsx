@@ -1,5 +1,5 @@
-import { lazy, Suspense } from 'react'
-import { Routes, Route, Navigate } from 'react-router-dom'
+import { lazy, Suspense, useEffect } from 'react'
+import { Routes, Route, Navigate, useNavigate } from 'react-router-dom'
 import { Toaster } from 'react-hot-toast'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import { OfflineProvider } from './contexts/OfflineContext'
@@ -10,6 +10,7 @@ import AdminRoute from './components/auth/AdminRoute'
 import AquaLayout from './components/layout/AquaLayout'
 import Layout from './components/layout/Layout'
 import LoadingSpinner from './components/common/LoadingSpinner'
+import { isCapacitorNative } from './utils/capacitor'
 
 // Lazy-loaded pages — each gets its own chunk for faster initial load
 const AquaLoginPage = lazy(() => import('./pages/auth/AquaLoginPage'))
@@ -35,6 +36,23 @@ const DynamicLayout = () => {
   }
   
   return <AquaLayout />
+}
+
+// Redirect root to operator login when running inside Capacitor (Android app)
+const CapacitorRedirect = () => {
+  const navigate = useNavigate()
+  
+  useEffect(() => {
+    if (isCapacitorNative()) {
+      navigate('/login/operator', { replace: true })
+    }
+  }, [navigate])
+  
+  if (isCapacitorNative()) {
+    return <LoadingSpinner />
+  }
+  
+  return <LandingPage />
 }
 
 function App() {
@@ -67,8 +85,8 @@ function App() {
         
         <Suspense fallback={<LoadingSpinner />}>
           <Routes>
-            {/* Public landing page */}
-            <Route path="/" element={<LandingPage />} />
+            {/* Public landing page — redirects to operator login in Capacitor */}
+            <Route path="/" element={<CapacitorRedirect />} />
 
             {/* TWO SEPARATE LOGINS - per project.md */}
             <Route path="/login/aquadash" element={<AquaLoginPage />} />

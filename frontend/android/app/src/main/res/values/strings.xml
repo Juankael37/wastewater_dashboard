@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">Wastewater Dashboard</string>
-    <string name="title_activity_main">Wastewater Dashboard</string>
-    <string name="package_name">com.wastewater.dashboard</string>
-    <string name="custom_url_scheme">com.wastewater.dashboard</string>
+    <string name="app_name">Wil-C Operator</string>
+    <string name="title_activity_main">Wil-C Operator</string>
+    <string name="package_name">com.wilc.operator</string>
+    <string name="custom_url_scheme">com.wilc.operator</string>
 </resources>
