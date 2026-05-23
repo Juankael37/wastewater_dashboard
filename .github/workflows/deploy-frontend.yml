@@ -64,4 +64,4 @@ jobs:
           BRANCH_NAME="${{ steps.branch.outputs.name }}"
           # Sanitize branch name (replace / with -)
           BRANCH_NAME=$(echo "$BRANCH_NAME" | tr '/' '-')
-          npx wrangler@3 pages deploy dist --project-name=wastewater-dashboard --branch=$BRANCH_NAME
+          npx wrangler@3 pages deploy dist --project-name=wilc --branch=$BRANCH_NAME
