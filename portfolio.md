@@ -1,41 +1,39 @@
 ---
 name: Wil-C
-shortDescription: A full-stack PWA for wastewater treatment plant monitoring, automated compliance reporting, and real-time data logging.
+shortDescription: Full-stack PWA for wastewater treatment monitoring with automated compliance reporting and real-time field data logging.
 video: /wil-c.mp4
 tech:
   - React
   - TypeScript
   - Supabase
-  - Cloudflare
+  - Cloudflare Workers
   - PWA
   - PostgreSQL
 features:
-  - Dual-portal architecture with role-based access control (RBAC)
-  - Installable PWA for field operators with offline capability
-  - Custom camera component with Canvas API timestamp watermarking
-  - Real-time monitoring dashboard with regulatory compliance alerts
+  - Role-based portals with distinct UI themes for Admins, Clients, and Operators
+  - Custom in-app camera with baked-in timestamp and parameter metadata
   - Automated PDF report generation via Cloudflare Browser Rendering
-  - Scheduled CRON jobs for daily, weekly, or monthly report emails
-  - Automatic synchronization of all measurement data to Google Sheets
-  - Dynamic timezone auto-detection via browser Intl API
+  - Real-time monitoring dashboard with visual compliance threshold alerts
+  - Scheduled CRON jobs for automated daily, weekly, or monthly email reports
+  - Automatic data mirroring to Google Sheets for audit-proof record keeping
+  - Mobile-first PWA design for offline-capable field data entry
 techStack:
   - React (TypeScript)
-  - Cloudflare Pages & Workers
+  - Cloudflare Workers
+  - Cloudflare Pages
   - Supabase (PostgreSQL, Auth, Storage)
-  - Cloudflare Puppeteer (@cloudflare/puppeteer)
-  - Capacitor
+  - Cloudflare Browser Rendering (Puppeteer)
   - Google Sheets API
 pages:
   - /login/aquadash
   - /login/operator
   - /dashboard
   - /graphs
-  - /input
   - /reports
   - /settings
 workflowMermaid: |
   graph TD
-    N0["1. Operator opens PWA mobile"]
+    N0["1. Operator opens app mobile"]
     N1["2. Fills in measurement form"]
     N2["parameters: BOD, COD, TSS, pH,"]
     N3["Camera captures lab sample photos"]
@@ -58,8 +56,8 @@ workflowMermaid: |
     N9 --> N10
 ---
 
-Wil-C is a production-deployed web application designed for wastewater treatment plant operations. It features two dedicated portals: a dark-themed monitoring dashboard for admins and clients, and a light-themed PWA for field operators to input influent and effluent measurements, even in offline environments.
+Wil-C is a production-ready web application built for wastewater treatment plant operations. It provides a dual-portal system: a dark-themed monitoring dashboard for clients and administrators, and a light-themed, mobile-optimized PWA for field operators to log influent and effluent measurements directly from the facility.
 
-The system enforces regulatory compliance for parameters like BOD, COD, and pH with real-time threshold validation and automated visual alerts. Built on a zero-cost infrastructure stack, it leverages Cloudflare Pages and Workers for high-performance hosting and PDF report generation, while Supabase provides robust PostgreSQL storage, authentication, and real-time syncing capabilities.
+The system ensures regulatory compliance by enforcing effluent standards (e.g., BOD, COD, TSS, pH) with real-time threshold validation and automated visual alerts. Built on a zero-cost infrastructure stack, it leverages Cloudflare Workers for API operations and automated PDF report generation, while Supabase provides robust PostgreSQL storage, authentication, and real-time data syncing.
 
-To ensure audit-proof operations, the app includes a custom timestamped camera component that embeds location and time metadata directly into lab images. Additionally, it automates administrative overhead by generating scheduled professional PDF reports and mirroring data to Google Sheets for streamlined stakeholder reporting.
+To maintain audit integrity, the app features a custom in-app camera component that bakes location and timestamp metadata directly into lab images. Additionally, it automates administrative workflows by generating scheduled professional PDF reports and mirroring all measurement data to Google Sheets for streamlined stakeholder reporting.

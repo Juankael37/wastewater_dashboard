@@ -116,7 +116,7 @@ const LandingPage = () => {
   const features = [
     { icon: BarChart3, title: 'Data Dashboard', description: 'Monitor manually inputted influent & effluent data with charts, compliance indicators, and anomaly detection.', gradient: 'linear-gradient(135deg, #14b8a6, #06b6d4)' },
     { icon: Smartphone, title: 'Mobile-First PWA', description: 'Capture data in the field with our installable Progressive Web App — works on any device.', gradient: 'linear-gradient(135deg, #6366f1, #8b5cf6)' },
-    { icon: Users, title: 'Operator Input', description: 'Simple and intuitive manual data entry interface for operators to log measurements accurately.', gradient: 'linear-gradient(135deg, #f59e0b, #ef4444)' },
+    { icon: WifiOff, title: 'Offline Capable (Coming Soon)', description: 'We are actively integrating offline support. Soon, you will be able to capture data without a signal and auto-sync later.', gradient: 'linear-gradient(135deg, #f59e0b, #ef4444)' },
     { icon: Camera, title: 'Timestamp Camera', description: 'Built-in camera with automatic timestamp & parameter watermarks baked into every photo.', gradient: 'linear-gradient(135deg, #ec4899, #f43f5e)' },
     { icon: FileText, title: 'Automated Reports', description: 'Schedule daily, weekly, or monthly compliance PDF reports delivered to stakeholders via email.', gradient: 'linear-gradient(135deg, #10b981, #059669)' },
     { icon: Shield, title: 'RBAC Security', description: 'Role-based access control with Admin, Operator, and Client roles — each sees only what they need.', gradient: 'linear-gradient(135deg, #3b82f6, #1d4ed8)' },
