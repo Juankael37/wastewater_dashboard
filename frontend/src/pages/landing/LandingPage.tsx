@@ -114,18 +114,18 @@ const LandingPage = () => {
   const heroScale = useTransform(scrollYProgress, [0, 0.15], [1, 0.95])
 
   const features = [
-    { icon: BarChart3, title: 'Real-Time Dashboard', description: 'Monitor influent & effluent data with live charts, compliance indicators, and instant anomaly detection.', gradient: 'linear-gradient(135deg, #14b8a6, #06b6d4)' },
+    { icon: BarChart3, title: 'Data Dashboard', description: 'Monitor manually inputted influent & effluent data with charts, compliance indicators, and anomaly detection.', gradient: 'linear-gradient(135deg, #14b8a6, #06b6d4)' },
     { icon: Smartphone, title: 'Mobile-First PWA', description: 'Capture data in the field with our installable Progressive Web App — works on any device.', gradient: 'linear-gradient(135deg, #6366f1, #8b5cf6)' },
-    { icon: WifiOff, title: 'Offline Capable', description: 'No signal? No problem. Data syncs automatically when connectivity is restored.', gradient: 'linear-gradient(135deg, #f59e0b, #ef4444)' },
+    { icon: Users, title: 'Operator Input', description: 'Simple and intuitive manual data entry interface for operators to log measurements accurately.', gradient: 'linear-gradient(135deg, #f59e0b, #ef4444)' },
     { icon: Camera, title: 'Timestamp Camera', description: 'Built-in camera with automatic timestamp & parameter watermarks baked into every photo.', gradient: 'linear-gradient(135deg, #ec4899, #f43f5e)' },
     { icon: FileText, title: 'Automated Reports', description: 'Schedule daily, weekly, or monthly compliance PDF reports delivered to stakeholders via email.', gradient: 'linear-gradient(135deg, #10b981, #059669)' },
     { icon: Shield, title: 'RBAC Security', description: 'Role-based access control with Admin, Operator, and Client roles — each sees only what they need.', gradient: 'linear-gradient(135deg, #3b82f6, #1d4ed8)' },
   ]
 
   const steps = [
-    { icon: Smartphone, title: 'Capture Data', description: 'Operators input influent & effluent measurements via the mobile PWA — online or offline.' },
-    { icon: Wifi, title: 'Auto-Sync to Cloud', description: 'Data syncs to Supabase via Cloudflare Workers. Zero-downtime, zero-cost infrastructure.' },
-    { icon: BarChart3, title: 'Visualize & Analyze', description: 'Admins and clients view real-time dashboards, trend graphs, and compliance status.' },
+    { icon: Smartphone, title: 'Capture Data', description: 'Operators input influent & effluent measurements via the mobile PWA.' },
+    { icon: Wifi, title: 'Sync to Cloud', description: 'Data is sent to Supabase via Cloudflare Workers. Zero-downtime, zero-cost infrastructure.' },
+    { icon: BarChart3, title: 'Visualize & Analyze', description: 'Admins and clients view dashboards, trend graphs, and compliance status.' },
     { icon: Bell, title: 'Get Notified', description: 'Automated alerts when parameters exceed regulatory limits. Never miss a violation.' },
   ]
 
@@ -241,7 +241,7 @@ const LandingPage = () => {
                        border border-teal-500/20 mb-8"
           >
             <div className="w-2 h-2 rounded-full bg-teal-400 animate-pulse" />
-            <span className="text-sm text-teal-400 font-medium">Live Monitoring • Zero-Cost Infrastructure</span>
+            <span className="text-sm text-teal-400 font-medium">Manual Data Tracking • Zero-Cost Infrastructure</span>
           </motion.div>
 
           <motion.h1
@@ -263,8 +263,8 @@ const LandingPage = () => {
             transition={{ duration: 0.8, delay: 0.6 }}
             className="max-w-2xl mx-auto text-lg sm:text-xl text-slate-400 mb-10 leading-relaxed"
           >
-            Track influent & effluent parameters in real time. Capture data offline,
-            auto-generate compliance reports, and never miss an exceedance — all from your phone.
+            Log influent & effluent parameters manually.
+            Auto-generate compliance reports, and never miss an exceedance — all from your phone.
           </motion.p>
 
           <motion.div

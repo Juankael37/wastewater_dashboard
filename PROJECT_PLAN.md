@@ -5,9 +5,23 @@
 ### Connect plan vs rest of migration
 The [connect plan](.cursor/plans/connect_supabase_+_cloudflare_cbd74acc.plan.md) scoped **wiring** this repo to Supabase + a deployed Worker + PWA env + minimal RLS + E2E checks. **Outside that plan** (still tracked below): Flask `/api/*` parity for some PWA screens, optional SQLite → Postgres migration, Google Sheets backup, email automation, multi-tenant, full camera→Storage QA.
 
-## 📊 Current Implementation Status (May 13, 2026)
+## 📊 Current Implementation Status (May 19, 2026)
 
-### 🔖 Checkpoint — April 29, 2026 — Professional PDF & Automated Reports ✅
+### 🔖 Checkpoint — May 19, 2026 — Wil-C Branding & Native Android App ✅
+
+**Completed in this checkpoint**
+- **PDF Report Branding:** Wil-C logo and brand name added to all PDF reports (`richPdf.js`, `pdfHelpers.js`). Logo fetched from frontend URL, embedded on cover page header banner. Footer updated to "Wil-C". URL-encoded spaces in logo filename; format detection (PNG/JPG) added. Logo height clamped to prevent overflow.
+- **Native Android App (Wil-C Operator):** Rebranded to "Wil-C Operator" — app name, package ID (`com.wilc.operator`), strings. Launcher icons generated from `For Dashboard and Fave Icon.png` via `@capacitor/assets` (all mipmap densities, adaptive icons, splash screens). Auto-redirect to Operator Login when running in Capacitor. APK download link added to landing page (navbar, mobile menu, CTA section). APK served from `/Wil-C-Operator.apk`.
+- **Capacitor detection utility** created (`frontend/src/utils/capacitor.ts`) for runtime environment detection.
+
+**Still pending**
+- Real-device testing of Wil-C Operator APK (install, login, camera, image upload, offline sync)
+- Google Sheets backup implementation
+- Run SQL migration for scheduling columns in Supabase
+
+---
+
+### 🔖 Checkpoint — May 13, 2026 — Timezone Detection, Custom Camera Timestamps & Report Fixes ✅
 
 **Completed in this checkpoint**
 - **Cloudflare Browser Run Integration:** Implemented rich PDF generation using `@cloudflare/puppeteer` with professional A4 layout.
@@ -226,6 +240,8 @@ Local Flask + React integration is done. The PWA can use **Supabase + Workers** 
 - [x] Email automation (Daily/Weekly/Monthly reports) with Cloudflare CRON + PDF-lib PDF ✅
 - [x] Timezone auto-detection and camera timestamp watermark ✅
 - [x] Custom in-app camera with live timestamp overlay ✅
+- [x] Wil-C branding on PDF reports (logo + footer) ✅
+- [x] Native Android app (Wil-C Operator) with branded icons and download link ✅
 - [ ] Implement Google Sheets backup
 - [ ] Build admin settings panel
 - [ ] Add multi-tenant support
@@ -342,12 +358,12 @@ Migration is complete when **all** of the following are true:
 
 ## 📈 Project Health Status
 
-- **Overall Progress**: ✅ **Production cloud path LIVE** — timezone-aware, camera timestamps, report automation all deployed
+- **Overall Progress**: ✅ **Production cloud path LIVE** — timezone-aware, camera timestamps, report automation, Wil-C branding all deployed
 - **Frontend**: React PWA live on Cloudflare Pages; both AquaDash and Operator portals functional on `wastewater-dashboard.pages.dev`
 - **Backend**: Worker live at `wastewater-api.juankael37.workers.dev`; CRON daily reports with correct date ranges
-- **Mobile**: Custom in-app camera with live timestamp overlay; APK built with camera permissions
+- **Mobile**: Native Android APK "Wil-C Operator" built with branded icons, splash screens, auto-redirect to operator login
 - **CI/CD**: GitHub Actions auto-deploys to Cloudflare Pages production on every push to `main` touching `frontend/`
-- **Documentation**: Updated May 13, 2026
+- **Documentation**: Updated May 19, 2026
 - **Testing**: Exercise smoke tests (`scripts/smoke-test-worker.ps1`) and `PWA_TESTING_GUIDE.md` on real devices
 
 The system is fully functional with two interfaces:
@@ -355,6 +371,10 @@ The system is fully functional with two interfaces:
 2. **React PWA** - Operator data input and settings; **Worker + Supabase** when configured
 
 ### Latest features (recent sessions):
+- Wil-C branding on PDF reports (logo embedded on cover, footer text)
+- Native Android app "Wil-C Operator" with branded launcher icons and splash screens
+- Auto-redirect to operator login when running inside Capacitor
+- APK download link on landing page (navbar, mobile menu, CTA section)
 - Timezone auto-detection across all pages (uses `Intl.DateTimeFormat`)
 - Custom in-app camera with live date/time watermark (replaces native camera)
 - Image timestamp watermarking on capture and upload
@@ -362,7 +382,7 @@ The system is fully functional with two interfaces:
 - PDF stat card overflow fix with auto-scaling fonts
 - Android WebView camera permission handling
 
-**Next focus:** Google Sheets backup, real-device camera testing, optional SQLite migration, and multi-tenant groundwork.
+**Next focus:** Real-device APK testing (install, camera, image upload, offline sync), Google Sheets backup, scheduling DB migration, multi-tenant groundwork.
 
 ## Sprint-ready execution plan (from analysis steps 1-3)
 
