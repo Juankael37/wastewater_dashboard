@@ -1,9 +1,5 @@
 import { motion } from 'framer-motion'
 
-/**
- * Full-screen animated water background with multiple layered waves.
- * Uses CSS gradients and Framer Motion for smooth organic movement.
- */
 const WaterBackground = () => {
   return (
     <div className="fixed inset-0 z-0 overflow-hidden pointer-events-none">
@@ -13,33 +9,24 @@ const WaterBackground = () => {
       {/* Animated gradient orbs */}
       <motion.div
         animate={{
-          x: [0, 100, -50, 0],
-          y: [0, -80, 40, 0],
-          scale: [1, 1.2, 0.9, 1],
-        }}
-        transition={{ duration: 20, repeat: Infinity, ease: 'linear' }}
-        className="absolute -top-1/4 -left-1/4 w-[80vw] h-[80vw] rounded-full
-                   bg-gradient-to-br from-teal-900/30 to-transparent blur-[120px]"
-      />
-      <motion.div
-        animate={{
-          x: [0, -80, 60, 0],
-          y: [0, 60, -40, 0],
-          scale: [1, 0.8, 1.1, 1],
+          x: [0, 60, -30, 0],
+          y: [0, -50, 20, 0],
         }}
         transition={{ duration: 25, repeat: Infinity, ease: 'linear' }}
-        className="absolute -bottom-1/4 -right-1/4 w-[70vw] h-[70vw] rounded-full
-                   bg-gradient-to-tl from-cyan-900/20 to-transparent blur-[120px]"
+        className="absolute -top-1/4 -left-1/4 w-[80vw] h-[80vw] rounded-full
+                   bg-gradient-to-br from-teal-900/30 to-transparent blur-[80px]"
       />
       <motion.div
         animate={{
-          x: [0, 50, -30, 0],
-          y: [0, -50, 30, 0],
+          x: [0, -50, 40, 0],
+          y: [0, 40, -30, 0],
         }}
-        transition={{ duration: 18, repeat: Infinity, ease: 'linear' }}
-        className="absolute top-1/3 left-1/2 -translate-x-1/2 w-[60vw] h-[60vw] rounded-full
-                   bg-gradient-to-br from-blue-900/15 to-transparent blur-[100px]"
+        transition={{ duration: 30, repeat: Infinity, ease: 'linear' }}
+        className="absolute -bottom-1/4 -right-1/4 w-[70vw] h-[70vw] rounded-full
+                   bg-gradient-to-tl from-cyan-900/20 to-transparent blur-[80px]"
       />
+      <div className="absolute top-1/3 left-1/2 -translate-x-1/2 w-[60vw] h-[60vw] rounded-full
+                      bg-gradient-to-br from-blue-900/15 to-transparent blur-[80px]" />
 
       {/* Animated wave layers using SVG */}
       <div className="absolute bottom-0 left-0 right-0 h-64 opacity-[0.06]">
@@ -47,7 +34,7 @@ const WaterBackground = () => {
           viewBox="0 0 1440 320"
           className="absolute bottom-0 w-full"
           animate={{ x: [0, -200, 0] }}
-          transition={{ duration: 12, repeat: Infinity, ease: 'easeInOut' }}
+          transition={{ duration: 15, repeat: Infinity, ease: 'easeInOut' }}
           preserveAspectRatio="none"
         >
           <path
@@ -66,8 +53,8 @@ const WaterBackground = () => {
         <motion.svg
           viewBox="0 0 1440 320"
           className="absolute bottom-0 w-full"
-          animate={{ x: [0, 150, 0] }}
-          transition={{ duration: 15, repeat: Infinity, ease: 'easeInOut' }}
+          animate={{ x: [0, 100, 0] }}
+          transition={{ duration: 18, repeat: Infinity, ease: 'easeInOut' }}
           preserveAspectRatio="none"
         >
           <path

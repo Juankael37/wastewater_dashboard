@@ -38,17 +38,17 @@ const HeroWaterAnimation = () => {
         />
 
         {/* Flowing water dots along the path */}
-        {[0, 1, 2, 3, 4, 5].map((i) => (
+        {[0, 1, 2].map((i) => (
           <motion.circle
             key={`dot-${i}`}
-            r="6"
-            fill={i % 2 === 0 ? '#14b8a6' : '#06b6d4'}
-            opacity="0.6"
+            r="5"
+            fill="#14b8a6"
+            opacity="0.5"
             initial={{ offsetDistance: '0%' }}
             animate={{ offsetDistance: '100%' }}
             transition={{
-              duration: 4,
-              delay: i * 0.7,
+              duration: 5,
+              delay: i * 1.2,
               repeat: Infinity,
               ease: 'linear',
             }}
@@ -67,55 +67,41 @@ const HeroWaterAnimation = () => {
           { cx: 600, cy: 200 },
           { cx: 750, cy: 150 },
         ].map((node, i) => (
-          <g key={`node-${i}`}>
-            <motion.circle
-              cx={node.cx}
-              cy={node.cy}
-              r="16"
-              fill="none"
-              stroke="#14b8a6"
-              strokeWidth="2"
-              initial={{ scale: 0, opacity: 0 }}
-              animate={{ scale: 1, opacity: 0.5 }}
-              transition={{ delay: 0.5 + i * 0.3, duration: 0.6 }}
-            />
-            <motion.circle
-              cx={node.cx}
-              cy={node.cy}
-              r="6"
-              fill="#14b8a6"
-              initial={{ scale: 0 }}
-              animate={{ scale: [1, 1.4, 1] }}
-              transition={{
-                delay: 0.8 + i * 0.3,
-                duration: 2,
-                repeat: Infinity,
-                ease: 'easeInOut',
-              }}
-              opacity="0.4"
-            />
-          </g>
+          <motion.circle
+            key={`node-${i}`}
+            cx={node.cx}
+            cy={node.cy}
+            r="14"
+            fill="none"
+            stroke="#14b8a6"
+            strokeWidth="2"
+            initial={{ scale: 0, opacity: 0 }}
+            animate={{ scale: [1, 1.1, 1], opacity: [0.4, 0.6, 0.4] }}
+            transition={{
+              delay: 0.5 + i * 0.3,
+              duration: 3,
+              repeat: Infinity,
+              ease: 'easeInOut',
+            }}
+          />
         ))}
 
         {/* Rising bubbles */}
         {[
-          { x: 200, delay: 0 },
-          { x: 350, delay: 1.5 },
-          { x: 500, delay: 0.8 },
-          { x: 650, delay: 2.2 },
-          { x: 250, delay: 3.0 },
-          { x: 550, delay: 1.2 },
+          { x: 200, delay: 0, r: 4, dur: 5 },
+          { x: 400, delay: 1.5, r: 3, dur: 6 },
+          { x: 600, delay: 0.8, r: 5, dur: 4.5 },
         ].map((b, i) => (
           <motion.circle
             key={`bubble-${i}`}
             cx={b.x}
-            r={3 + Math.random() * 4}
+            r={b.r}
             fill="#14b8a6"
             opacity="0.3"
             initial={{ cy: 380, opacity: 0 }}
             animate={{ cy: -20, opacity: [0, 0.4, 0] }}
             transition={{
-              duration: 4 + Math.random() * 3,
+              duration: b.dur,
               delay: b.delay,
               repeat: Infinity,
               ease: 'easeOut',
@@ -132,35 +118,7 @@ const HeroWaterAnimation = () => {
         </defs>
       </svg>
 
-      {/* Floating data indicators */}
-      {[
-        { label: 'pH 7.2', x: '20%', y: '30%', delay: 0 },
-        { label: 'BOD 45', x: '70%', y: '25%', delay: 1.5 },
-        { label: 'TSS 82', x: '15%', y: '65%', delay: 3 },
-        { label: 'COD 88', x: '75%', y: '70%', delay: 2 },
-      ].map((indicator, i) => (
-        <motion.div
-          key={`indicator-${i}`}
-          initial={{ opacity: 0, scale: 0.5 }}
-          animate={{
-            opacity: [0, 0.6, 0],
-            scale: [0.8, 1, 0.8],
-            y: [0, -20, 0],
-          }}
-          transition={{
-            duration: 5,
-            delay: indicator.delay,
-            repeat: Infinity,
-            ease: 'easeInOut',
-          }}
-          className="absolute hidden sm:block"
-          style={{ left: indicator.x, top: indicator.y }}
-        >
-          <div className="px-3 py-1.5 rounded-lg bg-slate-800/60 backdrop-blur border border-teal-500/20">
-            <span className="text-xs font-mono text-teal-400">{indicator.label}</span>
-          </div>
-        </motion.div>
-      ))}
+
     </div>
   )
 }
