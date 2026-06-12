@@ -237,9 +237,10 @@ Local Flask + React integration is done. The PWA can use **Supabase + Workers** 
 - [x] Close final gaps: Worker vs Flask feature parity for PWA Settings parameter-write routes (see `IMPLEMENTATION_ROADMAP.md`)
 
 ### Phase 5: Advanced Features
-- [x] Email automation (Daily/Weekly/Monthly reports) with Cloudflare CRON + PDF-lib PDF ✅
+- [x] Email automation (Daily/Weekly/Monthly reports) with Cloudflare CRON + PDF-lib PDF + domain-verified Resend sender ✅
 - [x] Timezone auto-detection and camera timestamp watermark ✅
 - [x] Custom in-app camera with live timestamp overlay ✅
+- [x] Custom camera + CORS domain (`wilc.ortuma.site`) deployed ✅
 - [x] Wil-C branding on PDF reports (logo + footer) ✅
 - [x] Native Android app (Wil-C Operator) with branded icons and download link ✅
 - [ ] Implement Google Sheets backup
@@ -362,7 +363,7 @@ Migration is complete when **all** of the following are true:
 - **Frontend**: React PWA live on Cloudflare Pages; both AquaDash and Operator portals functional on `wastewater-dashboard.pages.dev`
 - **Backend**: Worker live at `wastewater-api.juankael37.workers.dev`; CRON daily reports with correct date ranges
 - **Mobile**: Native Android APK "Wil-C Operator" built with branded icons, splash screens, auto-redirect to operator login
-- **CI/CD**: GitHub Actions auto-deploys to Cloudflare Pages production on every push to `main` touching `frontend/`
+- **CI/CD**: GitHub Actions auto-deploys to Cloudflare Pages on every push to `main` touching `frontend/` and/or `api/`
 - **Documentation**: Updated May 19, 2026
 - **Testing**: Exercise smoke tests (`scripts/smoke-test-worker.ps1`) and `PWA_TESTING_GUIDE.md` on real devices
 
@@ -371,6 +372,12 @@ The system is fully functional with two interfaces:
 2. **React PWA** - Operator data input and settings; **Worker + Supabase** when configured
 
 ### Latest features (recent sessions):
+- Domain-verified Resend email sender (`noreply@ortuma.site` replaces `onboarding@resend.dev`)
+- Custom domain `wilc.ortuma.site` with CORS allowlisting on Worker
+- Friendly login error messages (parsed from API JSON instead of raw blob)
+- Wil-C PDF filenames (replaced AquaDash naming)
+- Influent values exempt from compliance-limit warnings (applies to effluent only)
+- Flow rate unit standardized to `m³/day` across all frontend pages
 - Wil-C branding on PDF reports (logo embedded on cover, footer text)
 - Native Android app "Wil-C Operator" with branded launcher icons and splash screens
 - Auto-redirect to operator login when running inside Capacitor
@@ -383,6 +390,32 @@ The system is fully functional with two interfaces:
 - Android WebView camera permission handling
 
 **Next focus:** Real-device APK testing (install, camera, image upload, offline sync), Google Sheets backup, scheduling DB migration, multi-tenant groundwork.
+
+---
+
+### 🔖 Checkpoint — June 12, 2026 — Domain Email, CORS, Input Validation & Unit Consistency Fixes ✅
+
+**Completed in this checkpoint**
+
+- **Domain-verified email sender:** Replaced hardcoded `onboarding@resend.dev` with `RESEND_FROM_EMAIL` env var defaulting to `Wil-C Reports <noreply@ortuma.site>`. Emails can now be sent to any recipient (not just the registered Resend email).
+- **Custom domain CORS:** Added `https://wilc.ortuma.site` to worker `ALLOWED_ORIGINS` so the new custom domain can call the API.
+- **Friendly API error messages:** `apiRequest` now parses JSON error responses and extracts the `error` field, so users see `Invalid login credentials` instead of raw JSON blobs.
+- **PDF filename rebrand:** All automated PDF filenames changed from `AquaDash_*_report_*.pdf` to `Wil-C_*_report_*.pdf` (CRON handler, test report route).
+- **Influent validation fix:** `InputPage` no longer shows "Exceeds limit" or "Approaching limit" warnings for influent values — compliance checks only apply to effluent (treated water).
+- **Flow rate unit consistency:** Changed from `m³/h` (and rogue `L/min` in InputPage) to `m³/day` across frontend (`dashboard.ts`, `DashboardPage.tsx`, `InputPage.tsx`). Database schema already uses `m³/day`.
+
+**Files changed**
+- `api/src/emailService.js` — sender from `RESEND_FROM_EMAIL` env var
+- `api/wrangler.toml` — added `RESEND_FROM_EMAIL`, `wilc.ortuma.site` to allowed origins
+- `api/src/index.js` — PDF filename `Wil-C_*...`
+- `api/src/routes/settings.js` — PDF filename `Wil-C_*...`
+- `frontend/src/services/api/client.ts` — parsed JSON error messages
+- `frontend/src/pages/input/InputPage.tsx` — influent skips limits, flow unit `m³/day`
+- `frontend/src/services/api/dashboard.ts` — flow unit `m³/day`
+- `frontend/src/pages/dashboard/DashboardPage.tsx` — flow unit `m³/day`
+- `frontend/src/pages/settings/ReportSettingsSection.tsx` — updated sender mention
+
+---
 
 ## Sprint-ready execution plan (from analysis steps 1-3)
 
