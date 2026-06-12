@@ -217,15 +217,17 @@ const InputPage: React.FC = () => {
     nitrate: { min: 0, max: 14, unit: 'mg/L' },
     phosphate: { min: 0, max: 1, unit: 'mg/L' },
     temperature: { min: 10, max: 40, unit: '°C' },
-    flow: { min: 0, max: 5000, unit: 'L/min' }
+    flow: { min: 0, max: 5000, unit: 'm³/day' }
   }
 
-  const validateParameter = (param: string, value: string) => {
+  const validateParameter = (param: string, value: string, type: string) => {
     const standard = standards[param as keyof typeof standards]
     if (!standard || !value) return null
 
     const numValue = parseFloat(value)
     if (isNaN(numValue)) return null
+
+    if (type !== 'effluent') return { valid: true }
 
     if (numValue < standard.min || numValue > standard.max) {
       return {
@@ -434,7 +436,8 @@ const InputPage: React.FC = () => {
 
   const renderParameterInput = (param: keyof InputFormData, label: string) => {
     const value = watch(param)
-    const validation = value ? validateParameter(param, value) : null
+    const measurementType = watch('type')
+    const validation = value ? validateParameter(param, value, measurementType) : null
     const hasCamera = parametersWithCamera.includes(param)
     const imageStatus = capturedImages[param]
 

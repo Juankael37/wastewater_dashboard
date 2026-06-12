@@ -23,7 +23,7 @@ const PARAM_CONFIG: Record<string, { label: string; unit: string; min: number; m
   nitrate: { label: 'Nitrate', unit: 'mg/L', min: 0, max: 14, color: '#10b981' },
   phosphate: { label: 'Phosphate', unit: 'mg/L', min: 0, max: 1, color: '#84cc16' },
   temperature: { label: 'Temperature', unit: '°C', min: 10, max: 40, color: '#f43f5e' },
-  flow: { label: 'Flow', unit: 'm³/h', min: 0, max: 5000, color: '#6366f1' },
+  flow: { label: 'Flow', unit: 'm³/day', min: 0, max: 5000, color: '#6366f1' },
 };
 
 const PARAM_KEYS = Object.keys(PARAM_CONFIG);

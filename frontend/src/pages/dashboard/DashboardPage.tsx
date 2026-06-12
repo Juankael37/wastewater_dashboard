@@ -52,7 +52,7 @@ const DashboardPage: React.FC = () => {
     nitrate: { unit: 'mg/L', icon: <Beaker className="w-4 h-4" />, color: '#10b981', min: 0, max: 14 },
     phosphate: { unit: 'mg/L', icon: <Beaker className="w-4 h-4" />, color: '#84cc16', min: 0, max: 1 },
     temperature: { unit: '°C', icon: <Thermometer className="w-4 h-4" />, color: '#f43f5e', min: 10, max: 40 },
-    flow: { unit: 'm³/h', icon: <Wind className="w-4 h-4" />, color: '#6366f1', min: 0, max: 5000 }
+    flow: { unit: 'm³/day', icon: <Wind className="w-4 h-4" />, color: '#6366f1', min: 0, max: 5000 }
   }
 
   const fetchData = async (showLoader: boolean = false) => {

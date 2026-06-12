@@ -262,7 +262,7 @@ export default {
           const pdfBase64 = btoa(binary);
 
           const attachments = [{
-            filename: `AquaDash_${freq}_report_${range.start}_${range.end}.pdf`,
+            filename: `Wil-C_${freq}_report_${range.start}_${range.end}.pdf`,
             content: pdfBase64
           }];
 
