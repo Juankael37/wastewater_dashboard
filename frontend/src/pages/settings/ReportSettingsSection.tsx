@@ -177,7 +177,7 @@ const ReportSettingsSection: React.FC = () => {
           </button>
         </h3>
         <p className="text-sm text-gray-500 dark:text-slate-400 mb-6">
-          Configure automated reports. Emails are sent via Resend (Free tier: 3,000 emails/month).
+          Configure automated reports. Emails are sent from noreply@ortuma.site via Resend (Free tier: 3,000 emails/month).
         </p>
 
         <form onSubmit={handleAddRecipient} className="mb-8">

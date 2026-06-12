@@ -1,7 +1,7 @@
 /**
- * Email service — generates and sends automated reports via MailChannels.
- * MailChannels is a Cloudflare partner that allows sending emails from Workers
- * without an API key or domain verification in many cases.
+ * Email service — sends automated reports via Resend.
+ * Requires RESEND_API_KEY (secret). Sender address is configurable via
+ * RESEND_FROM_EMAIL, falling back to the default domain-verified address.
  */
 
 export async function sendEmailViaResend(env, { to, subject, htmlContent, attachments = [] }) {
@@ -10,8 +10,10 @@ export async function sendEmailViaResend(env, { to, subject, htmlContent, attach
     throw new Error('RESEND_API_KEY is not configured in environment variables');
   }
 
+  const from = (env.RESEND_FROM_EMAIL || 'Wil-C Reports <noreply@ortuma.site>').trim();
+
   const payload = {
-    from: 'AquaDash Reports <onboarding@resend.dev>',
+    from,
     to: [to],
     subject: subject,
     html: htmlContent,
