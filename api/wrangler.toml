@@ -8,7 +8,7 @@ compatibility_flags = ["nodejs_compat"]
 
 [vars]
 SUPABASE_URL = "https://pkyazsrbhjtxbpwsxbwe.supabase.co"
-ALLOWED_ORIGINS = "LAN_DEV_ORIGINS,http://localhost:5173,http://127.0.0.1:5173,http://localhost:4173,http://127.0.0.1:4173,https://wastewater-dashboard.pages.dev,https://main.wastewater-dashboard.pages.dev,https://*.pages.dev"
+ALLOWED_ORIGINS = "LAN_DEV_ORIGINS,http://localhost:5173,http://127.0.0.1:5173,http://localhost:4173,http://127.0.0.1:4173,https://wastewater-dashboard.pages.dev,https://main.wastewater-dashboard.pages.dev,https://*.pages.dev,https://wilc.ortuma.site"
 GOOGLE_SHEETS_ID = "1k-awP_yG3tzLbQ_-t8j5Y0BgZ8eEXP0wk7d_Os7kmfU"
 RESEND_FROM_EMAIL = "Wil-C Reports <noreply@ortuma.site>"
 
