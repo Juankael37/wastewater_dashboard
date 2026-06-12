@@ -67,7 +67,12 @@ export async function apiRequest<T>(
     const contentType = response.headers.get('content-type');
     if (!response.ok) {
       const errorText = await response.text();
-      throw new Error(`API Error (${response.status}): ${errorText}`);
+      try {
+        const parsed = JSON.parse(errorText);
+        throw new Error(parsed.error || parsed.message || `Request failed (${response.status})`);
+      } catch {
+        throw new Error(errorText || `Request failed (${response.status})`);
+      }
     }
 
     if (contentType && contentType.includes('application/json')) {
