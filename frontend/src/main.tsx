@@ -55,22 +55,9 @@ const queryClient = new QueryClient({
   },
 })
 
-// Register service worker for PWA
-if ('serviceWorker' in navigator && import.meta.env.PROD) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js').then(
-      (registration) => {
-        console.log('ServiceWorker registration successful with scope: ', registration.scope)
-        // Force the new service worker to activate immediately so users
-        // don't get stuck on a stale cached bundle after a deploy.
-        if (registration.waiting) registration.waiting.postMessage({ type: 'SKIP_WAITING' })
-      },
-      (err) => {
-        console.log('ServiceWorker registration failed: ', err)
-      }
-    )
-  })
-}
+// Service worker registration is handled by vite-plugin-pwa's registerSW.js
+// (injected into index.html). The workbox config in vite.config.ts sets
+// skipWaiting + clientsClaim so new deploys activate immediately.
 
 // Surface early (pre-render) load errors instead of a silent white screen.
 window.addEventListener('error', (e) => {

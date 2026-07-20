@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom'
 import WaterBubbles from '../../components/landing/WaterBubbles'
 
-const PRIVACY_EMAIL = 'noreply@ortuma.site'
+const PRIVACY_EMAIL = 'wilc.privacy@ortuma.site'
 const LAST_UPDATED = 'July 20, 2026'
 
 const Section = ({ title, children }: { title: string; children: React.ReactNode }) => (

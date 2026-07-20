@@ -48,6 +48,19 @@ export default defineConfig({
         ]
       },
       workbox: {
+        // Immediately activate new service worker so users never get stuck
+        // on a stale cached bundle after a deploy.
+        skipWaiting: true,
+        clientsClaim: true,
+        // Remove old precache entries whose hashes no longer match the
+        // current manifest. Without this, stale chunks accumulate and the
+        // SW may serve an old index.html that references deleted JS files.
+        cleanupOutdatedCaches: true,
+        // SPA fallback: return /index.html for all navigation requests so
+        // deep-link routes like /auth/confirm are handled by React Router
+        // instead of returning a 404 from the cache.
+        navigateFallback: '/index.html',
+        navigateFallbackDenylist: [/^\/api/, /\/sw\.js$/],
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
         runtimeCaching: [
           {

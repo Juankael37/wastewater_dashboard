@@ -61,3 +61,8 @@ Desktop.ini
 
 # Wrangler
 .wrangler/
+
+# Custom ignored files
+.opencode/
+aicontext.md
+api/.tmp_build/
