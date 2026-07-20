@@ -3,7 +3,7 @@ import { motion, useScroll, useTransform, useInView } from 'framer-motion'
 import { Link } from 'react-router-dom'
 import {
   Shield, BarChart3, Bell, FileText, Smartphone,
-  Wifi, WifiOff, Camera, Clock, Users, ChevronRight,
+  Wifi, WifiOff, Camera, Users, ChevronRight,
   Activity, Zap, Globe, ArrowRight, Menu, X, Download
 } from 'lucide-react'
 import { useState } from 'react'
@@ -114,7 +114,7 @@ const LandingPage = () => {
   const heroScale = useTransform(scrollYProgress, [0, 0.15], [1, 0.95])
 
   const features = [
-    { icon: BarChart3, title: 'Data Dashboard', description: 'Monitor manually inputted influent & effluent data with charts, compliance indicators, and anomaly detection.', gradient: 'linear-gradient(135deg, #14b8a6, #06b6d4)' },
+    { icon: BarChart3, title: 'Data Dashboard', description: 'Monitor manually inputted influent & effluent data with charts and compliance indicators against regulatory limits.', gradient: 'linear-gradient(135deg, #14b8a6, #06b6d4)' },
     { icon: Smartphone, title: 'Mobile-First PWA', description: 'Capture data in the field with our installable Progressive Web App — works on any device.', gradient: 'linear-gradient(135deg, #6366f1, #8b5cf6)' },
     { icon: WifiOff, title: 'Offline Capable (Coming Soon)', description: 'We are actively integrating offline support. Soon, you will be able to capture data without a signal and auto-sync later.', gradient: 'linear-gradient(135deg, #f59e0b, #ef4444)' },
     { icon: Camera, title: 'Timestamp Camera', description: 'Built-in camera with automatic timestamp & parameter watermarks baked into every photo.', gradient: 'linear-gradient(135deg, #ec4899, #f43f5e)' },
@@ -144,8 +144,11 @@ const LandingPage = () => {
         <div className="mx-4 mt-4">
           <div className="max-w-7xl mx-auto bg-slate-900/70 backdrop-blur-2xl border border-slate-700/40
                           rounded-2xl px-6 py-3 flex items-center justify-between shadow-2xl shadow-black/20">
-            <Link to="/" className="flex items-center gap-3 cursor-pointer">
+             <Link to="/" className="flex items-center gap-3 cursor-pointer">
               <img src="/Official Header logo.png" alt="Logo" className="h-10 w-auto" />
+              <span className="px-2.5 py-1 text-xs font-semibold uppercase tracking-wider text-amber-300 bg-amber-400/10 border border-amber-400/30 rounded-full">
+                Beta
+              </span>
             </Link>
 
             {/* Desktop nav */}
@@ -343,17 +346,21 @@ const LandingPage = () => {
       <section id="stats" className="relative py-24 sm:py-32 px-4">
         <div className="max-w-6xl mx-auto">
           <FadeInSection className="text-center mb-16">
-            <span className="text-teal-400 text-sm font-semibold uppercase tracking-wider">Real Impact</span>
+            <span className="text-teal-400 text-sm font-semibold uppercase tracking-wider">Current Status</span>
             <h2 className="text-3xl sm:text-5xl font-bold text-white mt-3 mb-4">
-              Built for Scale
+              Currently in Private Beta
             </h2>
+            <p className="text-slate-400 text-lg max-w-2xl mx-auto">
+              Wil-C is being tested with a small group of operators. Metrics below reflect
+              what the product is built to do today — not yet measured at scale.
+            </p>
           </FadeInSection>
 
           <StaggerContainer className="grid grid-cols-2 lg:grid-cols-4 gap-6">
-            <StatsCounter end={99.9} suffix="%" label="Uptime SLA" icon={Zap} />
-            <StatsCounter end={500} suffix="+" label="Data Points / Day" icon={Activity} />
-            <StatsCounter end={24} suffix="/7" label="Monitoring" icon={Clock} />
-            <StatsCounter end={100} suffix="%" label="Compliance Rate" icon={Shield} />
+            <StatsCounter end={1} suffix="" label="Currently in private beta" icon={Zap} />
+            <StatsCounter end={9} suffix="" label="Parameters tracked per reading" icon={Activity} />
+            <StatsCounter end={3} suffix="" label="User roles: Admin, Operator, Client" icon={Users} />
+            <StatsCounter end={0} suffix="" label="Infrastructure cost (free tier)" icon={Shield} />
           </StaggerContainer>
         </div>
       </section>
@@ -444,6 +451,8 @@ const LandingPage = () => {
             <a href="#features" className="text-sm text-slate-500 hover:text-slate-300 transition-colors cursor-pointer">Features</a>
             <a href="#how-it-works" className="text-sm text-slate-500 hover:text-slate-300 transition-colors cursor-pointer">How It Works</a>
             <Link to="/login/aquadash" className="text-sm text-slate-500 hover:text-slate-300 transition-colors cursor-pointer">Login</Link>
+            <Link to="/privacy" className="text-sm text-slate-500 hover:text-slate-300 transition-colors cursor-pointer">Privacy</Link>
+            <Link to="/terms" className="text-sm text-slate-500 hover:text-slate-300 transition-colors cursor-pointer">Terms</Link>
           </div>
         </div>
       </footer>

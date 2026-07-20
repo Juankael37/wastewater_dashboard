@@ -16,6 +16,7 @@ import { isCapacitorNative } from './utils/capacitor'
 const AquaLoginPage = lazy(() => import('./pages/auth/AquaLoginPage'))
 const OperatorLoginPage = lazy(() => import('./pages/auth/OperatorLoginPage'))
 const SignupPage = lazy(() => import('./pages/auth/SignupPage'))
+const VerifyEmailPage = lazy(() => import('./pages/auth/VerifyEmailPage'))
 const DashboardPage = lazy(() => import('./pages/dashboard/DashboardPage'))
 const GraphsPage = lazy(() => import('./pages/dashboard/GraphsPage'))
 const InputPage = lazy(() => import('./pages/input/InputPage'))
@@ -24,6 +25,8 @@ const AlertsPage = lazy(() => import('./pages/alerts/AlertsPage'))
 const SettingsPage = lazy(() => import('./pages/settings/SettingsPage'))
 const NotFoundPage = lazy(() => import('./pages/NotFoundPage'))
 const LandingPage = lazy(() => import('./pages/landing/LandingPage'))
+const PrivacyPolicyPage = lazy(() => import('./pages/legal/PrivacyPolicyPage'))
+const TermsOfServicePage = lazy(() => import('./pages/legal/TermsOfServicePage'))
 
 // Dynamically select the layout based on user role
 const DynamicLayout = () => {
@@ -92,6 +95,10 @@ function App() {
             <Route path="/login/aquadash" element={<AquaLoginPage />} />
             <Route path="/login/operator" element={<OperatorLoginPage />} />
             <Route path="/signup" element={<SignupPage />} />
+            <Route path="/auth/confirm" element={<VerifyEmailPage />} />
+            <Route path="/auth/verify" element={<VerifyEmailPage />} />
+            <Route path="/privacy" element={<PrivacyPolicyPage />} />
+            <Route path="/terms" element={<TermsOfServicePage />} />
             
             {/* Shared routes (Dynamic Layout) */}
             <Route element={<ProtectedRoute />}>
