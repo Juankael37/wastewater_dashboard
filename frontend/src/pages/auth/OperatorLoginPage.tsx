@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
-import { Eye, EyeOff, Mail, Lock, UserPlus } from 'lucide-react'
+import { authApi } from '../../services/api'
+import { Eye, EyeOff, Mail, Lock, UserPlus, Send } from 'lucide-react'
 import WaterBubbles from '../../components/landing/WaterBubbles'
 
 const OperatorLoginPage = () => {
@@ -10,6 +11,9 @@ const OperatorLoginPage = () => {
   const [error, setError] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
+  const [unconfirmed, setUnconfirmed] = useState(false)
+  const [resendState, setResendState] = useState<'idle' | 'sending' | 'sent'>('idle')
+  const [resendError, setResendError] = useState('')
   
   const { signIn } = useAuth()
   const navigate = useNavigate()
@@ -17,6 +21,7 @@ const OperatorLoginPage = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
+    setUnconfirmed(false)
     setIsLoading(true)
 
     try {
@@ -25,9 +30,27 @@ const OperatorLoginPage = () => {
       localStorage.setItem('active_portal', 'operator')
       navigate('/input')
     } catch (err: any) {
-      setError(err.message || 'Failed to sign in')
+      const raw = err.message || 'Failed to sign in'
+      if (/email not confirmed|not confirmed|verify your email/i.test(raw)) {
+        setUnconfirmed(true)
+        setError('Your email is not verified yet. Please check your inbox for the confirmation link, or resend it below.')
+      } else {
+        setError(raw)
+      }
     } finally {
       setIsLoading(false)
+    }
+  }
+
+  const handleResend = async () => {
+    setResendError('')
+    setResendState('sending')
+    try {
+      await authApi.resendVerification(email)
+      setResendState('sent')
+    } catch (err: any) {
+      setResendError(err.message || 'Failed to resend verification email')
+      setResendState('idle')
     }
   }
 
@@ -97,6 +120,29 @@ const OperatorLoginPage = () => {
 
             {error && (
               <div className="bg-red-50 border border-red-200 text-red-700 p-3 rounded-xl text-sm">{error}</div>
+            )}
+
+            {unconfirmed && (
+              <div className="space-y-3">
+                {resendState === 'sent' ? (
+                  <div className="bg-green-50 border border-green-200 text-green-700 p-3 rounded-xl text-sm">
+                    Verification email resent. Check your inbox.
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={handleResend}
+                    disabled={resendState === 'sending' || !email}
+                    className="w-full inline-flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-xl font-semibold disabled:opacity-50 transition-all"
+                  >
+                    <Send className="w-4 h-4" />
+                    {resendState === 'sending' ? 'Sending…' : 'Resend confirmation email'}
+                  </button>
+                )}
+                {resendError && (
+                  <div className="bg-red-50 border border-red-200 text-red-700 p-3 rounded-xl text-sm">{resendError}</div>
+                )}
+              </div>
             )}
 
             <button

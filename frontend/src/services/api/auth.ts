@@ -28,8 +28,8 @@ export const authApi = {
     password: string,
     fullName?: string,
     role: 'admin' | 'operator' | 'client' = 'operator',
-  ): Promise<{ user: any; session: any }> => {
-    const result = await apiRequest<{ user: any; session: any }>('/auth/register', {
+  ): Promise<{ user: any; session: any; needsConfirmation?: boolean }> => {
+    const result = await apiRequest<{ user: any; session: any; needsConfirmation?: boolean }>('/auth/register', {
       method: 'POST',
       body: JSON.stringify({
         email,
@@ -44,6 +44,20 @@ export const authApi = {
     }
 
     return result;
+  },
+
+  resendVerification: async (email: string): Promise<{ message: string }> => {
+    return apiRequest<{ message: string }>('/auth/resend-verification', {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+    });
+  },
+
+  verifyEmail: async (token: string): Promise<{ session: any }> => {
+    return apiRequest<{ session: any }>('/auth/verify', {
+      method: 'GET',
+      headers: { Authorization: `Bearer ${token}` },
+    });
   },
 
   checkAuth: async (): Promise<{ authenticated: boolean; user?: any }> => {

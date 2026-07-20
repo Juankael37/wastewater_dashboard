@@ -18,6 +18,7 @@ import { isSheetsBackupConfigured } from './sheetsBackup.js'
 import { getWorkerCapabilities } from './middleware.js'
 
 import authRoutes from './routes/auth.js'
+import emailHookRoutes from './routes/emailHook.js'
 import measurementRoutes from './routes/measurements.js'
 import alertRoutes from './routes/alerts.js'
 import reportRoutes from './routes/reports.js'
@@ -141,6 +142,7 @@ app.get('/capabilities', (c) => c.json(getWorkerCapabilities(c.env)))
 // ---------------------------------------------------------------------------
 
 app.route('/auth', authRoutes)
+app.route('/auth', emailHookRoutes)
 app.route('/', measurementRoutes)
 app.route('/', alertRoutes)
 app.route('/', reportRoutes)

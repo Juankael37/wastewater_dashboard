@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
-import { Eye, EyeOff, Mail, Lock, UserPlus } from 'lucide-react'
+import { authApi } from '../../services/api'
+import { Eye, EyeOff, Mail, Lock, UserPlus, Send } from 'lucide-react'
 import WaterBubbles from '../../components/landing/WaterBubbles'
 
 const AquaLoginPage = () => {
@@ -10,12 +11,16 @@ const AquaLoginPage = () => {
   const [error, setError] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
+  const [unconfirmed, setUnconfirmed] = useState(false)
+  const [resendState, setResendState] = useState<'idle' | 'sending' | 'sent'>('idle')
+  const [resendError, setResendError] = useState('')
   
   const { signIn } = useAuth()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
+    setUnconfirmed(false)
     setIsLoading(true)
 
     try {
@@ -37,9 +42,27 @@ const AquaLoginPage = () => {
       
       window.location.href = '/dashboard'
     } catch (err: any) {
-      setError(err.message || 'Failed to sign in')
+      const raw = err.message || 'Failed to sign in'
+      if (/email not confirmed|not confirmed|verify your email/i.test(raw)) {
+        setUnconfirmed(true)
+        setError('Your email is not verified yet. Please check your inbox for the confirmation link, or resend it below.')
+      } else {
+        setError(raw)
+      }
     } finally {
       setIsLoading(false)
+    }
+  }
+
+  const handleResend = async () => {
+    setResendError('')
+    setResendState('sending')
+    try {
+      await authApi.resendVerification(email)
+      setResendState('sent')
+    } catch (err: any) {
+      setResendError(err.message || 'Failed to resend verification email')
+      setResendState('idle')
     }
   }
 
@@ -107,6 +130,29 @@ const AquaLoginPage = () => {
 
             {error && (
               <div className="bg-red-500/10 border border-red-500/20 text-red-400 p-3 rounded-xl text-sm">{error}</div>
+            )}
+
+            {unconfirmed && (
+              <div className="space-y-3">
+                {resendState === 'sent' ? (
+                  <div className="bg-green-500/10 border border-green-500/20 text-green-400 p-3 rounded-xl text-sm">
+                    Verification email resent. Check your inbox.
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={handleResend}
+                    disabled={resendState === 'sending' || !email}
+                    className="w-full inline-flex items-center justify-center gap-2 bg-slate-700/50 hover:bg-slate-700 text-white py-3 rounded-xl font-semibold disabled:opacity-50 transition-all"
+                  >
+                    <Send className="w-4 h-4" />
+                    {resendState === 'sending' ? 'Sending…' : 'Resend confirmation email'}
+                  </button>
+                )}
+                {resendError && (
+                  <div className="bg-red-500/10 border border-red-500/20 text-red-400 p-3 rounded-xl text-sm">{resendError}</div>
+                )}
+              </div>
             )}
 
             <button
