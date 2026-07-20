@@ -32,10 +32,27 @@ class ErrorBoundary extends React.Component<
     if (isChunkLoadFailed) {
       const lastReload = localStorage.getItem('last_chunk_error_reload')
       const now = Date.now()
-      // Prevent infinite reload loops (only reload if last error reload was > 10s ago)
       if (!lastReload || now - parseInt(lastReload, 10) > 10000) {
         localStorage.setItem('last_chunk_error_reload', now.toString())
-        window.location.reload()
+        
+        // Unregister service workers and clear caches to force network fetch on reload
+        if ('serviceWorker' in navigator) {
+          navigator.serviceWorker.getRegistrations().then((registrations) => {
+            for (const registration of registrations) {
+              registration.unregister()
+            }
+          })
+        }
+        if ('caches' in window) {
+          caches.keys().then((keys) => {
+            keys.forEach((key) => caches.delete(key))
+          })
+        }
+        
+        // Short delay to let unregister/clear execute, then reload
+        setTimeout(() => {
+          window.location.reload()
+        }, 300)
       }
     }
   }
@@ -77,6 +94,30 @@ const queryClient = new QueryClient({
 // (injected into index.html). The workbox config in vite.config.ts sets
 // skipWaiting + clientsClaim so new deploys activate immediately.
 
+// Helper function to clean caches and unregister SW before reload
+const forceCleanReload = () => {
+  const lastReload = localStorage.getItem('last_chunk_error_reload')
+  const now = Date.now()
+  if (!lastReload || now - parseInt(lastReload, 10) > 10000) {
+    localStorage.setItem('last_chunk_error_reload', now.toString())
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistrations().then((registrations) => {
+        for (const registration of registrations) {
+          registration.unregister()
+        }
+      })
+    }
+    if ('caches' in window) {
+      caches.keys().then((keys) => {
+        keys.forEach((key) => caches.delete(key))
+      })
+    }
+    setTimeout(() => {
+      window.location.reload()
+    }, 300)
+  }
+}
+
 // Surface early (pre-render) load errors instead of a silent white screen.
 window.addEventListener('error', (e) => {
   const target = e.target as HTMLElement | null
@@ -90,12 +131,7 @@ window.addEventListener('error', (e) => {
     e.message.includes('chunk')
   )
   if (isChunkLoadFailed) {
-    const lastReload = localStorage.getItem('last_chunk_error_reload')
-    const now = Date.now()
-    if (!lastReload || now - parseInt(lastReload, 10) > 10000) {
-      localStorage.setItem('last_chunk_error_reload', now.toString())
-      window.location.reload()
-    }
+    forceCleanReload()
   }
 })
 
@@ -103,12 +139,7 @@ window.addEventListener('error', (e) => {
 window.addEventListener('unhandledrejection', (e) => {
   const message = e.reason?.message || ''
   if (message.includes('Failed to fetch dynamically imported module')) {
-    const lastReload = localStorage.getItem('last_chunk_error_reload')
-    const now = Date.now()
-    if (!lastReload || now - parseInt(lastReload, 10) > 10000) {
-      localStorage.setItem('last_chunk_error_reload', now.toString())
-      window.location.reload()
-    }
+    forceCleanReload()
   }
 })
 
