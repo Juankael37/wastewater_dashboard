@@ -20,6 +20,24 @@ class ErrorBoundary extends React.Component<
 
   componentDidCatch(error: Error, info: React.ErrorInfo) {
     console.error('App crashed:', error, info)
+    
+    // Automatically reload the page once if a dynamic import/chunk fails to load.
+    // This happens when a new version is deployed and the user's browser attempts to
+    // load old chunk hashes that no longer exist on the server.
+    const isChunkLoadFailed = 
+      error.message.includes('Failed to fetch dynamically imported module') ||
+      error.message.includes('chunk') || 
+      error.message.includes('loading css');
+      
+    if (isChunkLoadFailed) {
+      const lastReload = localStorage.getItem('last_chunk_error_reload')
+      const now = Date.now()
+      // Prevent infinite reload loops (only reload if last error reload was > 10s ago)
+      if (!lastReload || now - parseInt(lastReload, 10) > 10000) {
+        localStorage.setItem('last_chunk_error_reload', now.toString())
+        window.location.reload()
+      }
+    }
   }
 
   render() {
@@ -64,6 +82,33 @@ window.addEventListener('error', (e) => {
   const target = e.target as HTMLElement | null
   if (target && (target.tagName === 'SCRIPT' || target.tagName === 'LINK')) {
     console.error('Resource failed to load:', (target as HTMLScriptElement).src || (target as HTMLLinkElement).href)
+  }
+
+  // Handle chunk loading error at window level
+  const isChunkLoadFailed = e.message && (
+    e.message.includes('Failed to fetch dynamically imported module') ||
+    e.message.includes('chunk')
+  )
+  if (isChunkLoadFailed) {
+    const lastReload = localStorage.getItem('last_chunk_error_reload')
+    const now = Date.now()
+    if (!lastReload || now - parseInt(lastReload, 10) > 10000) {
+      localStorage.setItem('last_chunk_error_reload', now.toString())
+      window.location.reload()
+    }
+  }
+})
+
+// Dynamic imports produce unhandled promise rejections on network/fetch failures
+window.addEventListener('unhandledrejection', (e) => {
+  const message = e.reason?.message || ''
+  if (message.includes('Failed to fetch dynamically imported module')) {
+    const lastReload = localStorage.getItem('last_chunk_error_reload')
+    const now = Date.now()
+    if (!lastReload || now - parseInt(lastReload, 10) > 10000) {
+      localStorage.setItem('last_chunk_error_reload', now.toString())
+      window.location.reload()
+    }
   }
 })
 
